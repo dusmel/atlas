@@ -97,11 +97,12 @@ export async function cmdStatus(args: string[]): Promise<void> {
 
   console.log(`Repo: ${repo.repoId}`);
   console.log(`Root: ${repo.repoRoot}`);
-  console.log(`Atlas dir: ${cand ? targetDir : ''}`);
 
   try {
     const current = await readlink(linkPath);
-    if (current === targetDir) {
+    const isPromoted = current === targetDir;
+    console.log(`Atlas dir: ${isPromoted ? targetDir : ''}`);
+    if (isPromoted) {
       console.log("State: promoted");
       return;
     }

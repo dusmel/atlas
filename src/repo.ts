@@ -9,7 +9,7 @@
 import { join, basename } from "node:path";
 import { mkdir, readlink, rm, access, appendFile, readFile, symlink } from "node:fs/promises";
 import type { RepoInfo, EnsureResult } from "./types.ts";
-import { REPOS_DIR } from "./config.ts";
+import { REPOS_DIR, ALIASES, SCORE_RULES } from "./config.ts";
 import { err, nowIso, atomicWrite } from "./util.ts";
 import { resolveRepo } from "./git.ts";
 import { clearCandidate } from "./state.ts";
@@ -106,12 +106,24 @@ export async function ensureRepo(base = process.cwd()): Promise<EnsureResult | n
 export function scoreForCommand(cmd: string): number {
   const c = cmd.trim();
 
-  if (/^git\s+(help|version|rev-parse)(\s|$)/.test(c)) return 0;
-  if (/^git\s+(status|log|branch|show|remote\s+-v)(\s|$)/.test(c)) return 1;
-  if (/^git\s+(diff|switch|checkout|pull|fetch)(\s|$)/.test(c)) return 2;
-  if (/^git\s+(add|commit|merge|rebase|stash|cherry-pick|worktree\s+add)(\s|$)/.test(c)) return 4;
+  // Resolve aliases to canonical forms.
+  const firstWord = c.split(/\s+/)[0] ?? "";
+  const normalized = ALIASES[firstWord] ?? c;
+  const tokens = normalized.split(/\s+/);
 
-  if (/^(zed|code|vim|nvim|opencode|pi|claude|claude-code)(\s|$)/.test(c)) return 1;
+  // Find the first rule whose token prefix matches.
+  for (const rule of SCORE_RULES) {
+    if (tokens.length < rule.tokens.length) continue;
+    let match = true;
+    for (let i = 0; i < rule.tokens.length; i++) {
+      const t = tokens[i];
+      if (t === undefined || t !== rule.tokens[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return rule.score;
+  }
 
   return 0;
 }
