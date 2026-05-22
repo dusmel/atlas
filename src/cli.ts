@@ -5,29 +5,49 @@
  * subcommand handler (`ensure`, `promote`, `observe`, `status`).
  */
 
-import { join, basename } from "node:path";
-import { readlink, access } from "node:fs/promises";
-import { THRESHOLD, STALE_SECONDS, REPOS_DIR } from "./config.ts";
+import { join } from "node:path";
+import { readlink } from "node:fs/promises";
+import { THRESHOLD, STALE_SECONDS } from "./config.ts";
 import type { Candidate } from "./types.ts";
 import { err, nowEpoch, nowIso, usage } from "./util.ts";
 import { resolveRepo } from "./git.ts";
 import { loadCandidate, saveCandidate, clearCandidate } from "./state.ts";
-import { ensureRepo, scoreForCommand } from "./repo.ts";
+import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId } from "./repo.ts";
 
 /** `atlas ensure [--repo PATH]` — ensure the repo is atlas-ready. */
 export async function cmdEnsure(args: string[]): Promise<void> {
   const base = getRepoArg(args) ?? process.cwd();
-  await ensureRepo(base);
+  const repo = await resolveRepo(base);
+  if (!repo) {
+    err("Not inside a git repository.");
+    process.exitCode = 1;
+    return;
+  }
+  const finalRepoId = await resolveRepoId(repo, false);
+  if (!finalRepoId) return;
+  repo.repoId = finalRepoId;
+  await ensureRepo(base, repo);
 }
 
 /** `atlas promote [--repo PATH]` — force-promote a repo and clear its candidate state. */
 export async function cmdPromote(args: string[]): Promise<void> {
   const base = getRepoArg(args) ?? process.cwd();
-  const result = await ensureRepo(base);
+  const repo = await resolveRepo(base);
+  if (!repo) {
+    err("Not inside a git repository.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const localRepoId = repo.repoId;
+  const finalRepoId = await resolveRepoId(repo, true);
+  if (!finalRepoId) return;
+
+  repo.repoId = finalRepoId;
+  const result = await ensureRepo(base, repo);
   if (!result) return;
-  await clearCandidate(result.repo.repoId);
-  const projectName = basename(result.repo.repoRoot);
-  console.log(result.changed ? `Atlas linked: ${result.repo.repoRoot}/${projectName}` : "Atlas already linked.");
+  await clearCandidate(localRepoId);
+  console.log(result.changed ? `Atlas linked: ${result.repo.repoRoot}/atlas` : "Atlas already linked.");
 }
 
 /**
@@ -74,8 +94,13 @@ export async function cmdObserve(args: string[]): Promise<void> {
   await saveCandidate(next);
 
   if (next.score >= THRESHOLD) {
-    await ensureRepo(repo.repoRoot).catch(() => {});
-    await clearCandidate(repo.repoId);
+    const localRepoId = repo.repoId;
+    const finalRepoId = await resolveRepoId(repo, false);
+    if (finalRepoId) {
+      repo.repoId = finalRepoId;
+      await ensureRepo(repo.repoRoot, repo).catch(() => {});
+    }
+    await clearCandidate(localRepoId);
   }
 }
 
@@ -90,20 +115,17 @@ export async function cmdStatus(args: string[]): Promise<void> {
     return;
   }
 
-  const projectName = basename(repo.repoRoot);
-  const linkPath = join(repo.repoRoot, projectName);
-  const targetDir = join(REPOS_DIR, repo.repoId);
+  const linkPath = join(repo.repoRoot, "atlas");
+  const existingDir = await findExistingPromotedDir(repo);
   const cand = await loadCandidate(repo.repoId);
-
-  const dirExists = await access(targetDir).then(() => true).catch(() => false);
 
   console.log(`Repo: ${repo.repoId}`);
   console.log(`Root: ${repo.repoRoot}`);
-  console.log(`Atlas dir: ${dirExists ? targetDir : ""}`);
+  console.log(`Atlas dir: ${existingDir ?? ""}`);
 
   try {
     const current = await readlink(linkPath);
-    if (current === targetDir) {
+    if (current === existingDir) {
       console.log("State: promoted");
       return;
     }

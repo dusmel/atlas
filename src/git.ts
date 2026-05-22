@@ -53,7 +53,7 @@ export async function resolveRepo(base = process.cwd()): Promise<RepoInfo | null
   const repoRoot = await repoRootFrom(base);
   if (!repoRoot) return null;
   const remoteUrl = await remoteUrlFromRoot(repoRoot);
-  const repoId = remoteUrl ? normalizeRemote(remoteUrl) : normalizeName(basename(repoRoot));
+  const localName = normalizeName(basename(repoRoot));
   const id = repoIdFromRoot(repoRoot, remoteUrl);
-  return { repoRoot, repoId, id, remoteUrl };
+  return { repoRoot, repoId: localName, id, remoteUrl };
 }
