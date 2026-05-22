@@ -6,7 +6,7 @@
  */
 
 import { join, basename } from "node:path";
-import { readlink } from "node:fs/promises";
+import { readlink, access } from "node:fs/promises";
 import { THRESHOLD, STALE_SECONDS, REPOS_DIR } from "./config.ts";
 import type { Candidate } from "./types.ts";
 import { err, nowEpoch, nowIso, usage } from "./util.ts";
@@ -95,14 +95,15 @@ export async function cmdStatus(args: string[]): Promise<void> {
   const targetDir = join(REPOS_DIR, repo.repoId);
   const cand = await loadCandidate(repo.repoId);
 
+  const dirExists = await access(targetDir).then(() => true).catch(() => false);
+
   console.log(`Repo: ${repo.repoId}`);
   console.log(`Root: ${repo.repoRoot}`);
+  console.log(`Atlas dir: ${dirExists ? targetDir : ""}`);
 
   try {
     const current = await readlink(linkPath);
-    const isPromoted = current === targetDir;
-    console.log(`Atlas dir: ${isPromoted ? targetDir : ''}`);
-    if (isPromoted) {
+    if (current === targetDir) {
       console.log("State: promoted");
       return;
     }
