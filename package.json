@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "rm -f .*.bun-build && mkdir -p \"$HOME/.local/bin\" && bun build --compile ./index.ts --outfile \"$HOME/.local/bin/atlas\"",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "bun test"
   },
   "bin": {
     "atlas": "./index.ts"

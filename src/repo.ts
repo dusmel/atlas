@@ -11,7 +11,7 @@ import { mkdir, readlink, rm, access, appendFile, readFile, readdir, symlink, cp
 import * as readline from "node:readline";
 import * as tty from "node:tty";
 import type { RepoInfo, EnsureResult } from "./types.ts";
-import { REPOS_DIR, ALIASES, SCORE_RULES } from "./config.ts";
+import { reposDir, ALIASES, SCORE_RULES } from "./config.ts";
 import { err, nowIso, atomicWrite, shortHash, normalizeName } from "./util.ts";
 import { resolveRepo } from "./git.ts";
 import { clearCandidate } from "./state.ts";
@@ -38,7 +38,7 @@ export async function ensureExclude(repoRoot: string): Promise<void> {
  * Write or overwrite `meta.json` inside the repo's atlas directory.
  */
 export async function writeMeta(repo: RepoInfo): Promise<void> {
-  const dir = join(REPOS_DIR, repo.repoId);
+  const dir = join(reposDir(), repo.repoId);
   await mkdir(dir, { recursive: true });
   const file = join(dir, "meta.json");
   const data = {
@@ -70,7 +70,7 @@ export async function ensureRepo(base = process.cwd(), resolvedRepo?: RepoInfo):
     return null;
   }
 
-  const targetDir = join(REPOS_DIR, repo.repoId);
+  const targetDir = join(reposDir(), repo.repoId);
   const projectName = "atlas";
   const linkPath = join(repo.repoRoot, projectName);
 
@@ -113,7 +113,7 @@ export async function ensureRepo(base = process.cwd(), resolvedRepo?: RepoInfo):
  * different repository by comparing the stored `id` in `meta.json`.
  */
 export async function checkCollision(repoId: string, expectedId: string): Promise<boolean> {
-  const metaPath = join(REPOS_DIR, repoId, "meta.json");
+  const metaPath = join(reposDir(), repoId, "meta.json");
   try {
     const meta = JSON.parse(await readFile(metaPath, "utf8"));
     return meta.id !== expectedId;
@@ -123,21 +123,21 @@ export async function checkCollision(repoId: string, expectedId: string): Promis
 }
 
 /**
- * Scan every subdirectory in `REPOS_DIR` looking for a `meta.json` whose
+ * Scan every subdirectory in `reposDir()` looking for a `meta.json` whose
  * `id` matches this repo's unique `id`.  This is necessary because a repo
  * may have been promoted under a custom or disambiguated name (e.g. `sem-1`).
  */
 export async function findExistingPromotedDir(repo: RepoInfo): Promise<string | null> {
   let entries: Awaited<ReturnType<typeof readdir>>;
   try {
-    entries = await readdir(REPOS_DIR, { withFileTypes: true });
+    entries = await readdir(reposDir(), { withFileTypes: true });
   } catch {
     return null;
   }
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const dir = join(REPOS_DIR, entry.name);
+    const dir = join(reposDir(), entry.name);
     try {
       const meta = JSON.parse(await readFile(join(dir, "meta.json"), "utf8"));
       if (meta.id === repo.id) return dir;

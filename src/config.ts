@@ -1,23 +1,40 @@
 /**
  * Environment-derived configuration for Atlas paths and thresholds.
  *
- * All values are computed at import time from environment variables or
- * fallbacks so that downstream modules can import them synchronously.
+ * All values are read dynamically from environment variables so that tests
+ * can override them at runtime without module re-imports.
  */
 
-const ATLAS_ROOT: string = process.env.ATLAS_ROOT ?? `${process.env.HOME}/MEGA/Documents/atlas`;
+/** Base atlas storage directory (override with ATLAS_ROOT env var). */
+export function atlasRoot(): string {
+  return process.env.ATLAS_ROOT ?? `${process.env.HOME}/MEGA/Documents/atlas`;
+}
 
 /** Directory where promoted repo metadata lives. */
-export const REPOS_DIR: string = `${ATLAS_ROOT}/repos`;
+export function reposDir(): string {
+  return `${atlasRoot()}/repos`;
+}
 
 /** Directory where candidate scoring state files are stored. */
-export const STATE_DIR: string = `${ATLAS_ROOT}/state/candidates`;
+export function stateDir(): string {
+  return `${atlasRoot()}/state/candidates`;
+}
 
 /** Score threshold above which a candidate is auto-promoted. */
-export const THRESHOLD: number = Number(process.env.ATLAS_THRESHOLD ?? "4");
+export function threshold(): number {
+  return Number(process.env.ATLAS_THRESHOLD ?? "4");
+}
 
 /** Seconds of inactivity after which a candidate score resets. */
-export const STALE_SECONDS: number = 48 * 60 * 60;
+export function staleSeconds(): number {
+  return 48 * 60 * 60;
+}
+
+// Backward-compatible constant exports (read once at import time)
+export const REPOS_DIR = reposDir();
+export const STATE_DIR = stateDir();
+export const THRESHOLD = threshold();
+export const STALE_SECONDS = staleSeconds();
 
 /** Maps common aliases back to their canonical command forms. */
 export const ALIASES: Record<string, string> = {

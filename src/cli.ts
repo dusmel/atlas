@@ -7,7 +7,7 @@
 
 import { join } from "node:path";
 import { readlink } from "node:fs/promises";
-import { THRESHOLD, STALE_SECONDS } from "./config.ts";
+import { threshold, staleSeconds } from "./config.ts";
 import type { Candidate } from "./types.ts";
 import { err, nowEpoch, nowIso, usage } from "./util.ts";
 import { resolveRepo } from "./git.ts";
@@ -55,7 +55,7 @@ export async function cmdPromote(args: string[]): Promise<void> {
  *
  * Called from shell hooks (e.g. preexec). If the command exited 0 and
  * scores above 0, we increment (or reset) the repo's candidate score.
- * When the score crosses `THRESHOLD`, the repo is auto-promoted.
+ * When the score crosses the threshold, the repo is auto-promoted.
  */
 export async function cmdObserve(args: string[]): Promise<void> {
   const cmd = getArgValue(args, "--cmd");
@@ -81,7 +81,7 @@ export async function cmdObserve(args: string[]): Promise<void> {
 
   const now = nowEpoch();
   const lastSeenEpoch = Date.parse(existing.lastSeenAt) / 1000;
-  const isStale: boolean = Number.isFinite(lastSeenEpoch) && now - lastSeenEpoch > STALE_SECONDS;
+  const isStale: boolean = Number.isFinite(lastSeenEpoch) && now - lastSeenEpoch > staleSeconds();
 
   const next: Candidate = {
     repoId: repo.repoId,
@@ -93,7 +93,7 @@ export async function cmdObserve(args: string[]): Promise<void> {
 
   await saveCandidate(next);
 
-  if (next.score >= THRESHOLD) {
+  if (next.score >= threshold()) {
     const localRepoId = repo.repoId;
     const finalRepoId = await resolveRepoId(repo, false);
     if (finalRepoId) {
@@ -133,7 +133,7 @@ export async function cmdStatus(args: string[]): Promise<void> {
 
   if (cand) {
     console.log("State: candidate");
-    console.log(`Score: ${cand.score}/${THRESHOLD}`);
+    console.log(`Score: ${cand.score}/${threshold()}`);
     console.log(`Last seen: ${cand.lastSeenAt}`);
   } else {
     console.log("State: untracked");

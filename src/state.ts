@@ -8,12 +8,12 @@
 import { join } from "node:path";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import type { Candidate } from "./types.ts";
-import { STATE_DIR } from "./config.ts";
+import { stateDir } from "./config.ts";
 import { atomicWrite } from "./util.ts";
 
 /** Full filesystem path for a given repo's candidate file. */
 export function candidatePath(repoId: string): string {
-  return join(STATE_DIR, `${repoId}.json`);
+  return join(stateDir(), `${repoId}.json`);
 }
 
 /**
@@ -33,7 +33,7 @@ export async function loadCandidate(repoId: string): Promise<Candidate | null> {
 
 /** Persist a candidate record to disk atomically. */
 export async function saveCandidate(c: Candidate): Promise<void> {
-  await mkdir(STATE_DIR, { recursive: true });
+  await mkdir(stateDir(), { recursive: true });
   await atomicWrite(candidatePath(c.repoId), JSON.stringify(c, null, 2) + "\n");
 }
 
