@@ -1,8 +1,10 @@
 # atlas
 
-Sync notes and context from active git repos to a centralized store.
+Sync notes and context from active git repos to a centralized store. 
 
-- Auto-discovers repos you actually work in
+This includes features docs, implementation plans, how things work, current todos...
+
+- Auto-discovers repos I actually work in
 - Scores engagement via zsh hooks; promotes repos when they cross a threshold
 - Copies `plans/` and `notes/` into `atlas/` on promotion
 - Handles name collisions interactively
@@ -22,7 +24,7 @@ Sync notes and context from active git repos to a centralized store.
 
 ## How promotion works
 
-Repos start **untracked** and become **candidates** when you run scored commands inside them.
+Repos start **untracked** and become **candidates** when I run scored commands inside them.
 
 ### Scoring
 
