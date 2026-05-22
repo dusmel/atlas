@@ -121,8 +121,8 @@ describe("scoreForCommand", () => {
 
 describe("suggestUniqueName", () => {
   test("generates stable name for same inputs", () => {
-    const name1 = suggestUniqueName("sem", "github.com-dusmel-sem");
-    const name2 = suggestUniqueName("sem", "github.com-dusmel-sem");
+    const name1 = suggestUniqueName("sem", "github.com-user-sem");
+    const name2 = suggestUniqueName("sem", "github.com-user-sem");
     expect(name1).toBe(name2);
     expect(name1).toMatch(/^sem-[a-f0-9]{4}$/);
   });
