@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { cmdEnsure, cmdPromote, cmdObserve, cmdStatus, getArgValue } from "../src/cli.ts";
+import { cmdEnsure, cmdPromote, cmdObserve, cmdStatus, cmdOpen, getArgValue } from "../src/cli.ts";
 import { run } from "../src/util.ts";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -170,7 +170,7 @@ describe("cmdPromote", () => {
     expect(stdout[0]).toBe("Atlas already linked.");
   });
 
-  test("copies plans/ and notes/ on promote", async () => {
+  test("moves plans/ and notes/ on promote", async () => {
     mkdirSync(join(repoDir, "plans"), { recursive: true });
     writeFileSync(join(repoDir, "plans", "01.md"), "# Plan");
     mkdirSync(join(repoDir, "notes"), { recursive: true });
@@ -181,6 +181,8 @@ describe("cmdPromote", () => {
     const atlasDir = join(expectedReposDir(), "promote-test");
     expect(existsSync(join(atlasDir, "plans", "01.md"))).toBe(true);
     expect(existsSync(join(atlasDir, "notes", "daily.md"))).toBe(true);
+    expect(existsSync(join(repoDir, "plans"))).toBe(false);
+    expect(existsSync(join(repoDir, "notes"))).toBe(false);
   });
 
   test("headless collision resolution uses suggested name", async () => {
@@ -342,5 +344,118 @@ describe("cmdStatus", () => {
     const { stdout } = await captureConsole(() => cmdStatus(["--repo", outside]));
     expect(stdout.some(s => s.includes("not a git repository"))).toBe(true);
     expect(stdout.some(s => s.includes("State: untracked"))).toBe(true);
+  });
+});
+
+describe("cmdOpen", () => {
+  let tempDir: string;
+  let repoDir: string;
+  let oldAtlasRoot: string | undefined;
+
+  beforeEach(async () => {
+    tempDir = realpathSync(mkdtempSync(join(tmpdir(), "atlas-open-test-")));
+    repoDir = join(tempDir, "open-test");
+    mkdirSync(repoDir, { recursive: true });
+    await makeGitRepo(repoDir);
+    oldAtlasRoot = process.env.ATLAS_ROOT;
+    process.env.ATLAS_ROOT = join(tempDir, "atlas-root");
+    process.exitCode = 0;
+  });
+
+  afterEach(() => {
+    if (oldAtlasRoot !== undefined) {
+      process.env.ATLAS_ROOT = oldAtlasRoot;
+    } else {
+      delete process.env.ATLAS_ROOT;
+    }
+    process.exitCode = 0;
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("opens atlas/index.html for a promoted repo", async () => {
+    await cmdPromote(["--repo", repoDir]);
+    const indexPath = join(expectedReposDir(), "open-test", "index.html");
+    writeFileSync(indexPath, "<html></html>");
+
+    const opened: string[] = [];
+    await cmdOpen(["--repo", repoDir], async (path) => {
+      opened.push(path);
+    });
+
+    expect(opened).toEqual([indexPath]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  test("defaults to index.html headlessly when several HTML files exist", async () => {
+    await cmdPromote(["--repo", repoDir]);
+    const atlasDir = join(expectedReposDir(), "open-test");
+    writeFileSync(join(atlasDir, "index.html"), "<html></html>");
+    writeFileSync(join(atlasDir, "TODO.html"), "<html></html>");
+
+    const opened: string[] = [];
+    await cmdOpen(["--repo", repoDir], async (path) => {
+      opened.push(path);
+    });
+
+    expect(opened).toEqual([join(atlasDir, "index.html")]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  test("opens the only HTML file when index.html is missing", async () => {
+    await cmdPromote(["--repo", repoDir]);
+    const atlasDir = join(expectedReposDir(), "open-test");
+    writeFileSync(join(atlasDir, "TODO.html"), "<html></html>");
+
+    const opened: string[] = [];
+    await cmdOpen(["--repo", repoDir], async (path) => {
+      opened.push(path);
+    });
+
+    expect(opened).toEqual([join(atlasDir, "TODO.html")]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  test("errors when no HTML files exist", async () => {
+    await cmdPromote(["--repo", repoDir]);
+
+    const opened: string[] = [];
+    const { stderr } = await captureConsole(() =>
+      cmdOpen(["--repo", repoDir], async (path) => {
+        opened.push(path);
+      }),
+    );
+
+    expect(stderr[0]).toContain("No HTML files found in atlas dir.");
+    expect(opened).toEqual([]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test("errors when repo is not promoted", async () => {
+    const opened: string[] = [];
+    const { stderr } = await captureConsole(() =>
+      cmdOpen(["--repo", repoDir], async (path) => {
+        opened.push(path);
+      }),
+    );
+
+    expect(stderr[0]).toContain("No HTML files found in atlas dir.");
+    expect(opened).toEqual([]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test("plain directory falls back to best guess, then errors without HTML files", async () => {
+    const outside = join(tempDir, "outside");
+    mkdirSync(outside, { recursive: true });
+
+    const opened: string[] = [];
+    const { stdout, stderr } = await captureConsole(() =>
+      cmdOpen(["--repo", outside], async (path) => {
+        opened.push(path);
+      }),
+    );
+    expect(stdout.some(s => s.includes("not a git repository"))).toBe(true);
+    expect(stderr[0]).toContain("No HTML files found in atlas dir.");
+    expect(opened).toEqual([]);
+    expect(process.exitCode).toBe(1);
   });
 });

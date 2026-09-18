@@ -6,7 +6,7 @@ This includes features docs, implementation plans, how things work, current todo
 
 - Auto-discovers repos I actually work in
 - Scores engagement via zsh hooks; promotes repos when they cross a threshold
-- Copies `plans/` and `notes/` into `atlas/` on promotion
+- Moves repo-root `plans/` and `notes/` into `atlas/` on promotion
 - Handles name collisions interactively
 
 ---
@@ -19,6 +19,7 @@ This includes features docs, implementation plans, how things work, current todo
 | `atlas ensure` | create atlas dir + symlink (idempotent) |
 | `atlas promote` | force-promote + clear candidate state |
 | `atlas observe --cmd "..." --exit 0` | score a command (called by zsh hooks) |
+| `atlas open` | pick an atlas HTML file to open (default `index.html`) |
 
 ---
 
@@ -58,8 +59,8 @@ If no activity for **48 hours**, the score resets to zero on the next observed c
 ├── repos/
 │   ├── sem/                 # promoted repo (local basename)
 │   │   ├── meta.json        # repoId, id, repoRoot, remoteUrl
-│   │   ├── plans/           # copied from repo root on promotion
-│   │   └── notes/           # copied from repo root on promotion
+│   │   ├── plans/           # moved from repo root on promotion
+│   │   └── notes/           # moved from repo root on promotion
 │   └── sem-37ef/            # disambiguated name when collision
 └── state/
     └── candidates/
@@ -125,5 +126,5 @@ bun test
 ## Notes
 
 - Symlink is always named `atlas` (not the project name).
-- On promotion, if a real `atlas/` directory already exists in the repo, its `plans/` and `notes/` are migrated before the directory is replaced with the symlink.
+- On promotion, repo-root `plans/` and `notes/` are moved into atlas. If a real `atlas/` directory already exists in the repo, its `plans/` and `notes/` are migrated before the directory is replaced with the symlink.
 - `meta.json` stores a stable `id` (derived from remote URL or path hash) for disambiguation across renames.

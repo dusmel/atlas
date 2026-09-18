@@ -6,10 +6,12 @@
  */
 
 import { join } from "node:path";
-import { readlink } from "node:fs/promises";
+import { readdir, readlink } from "node:fs/promises";
+import * as tty from "node:tty";
+import { autocomplete, isCancel } from "@clack/prompts";
 import { threshold, staleSeconds } from "./config.ts";
 import type { Candidate, RepoInfo } from "./types.ts";
-import { err, nowEpoch, nowIso, usage } from "./util.ts";
+import { err, nowEpoch, nowIso, run, usage } from "./util.ts";
 import { resolveRepo, resolveProject, bestGuessRoot, dirRepoInfo, isUnsafeAutoRoot } from "./git.ts";
 import { loadCandidate, saveCandidate, clearCandidate } from "./state.ts";
 import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId, chooseProjectRoot } from "./repo.ts";
@@ -169,6 +171,60 @@ export async function cmdStatus(args: string[]): Promise<void> {
 }
 
 /**
+ * `atlas open [--repo PATH]` — open an HTML file from the repo's atlas dir
+ * in the default browser. Defaults to `index.html`; when several HTML files
+ * exist, offers a searchable picker with `index.html` first. Headless
+ * (non-tty) and single-file cases open the default directly.
+ */
+export async function cmdOpen(
+  args: string[],
+  openPath: (path: string) => Promise<unknown> = (path) => run(["open", path]),
+): Promise<void> {
+  const base = getRepoArg(args) ?? process.cwd();
+  const repo = await resolveForCommand(base, true);
+  if (!repo) {
+    err("Could not determine project root.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const atlasDir = (await findExistingPromotedDir(repo)) ?? join(repo.repoRoot, "atlas");
+  let files: string[];
+  try {
+    files = (await readdir(atlasDir)).filter((f) => f.endsWith(".html")).sort();
+  } catch {
+    files = [];
+  }
+  if (files.length === 0) {
+    err("No HTML files found in atlas dir.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const preferred = "index.html";
+  const ordered = [...files].sort((a, b) =>
+    a === preferred ? -1 : b === preferred ? 1 : a.localeCompare(b),
+  );
+  let choice = ordered[0]!;
+  if (ordered.length > 1 && tty.isatty(0)) {
+    const picked = await autocomplete({
+      message: "⌕ Search atlas files",
+      placeholder: "Type to filter…",
+      maxItems: 10,
+      initialValue: ordered[0],
+      options: ordered.map((f) => ({
+        value: f,
+        label: f,
+        hint: f === preferred ? "default" : undefined,
+      })),
+    });
+    if (!isCancel(picked)) choice = picked as string;
+  }
+
+  await openPath(join(atlasDir, choice));
+}
+
+/**
  * Parse a flag value from a raw argument list.
  *
  * @example
@@ -201,6 +257,9 @@ export async function main(): Promise<void> {
       break;
     case "status":
       await cmdStatus(args);
+      break;
+    case "open":
+      await cmdOpen(args);
       break;
     case "-h":
     case "--help":

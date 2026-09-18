@@ -31,7 +31,7 @@ Atlas is a personal CLI that promotes active git repos into a centralized atlas 
 
 ### Content migration
 
-- On promotion, repo-root `plans/` and `notes/` are copied into the promoted atlas dir.
+- On promotion, repo-root `plans/` and `notes/` are moved into the promoted atlas dir.
 - If a real `atlas/` directory already exists in the repo, its `plans/` and `notes/` are migrated before it is replaced by the symlink.
 
 ### Candidate scoring
@@ -98,6 +98,7 @@ Atlas is a personal CLI that promotes active git repos into a centralized atlas 
 - Add `atlas list` for promoted repos and active candidates.
 - Add a cleanup / inspect command for stale candidate state.
 - Add a migration command for renamed promoted directories.
+- Add `atlas open` to open the current repo's `atlas/index.html` in the browser.
 - Decide whether to support more synced directories besides `plans/` and `notes/`.
 
 ### Nice to have
@@ -113,6 +114,38 @@ Atlas is a personal CLI that promotes active git repos into a centralized atlas 
 - Should candidate state eventually key off stable `id` instead of local basename?
 - Should there be a `doctor`-style command?
 - Should old remote-based promoted directory names get an explicit migration path?
+
+## Raw Next Ideas
+
+These are intentionally not implementation-ready yet. They should be aligned and refined before they move into the real backlog or active TODO.
+
+### Index and search
+
+- Atlas itself should have an index with all stored files, and it should be truly searchable, not just client-side filtered.
+- `sem` may be a good candidate to power semantic search for this.
+
+### Local browser access
+
+- Find a way to map the generated atlas index locally so it is easy to open in a browser.
+- Desired feel: something like `local:atlas`.
+- Need to check feasibility and what the cleanest local URL / alias mechanism would be.
+
+### App layer
+
+- Atlas could also exist as a React + TanStack app.
+- That app should also render markdown content directly.
+- This should be treated as an additional experience layer, not the primary storage contract.
+
+### Deployment
+
+- Deploy Atlas on a personal domain.
+- Likely path: Coolify connected to the git repo.
+- Auto-deploy a few times a day, with manual deploys still available.
+
+### Principle to preserve
+
+- Individual files should still contain everything needed to open and use them directly.
+- The Atlas app should be an enhancement for browsing, search, and experience — not a dependency for the content to remain usable.
 
 ## Practical Commands
 

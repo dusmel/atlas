@@ -236,7 +236,7 @@ describe("ensureRepo content migration", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test("copies plans/ and notes/ from repo root", async () => {
+  test("moves plans/ and notes/ from repo root", async () => {
     mkdirSync(join(repoDir, "plans"), { recursive: true });
     writeFileSync(join(repoDir, "plans", "01.md"), "# Plan 1");
     mkdirSync(join(repoDir, "notes"), { recursive: true });
@@ -247,9 +247,11 @@ describe("ensureRepo content migration", () => {
     const atlasDir = join(expectedReposDir(), "project-with-content");
     expect(existsSync(join(atlasDir, "plans", "01.md"))).toBe(true);
     expect(existsSync(join(atlasDir, "notes", "today.md"))).toBe(true);
+    expect(existsSync(join(repoDir, "plans"))).toBe(false);
+    expect(existsSync(join(repoDir, "notes"))).toBe(false);
   });
 
-  test("copies only existing directories", async () => {
+  test("moves only existing directories", async () => {
     mkdirSync(join(repoDir, "plans"), { recursive: true });
     writeFileSync(join(repoDir, "plans", "plan.md"), "Plan");
 
@@ -258,6 +260,7 @@ describe("ensureRepo content migration", () => {
     const atlasDir = join(expectedReposDir(), "project-with-content");
     expect(existsSync(join(atlasDir, "plans", "plan.md"))).toBe(true);
     expect(existsSync(join(atlasDir, "notes"))).toBe(false);
+    expect(existsSync(join(repoDir, "plans"))).toBe(false);
   });
 
   test("migrates existing atlas/ directory with content", async () => {
@@ -278,6 +281,7 @@ describe("ensureRepo content migration", () => {
     expect(existsSync(join(atlasDir, "plans", "legacy.md"))).toBe(true);
     expect(existsSync(join(atlasDir, "plans", "new.md"))).toBe(true);
     expect(existsSync(join(atlasDir, "notes", "old.md"))).toBe(true);
+    expect(existsSync(join(repoDir, "plans"))).toBe(false);
     // The old atlas directory should be replaced by a symlink
     const linkPath = join(repoDir, "atlas");
     const stat = await lstat(linkPath);

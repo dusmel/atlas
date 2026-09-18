@@ -7,7 +7,7 @@
  */
 
 import { join, basename, resolve } from "node:path";
-import { mkdir, readlink, rm, access, appendFile, readFile, readdir, symlink, cp, stat } from "node:fs/promises";
+import { mkdir, readlink, rm, access, appendFile, readFile, readdir, symlink, cp, stat, rename } from "node:fs/promises";
 import * as tty from "node:tty";
 import { select, text, isCancel } from "@clack/prompts";
 import type { RepoInfo, EnsureResult } from "./types.ts";
@@ -83,7 +83,7 @@ export async function ensureRepo(base = process.cwd(), resolvedRepo?: RepoInfo):
 
   await mkdir(targetDir, { recursive: true });
   await writeMeta(repo);
-  await copyRepoContent(repo.repoRoot, targetDir);
+  await moveRepoContent(repo.repoRoot, targetDir);
   await ensureExclude(repo.repoRoot);
 
   try {
@@ -178,6 +178,9 @@ export function buildRootOptions(cwd: string, bestGuess: string): string[] {
 /** Sentinel value for the "type a custom path" entry in the root picker. */
 const CUSTOM_ROOT = "__custom__";
 
+/** Sentinel value for the "type a custom name" entry in the collision picker. */
+const CUSTOM_NAME = "__custom__";
+
 /**
  * Non-git root picker. Prints a notice, then offers an arrow-key select
  * with the best guess first, followed by surrounding ancestors, plus a
@@ -232,12 +235,17 @@ export async function resolveRepoId(repo: RepoInfo, interactive: boolean): Promi
     return suggested;
   }
 
-  const answer = await text({
+  const choice = await select({
     message: `Name "${repo.repoId}" is already used by another repo.`,
-    initialValue: suggested,
+    options: [
+      { value: suggested, label: suggested, hint: "suggested" },
+      { value: CUSTOM_NAME, label: "Type a custom name…" },
+    ],
   });
-  if (isCancel(answer)) return suggested;
-  const raw = String(answer).trim();
+  if (isCancel(choice) || choice !== CUSTOM_NAME) return suggested;
+  const custom = await text({ message: "Custom name", initialValue: suggested });
+  if (isCancel(custom)) return suggested;
+  const raw = String(custom).trim();
   const chosen = normalizeName(raw === "" ? suggested : raw);
 
   if (chosen !== suggested) {
@@ -280,27 +288,31 @@ async function migrateExistingAtlasContent(existingDirPath: string, promotedDirP
 
 
 /**
- * Copy `plans/` and `notes/` directories from the repository root into the
- * promoted atlas directory.  This runs during every `ensureRepo` call so that
- * content is migrated even when there is no pre-existing `atlas/` directory
- * inside the repo.
+ * Move `plans/` and `notes/` directories from the repository root into the
+ * promoted atlas directory.  If the target already exists, merge into it and
+ * remove the source so the result still behaves like a move.
  */
-async function copyRepoContent(repoRoot: string, targetDir: string): Promise<void> {
+async function moveRepoContent(repoRoot: string, targetDir: string): Promise<void> {
   const plansSource = join(repoRoot, "plans");
   const notesSource = join(repoRoot, "notes");
 
+  await moveDirIfExists(plansSource, join(targetDir, "plans"));
+  await moveDirIfExists(notesSource, join(targetDir, "notes"));
+}
+
+async function moveDirIfExists(sourcePath: string, targetPath: string): Promise<void> {
   try {
-    await access(plansSource);
-    await cp(plansSource, join(targetDir, "plans"), { recursive: true, force: true });
+    await access(sourcePath);
   } catch {
-    // No plans directory at repo root.
+    return;
   }
 
   try {
-    await access(notesSource);
-    await cp(notesSource, join(targetDir, "notes"), { recursive: true, force: true });
+    await access(targetPath);
+    await cp(sourcePath, targetPath, { recursive: true, force: true });
+    await rm(sourcePath, { recursive: true, force: true });
   } catch {
-    // No notes directory at repo root.
+    await rename(sourcePath, targetPath);
   }
 }
 
