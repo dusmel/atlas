@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { repoRootFrom, remoteUrlFromRoot, repoIdFromRoot, resolveRepo } from "../src/git.ts";
+import { repoRootFrom, remoteUrlFromRoot, repoIdFromRoot, resolveRepo, bestGuessRoot, ancestorRoots, resolveProject } from "../src/git.ts";
 import { run } from "../src/util.ts";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -164,5 +164,58 @@ describe("resolveRepo", () => {
     mkdirSync(outside, { recursive: true });
     const repo = await resolveRepo(outside);
     expect(repo).toBeNull();
+  });
+});
+
+describe("plain directory fallback", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = realpathSync(mkdtempSync(join(tmpdir(), "atlas-dir-test-")));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("bestGuessRoot finds nearest marker ancestor", async () => {
+    const proj = join(tempDir, "proj");
+    const deep = join(proj, "a", "b");
+    mkdirSync(deep, { recursive: true });
+    writeFileSync(join(proj, "package.json"), "{}");
+    const guess = await bestGuessRoot(deep);
+    expect(guess).toBe(proj);
+  });
+
+  test("bestGuessRoot falls back to base without markers", async () => {
+    const plain = join(tempDir, "plain", "sub");
+    mkdirSync(plain, { recursive: true });
+    const guess = await bestGuessRoot(plain);
+    expect(guess).toBe(plain);
+  });
+
+  test("ancestorRoots starts at base and climbs", () => {
+    const deep = join(tempDir, "p", "q");
+    mkdirSync(deep, { recursive: true });
+    const chain = ancestorRoots(deep);
+    expect(chain[0]).toBe(realpathSync(deep));
+    expect(chain).toContain(tempDir);
+  });
+
+  test("resolveProject falls back to dir outside git", async () => {
+    const plain = join(tempDir, "plain-proj");
+    mkdirSync(plain, { recursive: true });
+    const repo = await resolveProject(plain);
+    expect(repo).not.toBeNull();
+    expect(repo!.kind).toBe("dir");
+    expect(repo!.repoRoot).toBe(plain);
+  });
+
+  test("resolveProject prefers git inside a repo", async () => {
+    const repoDir = join(tempDir, "git-proj");
+    mkdirSync(repoDir, { recursive: true });
+    await makeGitRepo(repoDir);
+    const repo = await resolveProject(repoDir);
+    expect(repo!.kind).toBe("git");
   });
 });

@@ -107,12 +107,16 @@ describe("cmdEnsure", () => {
     expect(existsSync(atlasDir)).toBe(true);
   });
 
-  test("errors outside git repo", async () => {
+  test("treats plain directory as non-git project (headless best guess)", async () => {
     const outside = join(tempDir, "outside");
     mkdirSync(outside, { recursive: true });
 
-    const { stderr } = await captureConsole(() => cmdEnsure(["--repo", outside]));
-    expect(stderr[0]).toContain("Not inside a git repository");
+    const { stdout } = await captureConsole(() => cmdEnsure(["--repo", outside]));
+    expect(stdout.some(s => s.includes("not a git repository"))).toBe(true);
+
+    const atlasDir = join(expectedReposDir(), "outside");
+    expect(existsSync(atlasDir)).toBe(true);
+    expect(existsSync(join(outside, "atlas"))).toBe(true);
   });
 });
 
@@ -331,11 +335,12 @@ describe("cmdStatus", () => {
     expect(atlasDirLine).toContain(expectedReposDir());
   });
 
-  test("errors outside git repo", async () => {
+  test("shows non-git notice for plain directory", async () => {
     const outside = join(tempDir, "outside");
     mkdirSync(outside, { recursive: true });
 
-    const { stderr } = await captureConsole(() => cmdStatus(["--repo", outside]));
-    expect(stderr[0]).toContain("Not inside a git repository");
+    const { stdout } = await captureConsole(() => cmdStatus(["--repo", outside]));
+    expect(stdout.some(s => s.includes("not a git repository"))).toBe(true);
+    expect(stdout.some(s => s.includes("State: untracked"))).toBe(true);
   });
 });

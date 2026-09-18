@@ -11,12 +11,13 @@ export type Candidate = {
   lastSeenAt: string;
 };
 
-/** Static metadata about a discovered git repository. */
+/** Static metadata about a discovered git repository or plain directory project. */
 export type RepoInfo = {
   repoRoot: string;
   repoId: string;
   id: string;
   remoteUrl: string;
+  kind: "git" | "dir";
 };
 
 /** Result of running a spawned child process. */

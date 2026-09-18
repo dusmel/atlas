@@ -13,6 +13,7 @@ import {
   scoreForCommand,
   writeMeta,
   ensureExclude,
+  buildRootOptions,
 } from "../src/repo.ts";
 import { run } from "../src/util.ts";
 import { resolveRepo } from "../src/git.ts";
@@ -343,5 +344,15 @@ describe("collision detection", () => {
     const repo2 = await resolveRepo(repoDir2);
     const found = await findExistingPromotedDir(repo2!);
     expect(found).toBeNull();
+  });
+});
+
+describe("buildRootOptions", () => {
+  test("best guess first, then surrounding ancestors, deduped", () => {
+    const cwd = join(tmpdir(), "atlas-opts", "a", "b");
+    const opts = buildRootOptions(cwd, join(tmpdir(), "atlas-opts", "a"));
+    expect(opts[0]).toBe(join(tmpdir(), "atlas-opts", "a"));
+    expect(opts).toContain(cwd);
+    expect(new Set(opts).size).toBe(opts.length);
   });
 });

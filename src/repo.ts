@@ -6,21 +6,27 @@
  * symlink inside the source repository.
  */
 
-import { join, basename } from "node:path";
+import { join, basename, resolve } from "node:path";
 import { mkdir, readlink, rm, access, appendFile, readFile, readdir, symlink, cp, stat } from "node:fs/promises";
-import * as readline from "node:readline";
 import * as tty from "node:tty";
+import { select, text, isCancel } from "@clack/prompts";
 import type { RepoInfo, EnsureResult } from "./types.ts";
 import { reposDir, ALIASES, SCORE_RULES } from "./config.ts";
 import { err, nowIso, atomicWrite, shortHash, normalizeName } from "./util.ts";
-import { resolveRepo } from "./git.ts";
+import { resolveRepo, ancestorRoots } from "./git.ts";
 import { clearCandidate } from "./state.ts";
 
 /**
  * Append `atlas` to `.git/info/exclude` so git ignores the symlink.
  * Safe to call repeatedly — it will not duplicate the entry.
+ * No-op for plain directory projects (no `.git` to update).
  */
 export async function ensureExclude(repoRoot: string): Promise<void> {
+  try {
+    await access(join(repoRoot, ".git"));
+  } catch {
+    return;
+  }
   const name = "atlas";
   const exclude = join(repoRoot, ".git", "info", "exclude");
   try {
@@ -46,6 +52,7 @@ export async function writeMeta(repo: RepoInfo): Promise<void> {
     id: repo.id,
     repoRoot: repo.repoRoot,
     remoteUrl: repo.remoteUrl,
+    kind: repo.kind,
     updatedAt: nowIso(),
   };
   await atomicWrite(file, JSON.stringify(data, null, 2) + "\n");
@@ -158,15 +165,47 @@ export function suggestUniqueName(repoId: string, id: string): string {
   return `${repoId}-${shortHash(id).slice(0, 4)}`;
 }
 
-/** Prompt the user on stdin and return the trimmed answer. */
-function askUser(questionText: string): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(questionText, (answer) => {
-      rl.close();
-      resolve(answer.trim());
+/**
+ * Ordered root options for a non-git directory: best guess first,
+ * then surrounding ancestors (deduped).
+ */
+export function buildRootOptions(cwd: string, bestGuess: string): string[] {
+  const chain = ancestorRoots(resolve(cwd));
+  const guess = resolve(bestGuess);
+  return [...new Set([guess, ...chain])];
+}
+
+/** Sentinel value for the "type a custom path" entry in the root picker. */
+const CUSTOM_ROOT = "__custom__";
+
+/**
+ * Non-git root picker. Prints a notice, then offers an arrow-key select
+ * with the best guess first, followed by surrounding ancestors, plus a
+ * "custom path" entry. Headless (non-tty) prints a plain list and
+ * returns the best guess. Cancel falls back to the best guess.
+ */
+export async function chooseProjectRoot(cwd: string, bestGuess: string): Promise<string> {
+  const options = buildRootOptions(cwd, bestGuess);
+  console.log("This is not a git repository (plain directory project).");
+  if (!tty.isatty(0)) {
+    console.log("Select project root:");
+    options.forEach((opt, i) => {
+      console.log(`  ${i + 1}. ${opt}${i === 0 ? " (best guess)" : ""}`);
     });
+    return options[0]!;
+  }
+  const choice = await select({
+    message: "Select project root",
+    options: [
+      ...options.map((opt, i) => ({ value: opt, label: opt, hint: i === 0 ? "best guess" : undefined })),
+      { value: CUSTOM_ROOT, label: "Type a custom path…" },
+    ],
   });
+  if (isCancel(choice) || choice === options[0]) return options[0]!;
+  if (choice !== CUSTOM_ROOT) return choice as string;
+  const custom = await text({ message: "Project root path" });
+  if (isCancel(custom) || String(custom).trim() === "") return options[0]!;
+  return resolve(String(custom).trim());
 }
 
 /**
@@ -178,7 +217,7 @@ function askUser(questionText: string): Promise<string> {
  *   – `interactive = true`  → prompt to confirm the suggested name or type a custom one.
  *   – `interactive = false` → use the suggested name headlessly.
  *
- * Returns `null` only when the interactive prompt is cancelled (e.g. stdin closed).
+ * Cancel falls back to the suggested name.
  */
 export async function resolveRepoId(repo: RepoInfo, interactive: boolean): Promise<string | null> {
   const existingDir = await findExistingPromotedDir(repo);
@@ -193,11 +232,13 @@ export async function resolveRepoId(repo: RepoInfo, interactive: boolean): Promi
     return suggested;
   }
 
-  const answer = await askUser(
-    `Name "${repo.repoId}" is already used by another repo.\n` +
-      `Suggested: "${suggested}". Press Enter to accept or type a custom name: `,
-  );
-  const chosen = normalizeName(answer === "" ? suggested : answer);
+  const answer = await text({
+    message: `Name "${repo.repoId}" is already used by another repo.`,
+    initialValue: suggested,
+  });
+  if (isCancel(answer)) return suggested;
+  const raw = String(answer).trim();
+  const chosen = normalizeName(raw === "" ? suggested : raw);
 
   if (chosen !== suggested) {
     const stillCollides = await checkCollision(chosen, repo.id);

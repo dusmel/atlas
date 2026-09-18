@@ -16,5 +16,8 @@
   },
   "bin": {
     "atlas": "./index.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1"
   }
 }

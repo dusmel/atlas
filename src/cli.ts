@@ -8,18 +8,34 @@
 import { join } from "node:path";
 import { readlink } from "node:fs/promises";
 import { threshold, staleSeconds } from "./config.ts";
-import type { Candidate } from "./types.ts";
+import type { Candidate, RepoInfo } from "./types.ts";
 import { err, nowEpoch, nowIso, usage } from "./util.ts";
-import { resolveRepo } from "./git.ts";
+import { resolveRepo, resolveProject, bestGuessRoot, dirRepoInfo, isUnsafeAutoRoot } from "./git.ts";
 import { loadCandidate, saveCandidate, clearCandidate } from "./state.ts";
-import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId } from "./repo.ts";
+import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId, chooseProjectRoot } from "./repo.ts";
+
+/**
+ * Git-first resolution with plain-directory fallback.
+ *
+ * - Inside git: returns the git repo, no output.
+ * - Outside git with `pickRoot`: prints the non-git notice and offers
+ *   the root select (best guess first, then surrounding ancestors).
+ * - Outside git without `pickRoot`: silent best guess (for `observe`).
+ */
+async function resolveForCommand(base: string, pickRoot: boolean): Promise<RepoInfo | null> {
+  const gitRepo = await resolveRepo(base);
+  if (gitRepo) return gitRepo;
+  const guess = await bestGuessRoot(base);
+  const root = pickRoot ? await chooseProjectRoot(base, guess) : guess;
+  return dirRepoInfo(root);
+}
 
 /** `atlas ensure [--repo PATH]` — ensure the repo is atlas-ready. */
 export async function cmdEnsure(args: string[]): Promise<void> {
   const base = getRepoArg(args) ?? process.cwd();
-  const repo = await resolveRepo(base);
+  const repo = await resolveForCommand(base, true);
   if (!repo) {
-    err("Not inside a git repository.");
+    err("Could not determine project root.");
     process.exitCode = 1;
     return;
   }
@@ -32,9 +48,9 @@ export async function cmdEnsure(args: string[]): Promise<void> {
 /** `atlas promote [--repo PATH]` — force-promote a repo and clear its candidate state. */
 export async function cmdPromote(args: string[]): Promise<void> {
   const base = getRepoArg(args) ?? process.cwd();
-  const repo = await resolveRepo(base);
+  const repo = await resolveForCommand(base, true);
   if (!repo) {
-    err("Not inside a git repository.");
+    err("Could not determine project root.");
     process.exitCode = 1;
     return;
   }
@@ -65,8 +81,11 @@ export async function cmdObserve(args: string[]): Promise<void> {
   if (!cmd) return;
   if (exitCode !== "0") return;
 
-  const repo = await resolveRepo(base);
+  // Silent headless fallback for plain directories; never prompt here.
+  // Skip unsafe auto roots ($HOME, /, /tmp) to avoid promoting noise.
+  const repo = await resolveProject(base);
   if (!repo) return;
+  if (repo.kind === "dir" && isUnsafeAutoRoot(repo.repoRoot)) return;
 
   const points = scoreForCommand(cmd);
   if (points <= 0) return;
@@ -107,10 +126,18 @@ export async function cmdObserve(args: string[]): Promise<void> {
 /** `atlas status [--repo PATH]` — show the repo's atlas state (promoted / candidate / untracked). */
 export async function cmdStatus(args: string[]): Promise<void> {
   const base = getRepoArg(args) ?? process.cwd();
-  const repo = await resolveRepo(base);
+  const gitRepo = await resolveRepo(base);
+  let repo: RepoInfo | null;
+  if (gitRepo) {
+    repo = gitRepo;
+  } else {
+    // Read-only notice: no root select here, just the best guess.
+    console.log("Note: this is not a git repository (plain directory project).");
+    repo = dirRepoInfo(await bestGuessRoot(base));
+  }
 
   if (!repo) {
-    err("Not inside a git repository.");
+    err("Could not determine project root.");
     process.exitCode = 1;
     return;
   }
@@ -121,6 +148,7 @@ export async function cmdStatus(args: string[]): Promise<void> {
 
   console.log(`Repo: ${repo.repoId}`);
   console.log(`Root: ${repo.repoRoot}`);
+  console.log(`Type: ${repo.kind === "git" ? "git" : "plain directory"}`);
   console.log(`Atlas dir: ${existingDir ?? ""}`);
 
   try {
