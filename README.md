@@ -123,6 +123,20 @@ bun test
 
 ---
 
+## Maintenance
+
+Promoted names are reconciled with a standalone script (kept out of the CLI on purpose):
+
+```bash
+bun run migrate            # dry run
+bun run migrate -- --apply    # apply renames, fix meta.json + symlinks
+bun run migrate -- --apply --repo PATH  # single repo
+```
+
+It only renames old remote-based dirs or changed identities, keeps custom names, and never deletes (missing roots report as `stale`).
+
+---
+
 ## Notes
 
 - Symlink is always named `atlas` (not the project name).
