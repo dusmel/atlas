@@ -8,6 +8,7 @@
 
 import { join, basename, resolve } from "node:path";
 import { mkdir, readlink, rm, access, appendFile, readFile, readdir, symlink, cp, stat, rename } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import * as tty from "node:tty";
 import { select, text, isCancel } from "@clack/prompts";
 import type { RepoInfo, EnsureResult } from "./types.ts";
@@ -135,7 +136,7 @@ export async function checkCollision(repoId: string, expectedId: string): Promis
  * may have been promoted under a custom or disambiguated name (e.g. `sem-1`).
  */
 export async function findExistingPromotedDir(repo: RepoInfo): Promise<string | null> {
-  let entries: Awaited<ReturnType<typeof readdir>>;
+  let entries: Dirent[];
   try {
     entries = await readdir(reposDir(), { withFileTypes: true });
   } catch {
