@@ -1,0 +1,11 @@
+{
+  "name": "@atlas/cli",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "atlas": "./index.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1"
+  }
+}

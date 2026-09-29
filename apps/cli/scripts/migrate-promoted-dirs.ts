@@ -5,9 +5,9 @@
  * NOT part of the `atlas` CLI surface — run explicitly when naming rules
  * evolve or old remote-based directory names need migrating:
  *
- *   bun scripts/migrate-promoted-dirs.ts            # dry run (default)
- *   bun scripts/migrate-promoted-dirs.ts --apply    # apply renames
- *   bun scripts/migrate-promoted-dirs.ts --apply --repo PATH  # single repo
+ *   bun apps/cli/scripts/migrate-promoted-dirs.ts            # dry run (default)
+ *   bun apps/cli/scripts/migrate-promoted-dirs.ts --apply    # apply renames
+ *   bun apps/cli/scripts/migrate-promoted-dirs.ts --apply --repo PATH  # single repo
  *
  * Rules:
  * - `ideal` = current local basename, `suggested` = ideal + 4-char hash.

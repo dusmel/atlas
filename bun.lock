@@ -4,14 +4,20 @@
   "workspaces": {
     "": {
       "name": "atlas",
-      "dependencies": {
-        "@clack/prompts": "^1.8.1",
-      },
       "devDependencies": {
         "@types/bun": "latest",
       },
       "peerDependencies": {
         "typescript": "^5",
+      },
+    },
+    "apps/cli": {
+      "name": "@atlas/cli",
+      "bin": {
+        "atlas": "./index.ts",
+      },
+      "dependencies": {
+        "@clack/prompts": "^1.8.1",
       },
     },
     "apps/web": {
@@ -49,6 +55,8 @@
     },
   },
   "packages": {
+    "@atlas/cli": ["@atlas/cli@workspace:apps/cli"],
+
     "@atlas/indexer": ["@atlas/indexer@workspace:packages/indexer"],
 
     "@atlas/todos": ["@atlas/todos@workspace:packages/todos"],

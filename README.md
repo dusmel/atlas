@@ -126,7 +126,7 @@ bun test
 
 ## Web app
 
-`apps/web` is the Atlas web app (TanStack Start, shadcn, Tailwind, on Bun). `packages/todos` and `packages/indexer` hold code shared by the CLI and the server. The plan lives in `atlas/atlas-web-v1-spec.html`.
+The repo is bun workspaces. `apps/cli` is the `atlas` CLI above. `apps/web` is the Atlas web app (TanStack Start, shadcn, Tailwind, on Bun), and it also serves the API the CLI will call. `packages/todos` and `packages/indexer` hold code shared by the CLI and the server. The plan lives in `atlas/atlas-web-v1-spec.html`.
 
 ```bash
 bun run dev:web                        # dev server on http://localhost:3000

@@ -1,6 +1,5 @@
 {
   "name": "atlas",
-  "module": "index.ts",
   "type": "module",
   "private": true,
   "workspaces": [
@@ -15,17 +14,11 @@
   },
   "scripts": {
     "build": "bun run build:cli && bun run build:web",
-    "build:cli": "rm -f .*.bun-build && mkdir -p \"$HOME/.local/bin\" && bun build --compile ./index.ts --outfile \"$HOME/.local/bin/atlas\"",
+    "build:cli": "rm -f .*.bun-build && mkdir -p \"$HOME/.local/bin\" && bun build --compile ./apps/cli/index.ts --outfile \"$HOME/.local/bin/atlas\"",
     "build:web": "bun run --cwd apps/web build",
-    "check": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "check": "tsc --noEmit && tsc --noEmit -p apps/cli && tsc --noEmit -p apps/web",
     "dev:web": "bun run --cwd apps/web dev",
-    "migrate": "bun scripts/migrate-promoted-dirs.ts",
+    "migrate": "bun apps/cli/scripts/migrate-promoted-dirs.ts",
     "test": "bun test"
-  },
-  "bin": {
-    "atlas": "./index.ts"
-  },
-  "dependencies": {
-    "@clack/prompts": "^1.8.1"
   }
 }
