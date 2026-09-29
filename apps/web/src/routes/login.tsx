@@ -12,13 +12,12 @@ export const Route = createFileRoute("/login")({
     handlers: {
       POST: async ({ request }) => {
         const ip = clientIp(request)
-        if (loginThrottle.blocked(ip)) {
+        if (!loginThrottle.attempt(ip)) {
           return new Response("Too many attempts. Try again in 10 minutes.", { status: 429 })
         }
         const form = await request.formData().catch(() => null)
         const password = form?.get("password")
         if (typeof password !== "string" || !(await checkPassword(password))) {
-          loginThrottle.fail(ip)
           return new Response(null, { status: 303, headers: { location: "/login?error=1" } })
         }
         loginThrottle.clear(ip)

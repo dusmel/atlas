@@ -113,12 +113,18 @@ export class LoginThrottle {
     return list
   }
 
-  blocked(ip: string, at = Date.now()): boolean {
-    return this.recent(ip, at).length >= this.limit
+  // Records the attempt before the caller awaits anything, so parallel requests can't all
+  // pass. Every call drops expired IPs, so the map only holds the last window's failures.
+  attempt(ip: string, at = Date.now()): boolean {
+    for (const other of this.fails.keys()) this.recent(other, at)
+    const list = this.fails.get(ip) ?? []
+    if (list.length >= this.limit) return false
+    this.fails.set(ip, [...list, at])
+    return true
   }
 
-  fail(ip: string, at = Date.now()): void {
-    this.fails.set(ip, [...this.recent(ip, at), at])
+  get size(): number {
+    return this.fails.size
   }
 
   clear(ip: string): void {

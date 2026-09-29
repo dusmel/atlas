@@ -77,13 +77,18 @@ describe("tokens", () => {
 describe("login throttle", () => {
   test("blocks the sixth try within 10 minutes, per IP", () => {
     const t = new LoginThrottle()
-    for (let i = 0; i < 5; i++) {
-      expect(t.blocked("1.1.1.1", i)).toBe(false)
-      t.fail("1.1.1.1", i)
-    }
-    expect(t.blocked("1.1.1.1", 10)).toBe(true)
-    expect(t.blocked("2.2.2.2", 10)).toBe(false)
-    expect(t.blocked("1.1.1.1", 10 * 60 * 1000 + 5)).toBe(false)
+    for (let i = 0; i < 5; i++) expect(t.attempt("1.1.1.1", i)).toBe(true)
+    expect(t.attempt("1.1.1.1", 10)).toBe(false)
+    expect(t.attempt("2.2.2.2", 10)).toBe(true)
+    expect(t.attempt("1.1.1.1", 10 * 60 * 1000 + 5)).toBe(true)
+  })
+
+  test("forgets IPs whose failures have expired", () => {
+    const t = new LoginThrottle()
+    for (let i = 0; i < 100; i++) t.attempt(`10.0.0.${i}`, 0)
+    expect(t.size).toBe(100)
+    t.attempt("1.1.1.1", 10 * 60 * 1000)
+    expect(t.size).toBe(1)
   })
 
   test("reads the address Traefik saw", () => {
