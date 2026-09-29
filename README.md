@@ -111,14 +111,32 @@ Two hooks live in `~/.zsh/hooks/atlas.zsh`:
 ## Build / test
 
 ```bash
-# compile to ~/.local/bin/atlas
+# compile the CLI to ~/.local/bin/atlas, then build the web app
 bun run build
+bun run build:cli          # CLI only
 
-# typecheck
+# typecheck the CLI, packages and web app
 bun run check
 
-# run tests
+# run every workspace's tests
 bun test
+```
+
+---
+
+## Web app
+
+`apps/web` is the Atlas web app (TanStack Start, shadcn, Tailwind, on Bun). `packages/todos` and `packages/indexer` hold code shared by the CLI and the server. The plan lives in `atlas/atlas-web-v1-spec.html`.
+
+```bash
+bun run dev:web                        # dev server on http://localhost:3000
+curl -s localhost:3000/api/health      # {"ok":true,"version":"<git sha>"}
+
+bun run build:web                      # production build in apps/web/dist
+bun --cwd apps/web run start           # serve it (PORT defaults to 3000)
+
+docker build -f apps/web/Dockerfile --build-arg SOURCE_COMMIT=$(git rev-parse --short HEAD) -t atlas-web .
+docker run --rm -p 3000:3000 atlas-web
 ```
 
 ---
