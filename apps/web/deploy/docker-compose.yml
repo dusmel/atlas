@@ -1,0 +1,36 @@
+# Used by the Coolify project "atlas". Host paths come from runbook R3 (spec section 9).
+services:
+  web:
+    build:
+      context: ../../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-dev}
+    user: "1000:1000"
+    environment:
+      ATLAS_DATA_DIR: /data
+      ATLAS_PASSWORD_HASH_B64: ${ATLAS_PASSWORD_HASH_B64}
+    volumes:
+      - /srv/atlas/data:/data
+      - /srv/atlas/data/docs:/data/docs:ro
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  rclone:
+    build:
+      context: ./rclone
+    user: "1000:1000"
+    environment:
+      MEGA_REPOS_PATH: ${MEGA_REPOS_PATH:-}
+      MEGA_BACKUPS_PATH: ${MEGA_BACKUPS_PATH:-}
+    volumes:
+      - /srv/atlas/data:/data
+      - /srv/atlas/rclone:/config/rclone
+    restart: unless-stopped

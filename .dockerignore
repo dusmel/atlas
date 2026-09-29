@@ -4,3 +4,4 @@ atlas
 **/dist
 *.bun-build
 .env*
+**/.data

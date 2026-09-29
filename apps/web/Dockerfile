@@ -21,6 +21,6 @@ COPY --from=build /app/packages packages
 COPY --from=build /app/apps/web/dist apps/web/dist
 COPY apps/web/server.ts apps/web/
 USER bun
-ENV NODE_ENV=production PORT=3000
+ENV NODE_ENV=production PORT=3000 ATLAS_DATA_DIR=/data
 EXPOSE 3000
 CMD ["bun", "apps/web/server.ts"]
