@@ -1,8 +1,10 @@
 # Used by the Coolify project "atlas". Host paths come from runbook R3 (spec section 9).
+# Coolify runs compose with --project-directory at the repo root, so build paths are relative to the root.
+# Locally: docker compose --project-directory . -f apps/web/deploy/docker-compose.yml build
 services:
   web:
     build:
-      context: ../../..
+      context: .
       dockerfile: apps/web/Dockerfile
       args:
         SOURCE_COMMIT: ${SOURCE_COMMIT:-}
@@ -25,7 +27,7 @@ services:
 
   rclone:
     build:
-      context: ./rclone
+      context: apps/web/deploy/rclone
     user: "1000:1000"
     environment:
       MEGA_REPOS_PATH: ${MEGA_REPOS_PATH:-}
