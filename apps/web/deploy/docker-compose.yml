@@ -25,14 +25,15 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  rclone:
+  # Two-way MEGA sync of repos into docs, and of backups up to MEGA. Nothing else may write to
+  # either folder, or it gets uploaded: web mounts docs read-only. Login and sync pairs: runbook R5.
+  megacmd:
     build:
-      context: apps/web/deploy/rclone
+      context: apps/web/deploy/megacmd
+    init: true
     user: "1000:1000"
-    environment:
-      MEGA_REPOS_PATH: ${MEGA_REPOS_PATH:-}
-      MEGA_BACKUPS_PATH: ${MEGA_BACKUPS_PATH:-}
     volumes:
-      - /srv/atlas/data:/data
-      - /srv/atlas/rclone:/config/rclone
+      - /srv/atlas/megacmd:/config
+      - /srv/atlas/data/docs:/data/docs
+      - /srv/atlas/data/backups:/data/backups
     restart: unless-stopped
