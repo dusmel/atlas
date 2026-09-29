@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --bun vite dev --port 3000",
+    "dev": "ATLAS_DATA_DIR=${ATLAS_DATA_DIR:-.data} bun --bun vite dev --port 3000",
     "build": "bun --bun vite build",
     "start": "bun server.ts",
     "check": "tsc --noEmit"
