@@ -210,6 +210,9 @@ describe("ensureRepo basic promotion", () => {
     mkdirSync(outside, { recursive: true });
     const result = await ensureRepo(outside);
     expect(result).toBeNull();
+    expect(process.exitCode).toBe(1);
+    // ensureRepo sets the exit code for the CLI; left at 1 it fails the whole test run.
+    process.exitCode = 0;
   });
 });
 

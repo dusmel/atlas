@@ -6,8 +6,13 @@ import tailwindcss from "@tailwindcss/vite"
 // Docker builds have no .git, so they pass the commit in ATLAS_VERSION (from Coolify's SOURCE_COMMIT).
 function version(): string {
   if (process.env.ATLAS_VERSION) return process.env.ATLAS_VERSION
-  const git = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"], { stderr: "ignore" })
-  return git.success ? git.stdout.toString().trim() : "dev"
+  try {
+    const git = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"], { stderr: "ignore" })
+    if (git.success) return git.stdout.toString().trim()
+  } catch {
+    // no git binary, as in the oven/bun image
+  }
+  return "dev"
 }
 
 export default defineConfig({

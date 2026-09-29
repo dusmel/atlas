@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 
 export const Route = createFileRoute("/")({ component: Home })
@@ -10,9 +10,16 @@ function Home() {
         <div>
           <h1 className="font-medium">Atlas</h1>
           <p>Todos and docs across every repo. Nothing here yet.</p>
-          <Button className="mt-2" asChild>
-            <a href="/api/health">Health check</a>
-          </Button>
+          <div className="mt-2 flex gap-2">
+            <Button asChild>
+              <Link to="/settings">Settings</Link>
+            </Button>
+            <form method="post" action="/logout">
+              <Button type="submit" variant="outline">
+                Log out
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </main>

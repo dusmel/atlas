@@ -1,0 +1,41 @@
+# Used by the Coolify project "atlas". Host paths come from runbook R3 (spec section 9).
+# Coolify runs compose with --project-directory at the repo root, so build paths are relative to the root.
+# Locally: docker compose --project-directory . -f apps/web/deploy/docker-compose.yml build
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-}
+    user: "1000:1000"
+    environment:
+      ATLAS_DATA_DIR: /data
+      ATLAS_PASSWORD_HASH_B64: ${ATLAS_PASSWORD_HASH_B64}
+    volumes:
+      - /srv/atlas/data:/data
+      - /srv/atlas/data/docs:/data/docs:ro
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Two-way MEGA sync of repos into docs, and of backups up to MEGA. Nothing else may write to
+  # either folder, or it gets uploaded: web mounts docs read-only. Login and sync pairs: runbook R5.
+  megacmd:
+    build:
+      context: apps/web/deploy/megacmd
+    init: true
+    user: "1000:1000"
+    volumes:
+      - /srv/atlas/megacmd:/config
+      # MEGA identifies the device by machine-id; the image's is empty and would change per build anyway.
+      - /etc/machine-id:/etc/machine-id:ro
+      - /srv/atlas/data/docs:/data/docs
+      - /srv/atlas/data/backups:/data/backups
+    restart: unless-stopped
