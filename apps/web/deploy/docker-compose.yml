@@ -34,6 +34,8 @@ services:
     user: "1000:1000"
     volumes:
       - /srv/atlas/megacmd:/config
+      # MEGA identifies the device by machine-id; the image's is empty and would change per build anyway.
+      - /etc/machine-id:/etc/machine-id:ro
       - /srv/atlas/data/docs:/data/docs
       - /srv/atlas/data/backups:/data/backups
     restart: unless-stopped
