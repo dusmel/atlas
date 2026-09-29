@@ -16,7 +16,7 @@ const counts = (path: string) => {
 describe("backups", () => {
   test("names sort by time", () => {
     expect(nightlyName(new Date("2026-10-01T01:00:00Z"))).toBe("atlas-2026-10-01.db")
-    expect(predeployName(new Date("2026-10-01T09:08:07.123Z"))).toBe("atlas-predeploy-20261001T090807Z.db")
+    expect(predeployName(new Date("2026-10-01T09:08:07.123Z"))).toBe("atlas-predeploy-20261001T090807123Z.db")
   })
 
   test("backup then restore gives the same row counts per table", () => {
@@ -40,7 +40,7 @@ describe("backups", () => {
 
   test("prune keeps the newest files of one kind only", () => {
     const dir = tempDir()
-    const names = ["atlas-predeploy-20261001T000000Z.db", "atlas-predeploy-20261002T000000Z.db", "atlas-predeploy-20261003T000000Z.db", "atlas-2026-10-01.db"]
+    const names = ["atlas-predeploy-20261001T000000Z.db", "atlas-predeploy-20261002T000000Z.db", "atlas-predeploy-20261003T000000123Z.db", "atlas-2026-10-01.db"]
     for (const n of names) writeFileSync(join(dir, n), "")
     expect(prune(dir, PREDEPLOY, 2)).toEqual(["atlas-predeploy-20261001T000000Z.db"])
     expect(readdirSync(dir).sort()).toEqual(names.slice(1).sort())

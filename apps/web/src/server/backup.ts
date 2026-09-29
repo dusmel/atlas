@@ -3,14 +3,16 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:f
 import { join } from "node:path"
 
 export const NIGHTLY = /^atlas-\d{4}-\d{2}-\d{2}\.db$/
-export const PREDEPLOY = /^atlas-predeploy-\d{8}T\d{6}Z\.db$/
+// Milliseconds are optional so the second-precision files from before still get pruned.
+export const PREDEPLOY = /^atlas-predeploy-\d{8}T\d{6}(\d{3})?Z\.db$/
 
 export function nightlyName(at: Date): string {
   return `atlas-${at.toISOString().slice(0, 10)}.db`
 }
 
 export function predeployName(at: Date): string {
-  return `atlas-predeploy-${at.toISOString().replace(/[-:]/g, "").slice(0, 15)}Z.db`
+  // Down to the millisecond: VACUUM INTO fails if two starts in one second pick the same name.
+  return `atlas-predeploy-${at.toISOString().replace(/[-:.]/g, "").slice(0, 18)}Z.db`
 }
 
 // VACUUM INTO writes a consistent copy while the app keeps running, and fails if the file exists.
