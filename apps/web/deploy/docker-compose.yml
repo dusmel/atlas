@@ -5,7 +5,7 @@ services:
       context: ../../..
       dockerfile: apps/web/Dockerfile
       args:
-        SOURCE_COMMIT: ${SOURCE_COMMIT:-dev}
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-}
     user: "1000:1000"
     environment:
       ATLAS_DATA_DIR: /data
