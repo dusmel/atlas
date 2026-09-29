@@ -3,6 +3,10 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "devDependencies": {
     "@types/bun": "latest"
   },
@@ -10,8 +14,11 @@
     "typescript": "^5"
   },
   "scripts": {
-    "build": "rm -f .*.bun-build && mkdir -p \"$HOME/.local/bin\" && bun build --compile ./index.ts --outfile \"$HOME/.local/bin/atlas\"",
-    "check": "tsc --noEmit",
+    "build": "bun run build:cli && bun run build:web",
+    "build:cli": "rm -f .*.bun-build && mkdir -p \"$HOME/.local/bin\" && bun build --compile ./index.ts --outfile \"$HOME/.local/bin/atlas\"",
+    "build:web": "bun run --cwd apps/web build",
+    "check": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "dev:web": "bun run --cwd apps/web dev",
     "migrate": "bun scripts/migrate-promoted-dirs.ts",
     "test": "bun test"
   },
