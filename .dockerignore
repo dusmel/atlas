@@ -1,0 +1,6 @@
+.git
+atlas
+**/node_modules
+**/dist
+*.bun-build
+.env*
