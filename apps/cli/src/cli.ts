@@ -15,6 +15,7 @@ import { err, nowEpoch, nowIso, run, usage } from "./util.ts";
 import { resolveRepo, resolveProject, bestGuessRoot, dirRepoInfo, isUnsafeAutoRoot } from "./git.ts";
 import { loadCandidate, saveCandidate, clearCandidate } from "./state.ts";
 import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId, chooseProjectRoot } from "./repo.ts";
+import { cmdTodo } from "./todo/commands.ts";
 
 /**
  * Git-first resolution with plain-directory fallback.
@@ -260,6 +261,9 @@ export async function main(): Promise<void> {
       break;
     case "open":
       await cmdOpen(args);
+      break;
+    case "todo":
+      await cmdTodo(args);
       break;
     case "-h":
     case "--help":
