@@ -20,6 +20,7 @@ This includes features docs, implementation plans, how things work, current todo
 | `atlas promote` | force-promote + clear candidate state |
 | `atlas observe --cmd "..." --exit 0` | score a command (called by zsh hooks) |
 | `atlas open` | pick an atlas HTML file to open (default `index.html`) |
+| `atlas todo list` / `add` / `move` / ... | todos on `atlas.hadadus.me` for the current repo (`atlas todo --help`) |
 
 ---
 
@@ -105,6 +106,7 @@ Two hooks live in `~/.zsh/hooks/atlas.zsh`:
 |-----|---------|--------|
 | `ATLAS_ROOT` | `~/MEGA/Documents/atlas` | base storage directory |
 | `ATLAS_THRESHOLD` | `4` | score needed for auto-promotion |
+| `ATLAS_URL`, `ATLAS_TOKEN` | from `~/.config/atlas/config.json` | server and token for `atlas todo` |
 
 ---
 
