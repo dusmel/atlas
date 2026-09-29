@@ -13,10 +13,19 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ApiGroupsRouteImport } from './routes/api/groups'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiImportsRouteImport } from './routes/api/imports'
+import { Route as ApiReposRouteImport } from './routes/api/repos'
 import { Route as ApiTodosRouteImport } from './routes/api/todos'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
+import { Route as ApiGroupsIdRouteImport } from './routes/api/groups.$id'
+import { Route as ApiImportsIdRouteImport } from './routes/api/imports.$id'
+import { Route as ApiTodosIdRouteImport } from './routes/api/todos.$id'
 import { Route as ApiTokensIdRouteImport } from './routes/api/tokens.$id'
+import { Route as ApiTodosIdArchiveRouteImport } from './routes/api/todos.$id.archive'
+import { Route as ApiTodosIdMoveRouteImport } from './routes/api/todos.$id.move'
+import { Route as ApiTodosIdUnarchiveRouteImport } from './routes/api/todos.$id.unarchive'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -38,9 +47,24 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGroupsRoute = ApiGroupsRouteImport.update({
+  id: '/api/groups',
+  path: '/api/groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportsRoute = ApiImportsRouteImport.update({
+  id: '/api/imports',
+  path: '/api/imports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReposRoute = ApiReposRouteImport.update({
+  id: '/api/repos',
+  path: '/api/repos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTodosRoute = ApiTodosRouteImport.update({
@@ -53,10 +77,40 @@ const ApiTokensRoute = ApiTokensRouteImport.update({
   path: '/api/tokens',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGroupsIdRoute = ApiGroupsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiGroupsRoute,
+} as any)
+const ApiImportsIdRoute = ApiImportsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiImportsRoute,
+} as any)
+const ApiTodosIdRoute = ApiTodosIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiTodosRoute,
+} as any)
 const ApiTokensIdRoute = ApiTokensIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ApiTokensRoute,
+} as any)
+const ApiTodosIdArchiveRoute = ApiTodosIdArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => ApiTodosIdRoute,
+} as any)
+const ApiTodosIdMoveRoute = ApiTodosIdMoveRouteImport.update({
+  id: '/move',
+  path: '/move',
+  getParentRoute: () => ApiTodosIdRoute,
+} as any)
+const ApiTodosIdUnarchiveRoute = ApiTodosIdUnarchiveRouteImport.update({
+  id: '/unarchive',
+  path: '/unarchive',
+  getParentRoute: () => ApiTodosIdRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -64,20 +118,38 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
-  '/api/todos': typeof ApiTodosRoute
+  '/api/imports': typeof ApiImportsRouteWithChildren
+  '/api/repos': typeof ApiReposRoute
+  '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/groups/$id': typeof ApiGroupsIdRoute
+  '/api/imports/$id': typeof ApiImportsIdRoute
+  '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
+  '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
+  '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
+  '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
-  '/api/todos': typeof ApiTodosRoute
+  '/api/imports': typeof ApiImportsRouteWithChildren
+  '/api/repos': typeof ApiReposRoute
+  '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/groups/$id': typeof ApiGroupsIdRoute
+  '/api/imports/$id': typeof ApiImportsIdRoute
+  '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
+  '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
+  '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
+  '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,10 +157,19 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
-  '/api/todos': typeof ApiTodosRoute
+  '/api/imports': typeof ApiImportsRouteWithChildren
+  '/api/repos': typeof ApiReposRoute
+  '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/groups/$id': typeof ApiGroupsIdRoute
+  '/api/imports/$id': typeof ApiImportsIdRoute
+  '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
+  '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
+  '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
+  '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,30 +178,57 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/api/groups'
     | '/api/health'
+    | '/api/imports'
+    | '/api/repos'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/groups/$id'
+    | '/api/imports/$id'
+    | '/api/todos/$id'
     | '/api/tokens/$id'
+    | '/api/todos/$id/archive'
+    | '/api/todos/$id/move'
+    | '/api/todos/$id/unarchive'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/logout'
     | '/settings'
+    | '/api/groups'
     | '/api/health'
+    | '/api/imports'
+    | '/api/repos'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/groups/$id'
+    | '/api/imports/$id'
+    | '/api/todos/$id'
     | '/api/tokens/$id'
+    | '/api/todos/$id/archive'
+    | '/api/todos/$id/move'
+    | '/api/todos/$id/unarchive'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/logout'
     | '/settings'
+    | '/api/groups'
     | '/api/health'
+    | '/api/imports'
+    | '/api/repos'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/groups/$id'
+    | '/api/imports/$id'
+    | '/api/todos/$id'
     | '/api/tokens/$id'
+    | '/api/todos/$id/archive'
+    | '/api/todos/$id/move'
+    | '/api/todos/$id/unarchive'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -128,8 +236,11 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
   SettingsRoute: typeof SettingsRoute
+  ApiGroupsRoute: typeof ApiGroupsRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
-  ApiTodosRoute: typeof ApiTodosRoute
+  ApiImportsRoute: typeof ApiImportsRouteWithChildren
+  ApiReposRoute: typeof ApiReposRoute
+  ApiTodosRoute: typeof ApiTodosRouteWithChildren
   ApiTokensRoute: typeof ApiTokensRouteWithChildren
 }
 
@@ -163,11 +274,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/groups': {
+      id: '/api/groups'
+      path: '/api/groups'
+      fullPath: '/api/groups'
+      preLoaderRoute: typeof ApiGroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/imports': {
+      id: '/api/imports'
+      path: '/api/imports'
+      fullPath: '/api/imports'
+      preLoaderRoute: typeof ApiImportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/repos': {
+      id: '/api/repos'
+      path: '/api/repos'
+      fullPath: '/api/repos'
+      preLoaderRoute: typeof ApiReposRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/todos': {
@@ -184,6 +316,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTokensRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/groups/$id': {
+      id: '/api/groups/$id'
+      path: '/$id'
+      fullPath: '/api/groups/$id'
+      preLoaderRoute: typeof ApiGroupsIdRouteImport
+      parentRoute: typeof ApiGroupsRoute
+    }
+    '/api/imports/$id': {
+      id: '/api/imports/$id'
+      path: '/$id'
+      fullPath: '/api/imports/$id'
+      preLoaderRoute: typeof ApiImportsIdRouteImport
+      parentRoute: typeof ApiImportsRoute
+    }
+    '/api/todos/$id': {
+      id: '/api/todos/$id'
+      path: '/$id'
+      fullPath: '/api/todos/$id'
+      preLoaderRoute: typeof ApiTodosIdRouteImport
+      parentRoute: typeof ApiTodosRoute
+    }
     '/api/tokens/$id': {
       id: '/api/tokens/$id'
       path: '/$id'
@@ -191,8 +344,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTokensIdRouteImport
       parentRoute: typeof ApiTokensRoute
     }
+    '/api/todos/$id/archive': {
+      id: '/api/todos/$id/archive'
+      path: '/archive'
+      fullPath: '/api/todos/$id/archive'
+      preLoaderRoute: typeof ApiTodosIdArchiveRouteImport
+      parentRoute: typeof ApiTodosIdRoute
+    }
+    '/api/todos/$id/move': {
+      id: '/api/todos/$id/move'
+      path: '/move'
+      fullPath: '/api/todos/$id/move'
+      preLoaderRoute: typeof ApiTodosIdMoveRouteImport
+      parentRoute: typeof ApiTodosIdRoute
+    }
+    '/api/todos/$id/unarchive': {
+      id: '/api/todos/$id/unarchive'
+      path: '/unarchive'
+      fullPath: '/api/todos/$id/unarchive'
+      preLoaderRoute: typeof ApiTodosIdUnarchiveRouteImport
+      parentRoute: typeof ApiTodosIdRoute
+    }
   }
 }
+
+interface ApiGroupsRouteChildren {
+  ApiGroupsIdRoute: typeof ApiGroupsIdRoute
+}
+
+const ApiGroupsRouteChildren: ApiGroupsRouteChildren = {
+  ApiGroupsIdRoute: ApiGroupsIdRoute,
+}
+
+const ApiGroupsRouteWithChildren = ApiGroupsRoute._addFileChildren(
+  ApiGroupsRouteChildren,
+)
+
+interface ApiImportsRouteChildren {
+  ApiImportsIdRoute: typeof ApiImportsIdRoute
+}
+
+const ApiImportsRouteChildren: ApiImportsRouteChildren = {
+  ApiImportsIdRoute: ApiImportsIdRoute,
+}
+
+const ApiImportsRouteWithChildren = ApiImportsRoute._addFileChildren(
+  ApiImportsRouteChildren,
+)
+
+interface ApiTodosIdRouteChildren {
+  ApiTodosIdArchiveRoute: typeof ApiTodosIdArchiveRoute
+  ApiTodosIdMoveRoute: typeof ApiTodosIdMoveRoute
+  ApiTodosIdUnarchiveRoute: typeof ApiTodosIdUnarchiveRoute
+}
+
+const ApiTodosIdRouteChildren: ApiTodosIdRouteChildren = {
+  ApiTodosIdArchiveRoute: ApiTodosIdArchiveRoute,
+  ApiTodosIdMoveRoute: ApiTodosIdMoveRoute,
+  ApiTodosIdUnarchiveRoute: ApiTodosIdUnarchiveRoute,
+}
+
+const ApiTodosIdRouteWithChildren = ApiTodosIdRoute._addFileChildren(
+  ApiTodosIdRouteChildren,
+)
+
+interface ApiTodosRouteChildren {
+  ApiTodosIdRoute: typeof ApiTodosIdRouteWithChildren
+}
+
+const ApiTodosRouteChildren: ApiTodosRouteChildren = {
+  ApiTodosIdRoute: ApiTodosIdRouteWithChildren,
+}
+
+const ApiTodosRouteWithChildren = ApiTodosRoute._addFileChildren(
+  ApiTodosRouteChildren,
+)
 
 interface ApiTokensRouteChildren {
   ApiTokensIdRoute: typeof ApiTokensIdRoute
@@ -211,8 +437,11 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,
   SettingsRoute: SettingsRoute,
+  ApiGroupsRoute: ApiGroupsRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
-  ApiTodosRoute: ApiTodosRoute,
+  ApiImportsRoute: ApiImportsRouteWithChildren,
+  ApiReposRoute: ApiReposRoute,
+  ApiTodosRoute: ApiTodosRouteWithChildren,
   ApiTokensRoute: ApiTokensRouteWithChildren,
 }
 export const routeTree = rootRouteImport

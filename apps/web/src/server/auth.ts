@@ -94,6 +94,13 @@ export function authenticate(db: Database, request: Request): Auth | null {
   return session && touchSession(db, session) ? { kind: "session" } : null
 }
 
+// Who wrote an event: the browser, or a token, named after its device when the CLI says which.
+export function actorOf(auth: Auth, request: Request): string {
+  if (auth.kind === "session") return "web"
+  const device = request.headers.get("x-atlas-device")
+  return device && /^[\w.-]{1,64}$/.test(device) ? `cli:${device}` : `token:${auth.name}`
+}
+
 // Traefik sets X-Real-Ip to the address it saw, overwriting whatever the client sent.
 export function clientIp(request: Request): string {
   return request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? "local"

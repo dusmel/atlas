@@ -1,19 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { getDb } from "@/server/app-db"
+import { actorOf } from "@/server/auth"
+import { handle, readJson } from "@/server/http"
+import { createTodo, listTodos } from "@/server/todos"
 
-// Phase 1 only lists; filters and writes come in Phase 2 (spec section 6).
+// Repeated params and comma lists both work: ?status=todo&status=doing or ?status=todo,doing.
+const many = (url: URL, key: string) => url.searchParams.getAll(key).flatMap((v) => v.split(",")).filter(Boolean)
+
 export const Route = createFileRoute("/api/todos")({
   server: {
     handlers: {
-      GET: () =>
-        Response.json(
-          getDb()
-            .query(
-              `SELECT * FROM items WHERE archived_at IS NULL AND status IN ('todo', 'doing')
-               ORDER BY priority IS NOT NULL, priority, status, rank`,
-            )
-            .all(),
-        ),
+      GET: ({ request }) => {
+        const url = new URL(request.url)
+        const one = (key: string) => url.searchParams.get(key) ?? undefined
+        return handle(() =>
+          listTodos(getDb(), {
+            repo: many(url, "repo"),
+            status: many(url, "status"),
+            priority: many(url, "priority"),
+            group: one("group"),
+            parent: one("parent"),
+            q: one("q"),
+            include_archived: url.searchParams.get("include_archived") === "1",
+          }),
+        )
+      },
+      POST: ({ request, context }) => handle(async () => createTodo(getDb(), actorOf(context!.auth, request), await readJson(request)), 201),
     },
   },
 })
