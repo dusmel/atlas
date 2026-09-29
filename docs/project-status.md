@@ -76,7 +76,7 @@ Atlas is a personal CLI that promotes active git repos into a centralized atlas 
 
 ### Config is dynamic at runtime
 
-- `src/config.ts` exposes runtime helpers:
+- `apps/cli/src/config.ts` exposes runtime helpers:
   - `atlasRoot()`
   - `reposDir()`
   - `stateDir()`
@@ -97,7 +97,7 @@ Atlas is a personal CLI that promotes active git repos into a centralized atlas 
 
 - Add `atlas list` for promoted repos and active candidates.
 - Add a cleanup / inspect command for stale candidate state.
-- Decide whether stale promoted entries (missing roots, old paths, `/tmp` test leftovers) should get an explicit prune step; `scripts/migrate-promoted-dirs.ts` reports them but never deletes.
+- Decide whether stale promoted entries (missing roots, old paths, `/tmp` test leftovers) should get an explicit prune step; `apps/cli/scripts/migrate-promoted-dirs.ts` reports them but never deletes.
 - Add `atlas open` to open the current repo's `atlas/index.html` in the browser.
 - Decide whether to support more synced directories besides `plans/` and `notes/`.
 
@@ -159,5 +159,5 @@ bun test
 
 1. Read `README.md` for quick usage.
 2. Read `docs/project-status.md` for current state and backlog.
-3. Read `src/cli.ts` and `src/repo.ts` before changing behavior.
+3. Read `apps/cli/src/cli.ts` and `apps/cli/src/repo.ts` before changing behavior.
 4. Run `bun test` before and after meaningful changes.
