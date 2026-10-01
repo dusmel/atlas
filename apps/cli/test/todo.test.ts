@@ -5,10 +5,11 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveRepo } from "../src/git.ts";
+import { socketPath } from "../src/todo/agent.ts";
 import { run } from "../src/util.ts";
 
 const ROOT = join(import.meta.dir, "../../..");
@@ -68,7 +69,7 @@ afterAll(() => {
 async function cli(args: string[], opts: { cwd?: string; stdin?: string; env?: Record<string, string> } = {}) {
   const p = Bun.spawn(["bun", CLI, "todo", ...args], {
     cwd: opts.cwd ?? tmp,
-    env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ...opts.env },
+    env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0", ...opts.env },
     stdin: opts.stdin === undefined ? "ignore" : new Blob([opts.stdin]),
     stdout: "pipe",
     stderr: "pipe",
@@ -161,4 +162,28 @@ describe("atlas todo import", () => {
     expect(again.code).toBe(1);
     expect(again.out).toContain("already imported");
   });
+});
+
+describe("the connection helper", () => {
+  test("starts on the first command, carries the next ones, and exits when idle", async () => {
+    // A short HOME: macOS caps unix socket paths at 104 bytes.
+    const home = mkdtempSync("/tmp/atlas-agent-");
+    const env = { HOME: home, ATLAS_AGENT: "1", ATLAS_AGENT_IDLE_MS: "1500" };
+    const sock = socketPath(url).replace(process.env.HOME!, home);
+    const until = async (ok: () => boolean) => {
+      for (let i = 0; i < 100 && !ok(); i++) await Bun.sleep(100);
+      return ok();
+    };
+    try {
+      expect((await cli(["list", "--personal"], { env })).code).toBe(0);
+      expect(await until(() => existsSync(sock))).toBe(true);
+      expect(statSync(sock).mode & 0o777).toBe(0o600);
+      const added = await json(["add", "Through the helper", "--personal"], { env });
+      expect(added.title).toBe("Through the helper");
+      expect((await cli(["list", "--all"], { env: { ...env, ATLAS_TOKEN: "atl_wrong" } })).code).toBe(3);
+      expect(await until(() => !existsSync(sock))).toBe(true);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  }, 20_000);
 });

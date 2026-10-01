@@ -3,6 +3,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { agentEnabled, socketPath, spawnAgent, UNREACHABLE } from "./agent.ts";
 
 /** A failure with the exit code from spec section 7: 1 server, 2 usage, 3 auth, 4 network. */
 export class CliError extends Error {
@@ -36,23 +37,42 @@ export function loadConfig(): Config {
   return { url: url.replace(/\/$/, ""), token, device: device ?? "" };
 }
 
-/** Calls the API and returns its JSON, or throws a CliError with the right exit code. */
-export async function api<T = unknown>(cfg: Config, method: string, path: string, body?: unknown): Promise<T> {
-  let res: Response;
+/** Through the helper when it runs; otherwise direct, starting the helper for next time. */
+async function send(cfg: Config, path: string, init: RequestInit): Promise<Response> {
+  if (agentEnabled()) {
+    try {
+      const res = await fetch(`http://agent/api${path}`, { ...init, unix: socketPath(cfg.url) });
+      if (res.headers.get(UNREACHABLE)) throw new CliError(4, `Cannot reach ${cfg.url}: ${await res.text()}`);
+      return res;
+    } catch (e) {
+      if (e instanceof CliError) throw e;
+      // Only when the helper is not there: after a request reached it, a retry could add an item twice.
+      const code = (e as { code?: string }).code ?? "";
+      if (!["FailedToOpenSocket", "ConnectionRefused", "ECONNREFUSED", "ENOENT"].includes(code)) {
+        throw new CliError(4, `Lost the connection to ${cfg.url} mid-request (${code || (e as Error).message}); check whether it went through`);
+      }
+      spawnAgent(cfg.url);
+    }
+  }
   try {
-    res = await fetch(`${cfg.url}/api${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${cfg.token}`,
-        ...(cfg.device ? { "x-atlas-device": cfg.device } : {}),
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
-    });
+    return await fetch(`${cfg.url}/api${path}`, init);
   } catch (e) {
     throw new CliError(4, `Cannot reach ${cfg.url}: ${(e as Error).message}`);
   }
+}
+
+/** Calls the API and returns its JSON, or throws a CliError with the right exit code. */
+export async function api<T = unknown>(cfg: Config, method: string, path: string, body?: unknown): Promise<T> {
+  const res = await send(cfg, path, {
+    method,
+    headers: {
+      authorization: `Bearer ${cfg.token}`,
+      ...(cfg.device ? { "x-atlas-device": cfg.device } : {}),
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
   if (res.status === 401) throw new CliError(3, `Token rejected, check ${configPath()}`);
   const data = (await res.json().catch(() => null)) as (T & { error?: { message: string } }) | null;
   if (!res.ok) {

@@ -4,6 +4,7 @@
 
 import { err } from "../util.ts";
 import { itemId, parseArgs, textFlag, type FlagSpec } from "./args.ts";
+import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
 import { itemLines, showLines, type Item } from "./format.ts";
 import { importTodos } from "./import.ts";
@@ -64,6 +65,11 @@ async function run(args: string[]): Promise<number> {
   if (!sub || sub === "-h" || sub === "--help") {
     console.log(TODO_USAGE);
     return sub ? 0 : 2;
+  }
+
+  if (sub === "__agent") {
+    await serveAgent(rest[0]!);
+    return 0;
   }
 
   if (sub === "import") {
