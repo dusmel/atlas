@@ -8,6 +8,7 @@ export type Item = {
   id: number;
   repo_name: string;
   group_name: string | null;
+  group_doc?: string | null;
   parent_id: number | null;
   section: string | null;
   title: string;

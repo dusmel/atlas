@@ -2,21 +2,23 @@
  * `atlas todo <command>`: HTTP clients of the web API (spec section 7).
  */
 
+import { isatty } from "node:tty";
 import { err, out } from "../util.ts";
 import { itemId, parseArgs, textFlag, type FlagSpec } from "./args.ts";
 import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
 import { itemLines, showLines, type Item } from "./format.ts";
 import { importTodos } from "./import.ts";
+import { listView, showView, type Style } from "./pretty.ts";
 import { repoParam, scopeOf, type Scope } from "./scope.ts";
 
 const SCOPE: FlagSpec = { repo: "string", all: "boolean", personal: "boolean", json: "boolean" };
 
 export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the repo in the current directory.
 
-  atlas todo list    [--status todo,doing,done] [--priority P0|inbox] [--group NAME] [--all] [--json]
+  atlas todo list    [--status todo,doing,done] [--priority P0|inbox] [--group NAME] [--all] [--plain] [--json]
   atlas todo add     "title" [--body TEXT|-] [--priority P1] [--group NAME] [--parent 12] [--status doing]
-  atlas todo show    42
+  atlas todo show    42 [--plain]
   atlas todo set     42 [--title T] [--body TEXT|-] [--priority P2|inbox] [--group NAME|none] [--parent 12|none]
   atlas todo move    42 (--before 17 | --after 17 | --top | --bottom) [--priority P0] [--status doing]
   atlas todo start   42        status doing
@@ -27,7 +29,14 @@ export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the rep
   atlas todo import  [--apply] [--repo NAME]
 
 Every command takes --repo NAME, --personal or --all (list only), and --json.
---body - reads the body from stdin.`;
+--body - reads the body from stdin.
+At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.`;
+
+/** The readable layout only for a person: never for --json, --plain or a pipe, which is how agents call it. */
+function pretty(flags: Record<string, string | boolean>): Style | null {
+  if (flags.json || flags.plain || !isatty(1)) return null;
+  return { width: Math.min(process.stdout.columns || 100, 120), color: !process.env.NO_COLOR };
+}
 
 const print = (json: boolean, data: unknown, human: () => string[]) => out(json ? JSON.stringify(data, null, 2) : human().join("\n"));
 
@@ -80,13 +89,15 @@ async function run(args: string[]): Promise<number> {
   const cfg = loadConfig();
   switch (sub) {
     case "list": {
-      const { flags } = parseArgs(rest, { ...SCOPE, status: "string", priority: "string", group: "string" });
+      const { flags } = parseArgs(rest, { ...SCOPE, plain: "boolean", status: "string", priority: "string", group: "string" });
       const scope = await scopeOf(flags);
       const q = new URLSearchParams();
       if (scope !== "all") q.set("repo", repoParam(scope));
       for (const k of ["status", "priority", "group"]) if (typeof flags[k] === "string") q.set(k, flags[k] as string);
       const items = await api<Item[]>(cfg, "GET", `/todos?${q}`);
-      await print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
+      const style = pretty(flags);
+      if (style) await out(listView(items, scope === "all", style).join("\n"));
+      else await print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
       return 0;
     }
     case "add": {
@@ -106,9 +117,11 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "show": {
-      const { flags, rest: words } = parseArgs(rest, SCOPE);
+      const { flags, rest: words } = parseArgs(rest, { ...SCOPE, plain: "boolean" });
       const data = await api<Parameters<typeof showLines>[0]>(cfg, "GET", `/todos/${itemId(words, "show")}`);
-      await print(!!flags.json, data, () => showLines(data));
+      const style = pretty(flags);
+      if (style) await out(showView(data, style).join("\n"));
+      else await print(!!flags.json, data, () => showLines(data));
       return 0;
     }
     case "set": {
