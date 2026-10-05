@@ -17,7 +17,8 @@ import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { CELL_LIMIT, cellKey, type BoardRow, type Cell } from "@/lib/board"
-import { rowLabel, STATUS_LABEL, type Item, type Place, type Row, type Status } from "@/lib/todos"
+import { PRIORITY_NAME, rowLabel, STATUS_LABEL, type Item, type Place, type Row, type Status } from "@/lib/todos"
+import { PriorityIcon, StatusIcon } from "./icons"
 import { ItemCard, SortableCard } from "./item-card"
 
 export type BoardProps = {
@@ -38,8 +39,6 @@ export type BoardProps = {
   onMove: (item: Item, to: Place) => void
 }
 
-export const RAIL: Record<string, string> = { inbox: "border-inbox", P0: "border-p0", P1: "border-p1", P2: "border-p2", P3: "border-p3" }
-export const DOT: Record<string, string> = { inbox: "bg-inbox", P0: "bg-p0", P1: "bg-p1", P2: "bg-p2", P3: "bg-p3" }
 
 const CELL_PREFIX = "cell:"
 
@@ -74,14 +73,14 @@ export function Board(props: BoardProps) {
     props.onMove(item, { priority: over.priority, status: over.status, ...(down ? { after: over.id } : { before: over.id }) })
   }
 
-  const cols = { gridTemplateColumns: `7rem repeat(${statuses.length}, minmax(0, 1fr))` }
+  const cols = { gridTemplateColumns: `repeat(${statuses.length}, minmax(0, 1fr))` }
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActive(null)}>
-      <div className="flex flex-col pb-24">
-        <div className="sticky top-14 z-10 grid gap-x-3 border-b bg-background/95 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/80 sm:px-6" style={cols}>
-          <span />
+      <div className="flex flex-col gap-3 px-4 pb-24 sm:px-6">
+        <div className="sticky top-14 z-20 -mx-4 grid h-11 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/80 sm:-mx-6 sm:px-6" style={cols}>
           {statuses.map((s) => (
-            <div key={s} className="flex items-center gap-2 text-sm">
+            <div key={s} className="flex items-center gap-2 px-1 text-sm">
+              <StatusIcon status={s} className="size-4" />
               <span className="font-medium">{STATUS_LABEL[s]}</span>
               <span className="text-muted-foreground tabular-nums">{props.laneTotals[s]}</span>
               {s === "done" && (
@@ -93,21 +92,14 @@ export function Board(props: BoardProps) {
           ))}
         </div>
         {rows.map((row) => (
-          <section key={row.key} aria-label={rowLabel(row.row)} className="grid gap-x-3 border-b px-4 py-3 sm:px-6" style={cols}>
-            <RowLabel row={row} onToggle={() => props.onToggleRow(row.key)} onAdd={() => props.onAdd(row.row)} />
-            {row.cells.map((cell) =>
-              row.collapsed ? (
-                <button
-                  key={cell.status}
-                  type="button"
-                  onClick={() => props.onToggleRow(row.key)}
-                  className="self-start rounded-md px-2 py-1 text-left text-sm text-muted-foreground tabular-nums hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  {cell.all.length ? `${cell.all.length} ${STATUS_LABEL[cell.status].toLowerCase()}` : "–"}
-                </button>
-              ) : (
-                <LaneCell key={cell.status} id={cellKey(row.row, cell.status)} cell={cell} dragging={!!active} {...props} />
-              ),
+          <section key={row.key} aria-label={rowLabel(row.row)} className="flex flex-col gap-2">
+            <RowHeader row={row} onToggle={() => props.onToggleRow(row.key)} onAdd={() => props.onAdd(row.row)} />
+            {!row.collapsed && (
+              <div className="grid gap-3" style={cols}>
+                {row.cells.map((cell) => (
+                  <LaneCell key={cell.status} id={cellKey(row.row, cell.status)} cell={cell} dragging={!!active} {...props} />
+                ))}
+              </div>
             )}
           </section>
         ))}
@@ -119,24 +111,37 @@ export function Board(props: BoardProps) {
   )
 }
 
-function RowLabel({ row, onToggle, onAdd }: { row: BoardRow; onToggle: () => void; onAdd: () => void }) {
+// Sticks below the page header (h-14) and the lane bar (h-11).
+function RowHeader({ row, onToggle, onAdd }: { row: BoardRow; onToggle: () => void; onAdd: () => void }) {
   const open = row.cells.filter((c) => c.status !== "done").reduce((n, c) => n + c.all.length, 0)
   const label = rowLabel(row.row)
   return (
-    <div className={cn("sticky top-24 flex flex-col gap-1 self-start border-l-[3px] pl-2.5", RAIL[row.key])}>
+    <div className="sticky top-25 z-10 flex h-10 items-center gap-1 rounded-lg bg-muted px-1">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={!row.collapsed}
-        className="-ml-1 flex items-center gap-1 rounded-md px-1 text-left text-sm font-semibold hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-background/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <ChevronRightIcon aria-hidden className={cn("size-3.5 text-muted-foreground transition-transform", !row.collapsed && "rotate-90")} />
-        {label}
+        <PriorityIcon row={row.key} />
+        <span className="font-medium">{label}</span>
+        {PRIORITY_NAME[row.key] && <span className="text-muted-foreground">{PRIORITY_NAME[row.key]}</span>}
+        <span className="text-muted-foreground tabular-nums">{open}</span>
       </button>
-      <span className="text-xs text-muted-foreground tabular-nums">{open} open</span>
+      {row.collapsed && (
+        <span className="flex items-center gap-3 px-2 text-xs text-muted-foreground tabular-nums">
+          {row.cells.map((c) => (
+            <span key={c.status} className="flex items-center gap-1" title={`${c.all.length} ${STATUS_LABEL[c.status].toLowerCase()}`}>
+              <StatusIcon status={c.status} />
+              {c.all.length}
+            </span>
+          ))}
+        </span>
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="-ml-1.5 text-muted-foreground" aria-label={`Add to ${label}`} onClick={onAdd}>
+          <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`Add to ${label}`} onClick={onAdd}>
             <PlusIcon />
           </Button>
         </TooltipTrigger>
@@ -151,7 +156,7 @@ function LaneCell({ id, cell, dragging, ...props }: BoardProps & { id: string; c
   const hidden = cell.all.length - cell.shown.length
   const isExpanded = props.expanded.has(id)
   return (
-    <div ref={setNodeRef} data-cell={id} className={cn("flex min-h-12 min-w-0 flex-col gap-1.5 rounded-lg p-0.5 transition-colors", dragging && "bg-muted/40", isOver && "bg-accent")}>
+    <div ref={setNodeRef} data-cell={id} className={cn("flex min-h-16 min-w-0 flex-col gap-2 rounded-xl bg-muted/35 p-1.5 transition-colors", dragging && "bg-muted/60", isOver && "bg-accent")}>
       <SortableContext items={cell.shown.map((i) => i.id)} strategy={verticalListSortingStrategy}>
         {cell.shown.map((item) => (
           <SortableCard

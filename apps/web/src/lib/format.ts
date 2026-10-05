@@ -14,6 +14,15 @@ export function ago(at: string, now = Date.now()): string {
   return date.format(new Date(at))
 }
 
+const dayMonth = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" })
+const monthYear = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric" })
+
+/** "5 Oct" this year, "Oct 2025" before. */
+export const shortDate = (at: string, now = new Date()) => {
+  const d = new Date(at)
+  return (d.getFullYear() === now.getFullYear() ? dayMonth : monthYear).format(d)
+}
+
 export const exact = (at: string) => dateTime.format(new Date(at))
 
 const QUIET = new Set(["rank", "done_at", "updated_at", "archived_at"])

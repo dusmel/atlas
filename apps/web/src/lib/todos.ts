@@ -12,6 +12,7 @@ export type Row = Priority | null
 export const ROWS: Row[] = [null, ...PRIORITIES]
 export const rowKey = (p: Row) => p ?? "inbox"
 export const rowLabel = (p: Row) => p ?? "Inbox"
+export const PRIORITY_NAME: Record<string, string> = { P0: "Urgent", P1: "High", P2: "Medium", P3: "Low" }
 export const STATUS_LABEL: Record<Status, string> = { todo: "Todo", doing: "Doing", done: "Done" }
 
 export type Group = { id: number; repo_id: string; repo_name: string; name: string; doc_path: string | null; open: number }

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { laneOf, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, useActions, type Group, type Item, type Repo, type Row, type Status } from "@/lib/todos"
-import { DOT } from "./board"
+import { PriorityIcon, StatusIcon } from "./icons"
 import { plainTitle } from "./rich-title"
 
 const LAST_REPO = "atlas.last-repo"
@@ -28,7 +28,7 @@ export function PriorityToggle({ value, onChange }: { value: Row; onChange: (r: 
     <ToggleGroup type="single" variant="outline" value={rowKey(value)} onValueChange={(v) => v && onChange(v === "inbox" ? null : (v as Row))} className="w-full">
       {ROWS.map((r) => (
         <ToggleGroupItem key={rowKey(r)} value={rowKey(r)} className={cn("min-h-9 flex-1 gap-1.5", ON)}>
-          <span aria-hidden className={cn("size-2 rounded-full", DOT[rowKey(r)])} />
+          <PriorityIcon row={rowKey(r)} />
           {rowLabel(r)}
         </ToggleGroupItem>
       ))}
@@ -40,7 +40,8 @@ export function StatusToggle({ value, onChange }: { value: Status; onChange: (s:
   return (
     <ToggleGroup type="single" variant="outline" value={value} onValueChange={(v) => v && onChange(v as Status)} className="w-full">
       {STATUSES.map((s) => (
-        <ToggleGroupItem key={s} value={s} className={cn("min-h-9 flex-1", ON)}>
+        <ToggleGroupItem key={s} value={s} className={cn("min-h-9 flex-1 gap-1.5", ON)}>
+          <StatusIcon status={s} />
           {STATUS_LABEL[s]}
         </ToggleGroupItem>
       ))}

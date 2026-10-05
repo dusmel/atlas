@@ -33,13 +33,14 @@ export const cell = (page: Page, key: string) => page.locator(`[data-cell="${key
 export const idsIn = async (cellLocator: Locator) => (await cellLocator.locator("[data-item]").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-item")))))
 
 // dnd-kit starts a drag after 6px of pointer travel, so move in small steps.
-export async function drag(page: Page, from: Locator, to: Locator, offsetY = 0) {
+// "top" drops on the target's top edge, which places the card before it.
+export async function drag(page: Page, from: Locator, to: Locator, at: "center" | "top" = "center") {
   await from.scrollIntoViewIfNeeded()
   const a = (await from.boundingBox())!
   const b = (await to.boundingBox())!
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2)
   await page.mouse.down()
   await page.mouse.move(a.x + a.width / 2 + 8, a.y + a.height / 2 + 8, { steps: 4 })
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + offsetY, { steps: 20 })
+  await page.mouse.move(b.x + b.width / 2, at === "top" ? b.y + 6 : b.y + b.height / 2, { steps: 20 })
   await page.mouse.up()
 }

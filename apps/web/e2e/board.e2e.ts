@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test"
 import { card, cell, drag, getItem, idsIn, itemByTitle, login, openBoard } from "./helpers"
 
+// Tall enough for the whole seeded board, so no drop target sits under the sticky headers.
+test.use({ viewport: { width: 1280, height: 1600 } })
+
 test.beforeEach(async ({ page }) => {
   await login(page)
 })
@@ -22,7 +25,7 @@ test("reordering within a lane persists", async ({ page }) => {
   await openBoard(page, "/todos?q=Order")
   const lane = cell(page, "P3:todo")
   await expect.poll(() => idsIn(lane)).toEqual([a, b, c])
-  await drag(page, card(page, c), card(page, a), -10)
+  await drag(page, card(page, c), card(page, a), "top")
   await expect.poll(() => idsIn(lane)).toEqual([c, a, b])
   await page.reload()
   await expect.poll(() => idsIn(lane)).toEqual([c, a, b])

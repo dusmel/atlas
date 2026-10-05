@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ago, describe, exact } from "@/lib/format"
 import { authorOf, isAgent, STATUS_LABEL, useActions, useGroups, useItemDetail, type Item } from "@/lib/todos"
 import { PriorityToggle, StatusToggle } from "./dialogs"
+import { StatusIcon } from "./icons"
 import { plainTitle, RichTitle } from "./rich-title"
 
 type PanelProps = { item: Item | null; items: Item[]; desktop: boolean; onClose: () => void; onOpen: (id: number) => void }
@@ -254,11 +255,12 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
               onClick={() => onOpen(c.id)}
               className="flex items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
+              <StatusIcon status={c.status} className="self-center" />
+              <span className="sr-only">{STATUS_LABEL[c.status]}</span>
               <span className="font-mono text-xs text-muted-foreground tabular-nums">#{c.id}</span>
               <span className={cn("min-w-0 flex-1 truncate", c.status === "done" && "text-muted-foreground line-through")}>
                 <RichTitle text={c.title} />
               </span>
-              <span className="text-xs text-muted-foreground">{STATUS_LABEL[c.status]}</span>
             </button>
           ))}
         </section>

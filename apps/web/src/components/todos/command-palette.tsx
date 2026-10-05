@@ -1,7 +1,6 @@
 import {
   ArchiveIcon,
   ArrowRightLeftIcon,
-  CircleDotIcon,
   ClockIcon,
   KeyboardIcon,
   ListFilterIcon,
@@ -14,10 +13,9 @@ import {
   XIcon,
 } from "lucide-react"
 import { useState } from "react"
-import { cn } from "cn"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { activeCount, FACETS, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, type Facet, type Filters, type Item, type Row, type Status } from "@/lib/todos"
-import { DOT } from "./board"
+import { PriorityIcon, StatusIcon } from "./icons"
 import { FacetCommand, type Option } from "./filters"
 import { plainTitle } from "./rich-title"
 
@@ -83,7 +81,7 @@ function Palette({ page: startPage, items, selected, filters, doneAll, options, 
           <CommandGroup heading="Items">
             {found.map((i) => (
               <CommandItem key={i.id} value={`#${i.id} ${plainTitle(i.title)}`} onSelect={close(() => run.openItem(i.id))}>
-                <span aria-hidden className={cn("size-2 shrink-0 rounded-full", DOT[rowKey(i.priority)])} />
+                <PriorityIcon row={rowKey(i.priority)} />
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">#{i.id}</span>
                 <span className="min-w-0 flex-1 truncate">{plainTitle(i.title)}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">{i.repo_name}</span>
@@ -100,14 +98,14 @@ function Palette({ page: startPage, items, selected, filters, doneAll, options, 
             </CommandItem>
             {ROWS.filter((r) => r !== selected.priority).map((r) => (
               <CommandItem key={rowKey(r)} value={`priority ${rowLabel(r)}`} onSelect={close(() => run.setPriority(r))}>
-                <span aria-hidden className={cn("mx-1 size-2 rounded-full", DOT[rowKey(r)])} />
+                <PriorityIcon row={rowKey(r)} />
                 Set priority {rowLabel(r)}
                 <CommandShortcut>{r === null ? "I" : r.slice(1)}</CommandShortcut>
               </CommandItem>
             ))}
             {STATUSES.filter((s) => s !== selected.status).map((s) => (
               <CommandItem key={s} value={`status ${s}`} onSelect={close(() => run.setStatus(s))}>
-                <CircleDotIcon />
+                <StatusIcon status={s} className="size-4" />
                 Mark as {STATUS_LABEL[s].toLowerCase()}
               </CommandItem>
             ))}

@@ -9,12 +9,12 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Kbd } from "@/components/ui/kbd"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { activeCount, facetCounts, FACETS, isAgent, rowLabel, STATUS_LABEL, type Facet, type Filters, type Group, type Item, type Repo } from "@/lib/todos"
-import { DOT } from "./board"
+import { PriorityIcon, StatusIcon } from "./icons"
 import { plainTitle } from "./rich-title"
 
 export const FACET_LABEL: Record<Facet, string> = { repo: "Repo", group: "Group", priority: "Priority", status: "Status", by: "Author" }
 
-export type Option = { value: string; label: string; section?: string; count: number; dot?: string }
+export type Option = { value: string; label: string; section?: string; count: number; icon?: React.ReactNode }
 
 /** Every value each filter can take, with how many items it would show given the other filters. */
 export function useOptions(items: Item[], filters: Filters, repos: Repo[], groups: Group[]): Record<Facet, Option[]> {
@@ -33,8 +33,8 @@ export function useOptions(items: Item[], filters: Filters, repos: Repo[], group
         ...groups.map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)) })),
         { value: "none", label: "No group", count: n(groupCounts, "none") },
       ],
-      priority: ["inbox", "P0", "P1", "P2", "P3"].map((p) => ({ value: p, label: rowLabel(p === "inbox" ? null : (p as "P0")), count: n(priorityCounts, p), dot: DOT[p] })),
-      status: (["todo", "doing", "done"] as const).map((s) => ({ value: s, label: STATUS_LABEL[s], count: n(statusCounts, s) })),
+      priority: ["inbox", "P0", "P1", "P2", "P3"].map((p) => ({ value: p, label: rowLabel(p === "inbox" ? null : (p as "P0")), count: n(priorityCounts, p), icon: <PriorityIcon row={p} /> })),
+      status: (["todo", "doing", "done"] as const).map((s) => ({ value: s, label: STATUS_LABEL[s], count: n(statusCounts, s), icon: <StatusIcon status={s} /> })),
       by: [
         { value: "agent", label: "Any agent", count: n(byCounts, "agent") },
         ...authors.map((a) => ({ value: a, label: a, section: isAgent(a) ? "Agents" : "People and tools", count: n(byCounts, a) })),
@@ -80,7 +80,7 @@ export function FacetCommand({ facets, options, filters, onChange, autoFocus }: 
                     <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-sm border", on ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
                       {on && <CheckIcon className="size-3" />}
                     </span>
-                    {o.dot && <span aria-hidden className={cn("size-2 shrink-0 rounded-full", o.dot)} />}
+                    {o.icon}
                     <span className="min-w-0 flex-1 truncate">{o.label}</span>
                     <span className={cn("text-xs tabular-nums", o.count ? "text-muted-foreground" : "text-muted-foreground/50")}>{o.count}</span>
                   </CommandItem>
