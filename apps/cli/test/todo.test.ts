@@ -123,6 +123,20 @@ describe("atlas todo", () => {
     expect(set).toMatchObject({ priority: null, title: "Cleared" });
   });
 
+  test("piped --json output is complete past 64 KB", async () => {
+    const body = "x".repeat(100_000);
+    const added = await json(["add", "Big", "--personal", "--body", "-"], { stdin: body });
+    // The loss only shows when the reader is slower than the CLI, as a sleeping pipe is.
+    const p = Bun.spawn(["sh", "-c", `bun "${CLI}" todo list --all --json | (sleep 0.5; cat)`], {
+      cwd: tmp,
+      env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0" },
+      stdout: "pipe",
+    });
+    const out = await new Response(p.stdout).text();
+    expect(JSON.parse(out).some((x: { id: number; body: string }) => x.id === added.id && x.body === body)).toBe(true);
+    await json(["archive", String(added.id)]);
+  });
+
   test("--personal and --all", async () => {
     await json(["add", "Mine", "--personal"]);
     const all = await cli(["list", "--all"]);

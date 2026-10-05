@@ -26,6 +26,14 @@ Examples:
   atlas promote --repo ~/projects/my-repo`);
 }
 
+/**
+ * Print to stdout for output that can be large. Not console.log: once clack has loaded (it
+ * reads process.stdout), Bun 1.3 drops piped console.log output past 64 KB.
+ */
+export function out(text: string): Promise<void> {
+  return new Promise((resolve) => process.stdout.write(`${text}\n`, () => resolve()));
+}
+
 /** Print an error message to stderr. */
 export function err(msg: string): void {
   console.error(msg);

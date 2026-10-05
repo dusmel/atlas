@@ -7,6 +7,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { checkFile, checkStored, report, type Report } from "@atlas/todos";
 import { reposDir } from "../config.ts";
+import { out } from "../util.ts";
 import { api, CliError, type Config } from "./client.ts";
 import { reportLines } from "./format.ts";
 import { metaOf } from "./scope.ts";
@@ -60,7 +61,7 @@ export async function importTodos(cfg: Config | null, opts: { apply: boolean; re
     }
   }
 
-  if (opts.json) console.log(JSON.stringify(results, null, 2));
+  if (opts.json) await out(JSON.stringify(results, null, 2));
   else {
     for (const r of results) {
       console.log(reportLines(r.report).join("\n"));

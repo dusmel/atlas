@@ -2,7 +2,7 @@
  * `atlas todo <command>`: HTTP clients of the web API (spec section 7).
  */
 
-import { err } from "../util.ts";
+import { err, out } from "../util.ts";
 import { itemId, parseArgs, textFlag, type FlagSpec } from "./args.ts";
 import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
@@ -29,7 +29,7 @@ export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the rep
 Every command takes --repo NAME, --personal or --all (list only), and --json.
 --body - reads the body from stdin.`;
 
-const print = (json: boolean, data: unknown, human: () => string[]) => console.log(json ? JSON.stringify(data, null, 2) : human().join("\n"));
+const print = (json: boolean, data: unknown, human: () => string[]) => out(json ? JSON.stringify(data, null, 2) : human().join("\n"));
 
 /** `none` and `inbox` clear a field; the API takes null for both. */
 const nullable = (v: string | boolean | undefined, word: string) => (v === undefined ? undefined : v === word ? null : v);
@@ -42,7 +42,7 @@ const idOrNull = (v: string | boolean | undefined) => {
 
 async function single(cfg: Config, method: string, path: string, body: unknown, json: boolean) {
   const item = await api<Item>(cfg, method, path, body);
-  print(json, item, () => itemLines([item], true));
+  await print(json, item, () => itemLines([item], true));
 }
 
 function requireRepo(scope: Scope) {
@@ -86,7 +86,7 @@ async function run(args: string[]): Promise<number> {
       if (scope !== "all") q.set("repo", repoParam(scope));
       for (const k of ["status", "priority", "group"]) if (typeof flags[k] === "string") q.set(k, flags[k] as string);
       const items = await api<Item[]>(cfg, "GET", `/todos?${q}`);
-      print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
+      await print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
       return 0;
     }
     case "add": {
@@ -108,7 +108,7 @@ async function run(args: string[]): Promise<number> {
     case "show": {
       const { flags, rest: words } = parseArgs(rest, SCOPE);
       const data = await api<Parameters<typeof showLines>[0]>(cfg, "GET", `/todos/${itemId(words, "show")}`);
-      print(!!flags.json, data, () => showLines(data));
+      await print(!!flags.json, data, () => showLines(data));
       return 0;
     }
     case "set": {
@@ -152,7 +152,7 @@ async function run(args: string[]): Promise<number> {
         "GET",
         `/groups${scope === "all" ? "" : `?repo=${encodeURIComponent(repoParam(scope))}`}`,
       );
-      print(!!flags.json, groups, () =>
+      await print(!!flags.json, groups, () =>
         groups.length ? groups.map((g) => `${String(g.open).padStart(3)} open  ${scope === "all" ? `${g.repo_name}  ` : ""}${g.name}${g.doc_path ? `  → ${g.doc_path}` : ""}`) : ["No groups."],
       );
       return 0;
@@ -164,7 +164,7 @@ async function run(args: string[]): Promise<number> {
       if (!words[0]) throw new CliError(2, 'Usage: atlas todo group add "name"');
       const repo = requireRepo(await scopeOf(flags));
       const group = await api<{ id: number; name: string }>(cfg, "POST", "/groups", { repo, name: words.join(" "), doc_path: flags.doc, note: await textFlag(flags.note) });
-      print(!!flags.json, group, () => [`Added group ${group.name}`]);
+      await print(!!flags.json, group, () => [`Added group ${group.name}`]);
       return 0;
     }
     default:
