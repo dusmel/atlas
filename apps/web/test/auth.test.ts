@@ -11,6 +11,7 @@ import {
   revokeToken,
   sessionCookie,
   touchSession,
+  whoOf,
 } from "../src/server/auth"
 import { freshDb } from "./helpers"
 
@@ -94,5 +95,20 @@ describe("login throttle", () => {
   test("reads the address Traefik saw", () => {
     expect(clientIp(req({ "x-real-ip": "9.9.9.9", "x-forwarded-for": "6.6.6.6" }))).toBe("9.9.9.9")
     expect(clientIp(req({ "x-forwarded-for": "6.6.6.6, 9.9.9.9" }))).toBe("9.9.9.9")
+  })
+})
+
+describe("whoOf", () => {
+  const token = { kind: "token" as const, name: "mac" }
+  test("the web is me; the CLI says which device and who is typing", () => {
+    expect(whoOf({ kind: "session" }, req({}))).toEqual({ actor: "web", author: "me" })
+    expect(whoOf(token, req({ "x-atlas-device": "irembo-mac", "x-atlas-author": "claude-code" }))).toEqual({ actor: "cli:irembo-mac", author: "claude-code" })
+    expect(whoOf(token, req({ "x-atlas-author": "me" }))).toEqual({ actor: "token:mac", author: "me" })
+  })
+
+  test("a missing, malformed or reserved author is a script", () => {
+    for (const author of ["", "Claude Code", "agent", "import", "x".repeat(33)]) {
+      expect(whoOf(token, req(author ? { "x-atlas-author": author } : {})).author).toBe("script")
+    }
   })
 })

@@ -17,6 +17,7 @@ export type Item = {
   priority: string | null;
   updated_at: string;
   archived_at: string | null;
+  created_by?: string | null;
 };
 
 /** `P1  #42  doing  Build todo store   [Atlas Web v1]`, with a repo column for --all. */

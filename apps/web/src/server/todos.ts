@@ -12,6 +12,7 @@ import {
   type Priority,
   type Status,
 } from "@atlas/todos"
+import type { Who } from "./auth"
 import { now } from "./db"
 import { HttpError } from "./http"
 
@@ -34,6 +35,7 @@ export type Item = {
   done_at: string | null
   archived_at: string | null
   import_id: number | null
+  created_by: string | null
 }
 
 const SELECT = `SELECT items.*, repos.name AS repo_name, groups.name AS group_name, groups.doc_path AS group_doc
@@ -51,9 +53,11 @@ function itemRow(db: Database, id: number): Item {
   return item
 }
 
-function event(db: Database, itemId: number, actor: string, action: string, data: unknown): void {
-  db.run("INSERT INTO events (item_id, actor, action, data, at) VALUES (?, ?, ?, ?, ?)", [itemId, actor, action, JSON.stringify(data), now()])
+function event(db: Database, itemId: number, who: Who, action: string, data: unknown): void {
+  db.run("INSERT INTO events (item_id, actor, author, action, data, at) VALUES (?, ?, ?, ?, ?, ?)", [itemId, who.actor, who.author, action, JSON.stringify(data), now()])
 }
+
+const IMPORTER: Who = { actor: "import", author: "import" }
 
 const toInt = (v: unknown, what: string): number => {
   const n = typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v
@@ -103,16 +107,45 @@ function resolveGroup(db: Database, repoId: string, value: unknown): number | nu
   return row.id
 }
 
-export function listGroups(db: Database, repo?: string) {
+// `agent` means any author that is not me, script, the importer or unknown (made before authors were kept).
+const NOT_AGENT = ["me", "script", "import"]
+
+/** A SQL condition on items.created_by for a list of authors, with its arguments. */
+function byFilter(by: string[]): [string, string[]] {
+  const parts: string[] = []
+  const args: string[] = []
+  for (const b of by) {
+    if (b === "agent") {
+      parts.push(`(items.created_by IS NOT NULL AND items.created_by NOT IN (${NOT_AGENT.map(() => "?").join(", ")}))`)
+      args.push(...NOT_AGENT)
+    } else if (b === "unknown") parts.push("items.created_by IS NULL")
+    else {
+      parts.push("items.created_by = ?")
+      args.push(b)
+    }
+  }
+  return [`(${parts.join(" OR ")})`, args]
+}
+
+/** Groups with their open counts. With `by`, the counts are that author's items and empty groups are left out. */
+export function listGroups(db: Database, repo?: string, by: string[] = []) {
   const where = repo ? "WHERE groups.repo_id = ? OR repos.name = ?" : ""
+  const [bySql, byArgs] = by.length ? byFilter(by) : ["1", []]
   return db
     .query(
       `SELECT groups.*, repos.name AS repo_name,
-         count(items.id) FILTER (WHERE items.status != 'done' AND items.archived_at IS NULL) AS open
+         count(items.id) FILTER (WHERE items.status != 'done' AND items.archived_at IS NULL AND ${bySql}) AS open
        FROM groups JOIN repos ON repos.id = groups.repo_id LEFT JOIN items ON items.group_id = groups.id
-       ${where} GROUP BY groups.id ORDER BY repos.name, groups.id`,
+       ${where} GROUP BY groups.id ${by.length ? "HAVING open > 0" : ""} ORDER BY repos.name, groups.id`,
     )
-    .all(...(repo ? [repo, repo] : []))
+    .all(...byArgs, ...(repo ? [repo, repo] : []))
+}
+
+/** Every author with how many items they made, for completion and filters. */
+export function listAuthors(db: Database) {
+  return db
+    .query("SELECT coalesce(created_by, 'unknown') AS author, count(*) AS items FROM items WHERE archived_at IS NULL GROUP BY 1 ORDER BY 2 DESC")
+    .all()
 }
 
 const optText = (v: unknown, what: string): string | null => {
@@ -187,7 +220,7 @@ function placeRank(db: Database, lane: Lane, input: Record<string, unknown>, exc
 
 // ── items ────────────────────────────────────────────────────────────────────
 
-export type ListQuery = { repo: string[]; status: string[]; priority: string[]; group?: string; parent?: string; q?: string; include_archived?: boolean }
+export type ListQuery = { repo: string[]; status: string[]; priority: string[]; by?: string[]; group?: string; parent?: string; q?: string; include_archived?: boolean }
 
 export function listTodos(db: Database, query: ListQuery): Item[] {
   const where: string[] = []
@@ -207,6 +240,11 @@ export function listTodos(db: Database, query: ListQuery): Item[] {
     where.push(`(${parts.join(" OR ")})`)
     args.push(...set)
   }
+  if (query.by?.length) {
+    const [sql, by] = byFilter(query.by)
+    where.push(sql)
+    args.push(...by)
+  }
   if (query.group) {
     where.push("groups.name = ?")
     args.push(query.group)
@@ -223,7 +261,7 @@ export function listTodos(db: Database, query: ListQuery): Item[] {
   return db.query<Item, (string | number)[]>(`${SELECT} WHERE ${where.join(" AND ")} ${ORDER}`).all(...args)
 }
 
-type Event = { id: number; item_id: number; actor: string; action: string; at: string }
+type Event = { id: number; item_id: number; actor: string; author: string | null; action: string; at: string }
 
 export function getTodo(db: Database, id: number) {
   const item = itemRow(db, id)
@@ -247,7 +285,7 @@ function parentFor(db: Database, item: { id?: number; repo_id: string }, value: 
   return parent.id
 }
 
-export function createTodo(db: Database, actor: string, input: Record<string, unknown>): Item {
+export function createTodo(db: Database, who: Who, input: Record<string, unknown>): Item {
   return db.transaction(() => {
     const repo_id = resolveRepo(db, input.repo)
     const lane: Lane = {
@@ -267,11 +305,11 @@ export function createTodo(db: Database, actor: string, input: Record<string, un
     }
     const { id } = db
       .query<{ id: number }, (string | number | null)[]>(
-        `INSERT INTO items (repo_id, group_id, parent_id, title, body, status, priority, rank, created_at, updated_at, done_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        `INSERT INTO items (repo_id, group_id, parent_id, title, body, status, priority, rank, created_at, updated_at, done_at, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       )
-      .get(row.repo_id, row.group_id, row.parent_id, row.title, row.body, row.status, row.priority, row.rank, at, at, row.done_at)!
-    event(db, id, actor, "create", row)
+      .get(row.repo_id, row.group_id, row.parent_id, row.title, row.body, row.status, row.priority, row.rank, at, at, row.done_at, who.author)!
+    event(db, id, who, "create", row)
     return itemRow(db, id)
   })()
 }
@@ -279,14 +317,14 @@ export function createTodo(db: Database, actor: string, input: Record<string, un
 type Changes = Record<string, [unknown, unknown]>
 
 // Writes the changed fields, the new rank if the lane moved, and one event.
-function write(db: Database, actor: string, action: string, item: Item, next: Partial<Item>): Item {
+function write(db: Database, who: Who, action: string, item: Item, next: Partial<Item>): Item {
   const changes: Changes = {}
   for (const [k, v] of Object.entries(next)) if (item[k as keyof Item] !== v) changes[k] = [item[k as keyof Item], v]
   if (!Object.keys(changes).length) return item
   const at = now()
   const cols = Object.keys(changes)
   db.run(`UPDATE items SET ${cols.map((c) => `${c} = ?`).join(", ")}, updated_at = ? WHERE id = ?`, [...cols.map((c) => changes[c]![1] as string | number | null), at, item.id])
-  event(db, item.id, actor, action, changes)
+  event(db, item.id, who, action, changes)
   return itemRow(db, item.id)
 }
 
@@ -295,7 +333,7 @@ function laneChange(db: Database, item: Item, lane: Lane): Partial<Item> {
   return { ...lane, rank: edgeRank(db, lane, "bottom", item.id), done_at: doneAt(item.status, lane.status, item.done_at, now()) }
 }
 
-export function updateTodo(db: Database, actor: string, id: number, input: Record<string, unknown>): Item {
+export function updateTodo(db: Database, who: Who, id: number, input: Record<string, unknown>): Item {
   return db.transaction(() => {
     const item = itemRow(db, id)
     if (input.if_updated_at !== undefined && input.if_updated_at !== item.updated_at) {
@@ -311,11 +349,11 @@ export function updateTodo(db: Database, actor: string, id: number, input: Recor
     if (input.section !== undefined) next.section = optText(input.section, "section")
     if (input.group !== undefined) next.group_id = resolveGroup(db, item.repo_id, input.group)
     if (input.parent !== undefined) next.parent_id = parentFor(db, item, input.parent)
-    return write(db, actor, "update", item, next)
+    return write(db, who, "update", item, next)
   })()
 }
 
-export function moveTodo(db: Database, actor: string, id: number, input: Record<string, unknown>): Item {
+export function moveTodo(db: Database, who: Who, id: number, input: Record<string, unknown>): Item {
   return db.transaction(() => {
     const item = itemRow(db, id)
     const lane: Lane = {
@@ -323,17 +361,17 @@ export function moveTodo(db: Database, actor: string, id: number, input: Record<
       status: input.status === undefined ? item.status : parseStatus(input.status),
     }
     const rank = placeRank(db, lane, input, id)
-    return write(db, actor, "move", item, { ...lane, rank, done_at: doneAt(item.status, lane.status, item.done_at, now()) })
+    return write(db, who, "move", item, { ...lane, rank, done_at: doneAt(item.status, lane.status, item.done_at, now()) })
   })()
 }
 
-export function archiveTodo(db: Database, actor: string, id: number, archived: boolean): Item {
+export function archiveTodo(db: Database, who: Who, id: number, archived: boolean): Item {
   return db.transaction(() => {
     const item = itemRow(db, id)
     if (!!item.archived_at === archived) return item
     // Back at the bottom of its lane: its old rank may now tie with a newer item.
     const next = archived ? { archived_at: now() } : { archived_at: null, rank: edgeRank(db, item, "bottom", id) }
-    return write(db, actor, archived ? "archive" : "unarchive", item, next)
+    return write(db, who, archived ? "archive" : "unarchive", item, next)
   })()
 }
 
@@ -392,8 +430,8 @@ export function applyImport(db: Database, input: Record<string, unknown>, dryRun
       last.set(key, rank)
       const { id } = db
         .query<{ id: number }, (string | number | null)[]>(
-          `INSERT INTO items (repo_id, group_id, parent_id, section, title, body, status, priority, rank, created_at, updated_at, done_at, import_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          `INSERT INTO items (repo_id, group_id, parent_id, section, title, body, status, priority, rank, created_at, updated_at, done_at, import_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import') RETURNING id`,
         )
         .get(
           repo.id,
@@ -411,7 +449,7 @@ export function applyImport(db: Database, input: Record<string, unknown>, dryRun
           importId,
         )!
       itemIds.push(id)
-      event(db, id, "import", "import", { import_id: importId })
+      event(db, id, IMPORTER, "import", { import_id: importId })
     }
     const stored = { ...summary, group_ids: groupIds }
     db.run("UPDATE imports SET report = ? WHERE id = ?", [JSON.stringify(stored), importId])

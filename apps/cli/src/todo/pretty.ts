@@ -14,7 +14,7 @@ type ShowData = {
   item: Item;
   children: Item[];
   group: { name: string; doc_path: string | null } | null;
-  events: { at: string; actor: string; action: string; data?: unknown }[];
+  events: { at: string; actor: string; author?: string | null; action: string; data?: unknown }[];
 };
 
 const CODES = {
@@ -141,6 +141,23 @@ function counts(items: Item[]): { text: string; width: number; render: (paint: R
 }
 
 const priorityLabel = (p: string | null) => p ?? "Inbox";
+const authorLabel = (i: Item) => i.created_by ?? "unknown";
+const isAgent = (author: string) => !["me", "script", "import", "unknown"].includes(author);
+
+/** Who made each item, as a column at the end of its line: agents in colour, the rest dim. */
+function tags(items: Item[], room: number, paint: ReturnType<typeof painter>) {
+  const width = Math.min(14, Math.max(...items.map((i) => authorLabel(i).length)));
+  // Leave the title at least 12 columns; a narrower terminal drops the column.
+  const shown = room - (width + 3) >= 12;
+  return {
+    width: shown ? width + 3 : 0,
+    of: (i: Item, titleWidth: number, titleRoom: number) => {
+      if (!shown) return "";
+      const label = fit(cells(authorLabel(i)), width);
+      return `${" ".repeat(titleRoom - titleWidth)}${paint(" · ", "dim")}${paint(render(label, paint), isAgent(authorLabel(i)) ? "blue" : "dim")}`;
+    },
+  };
+}
 const priorityCode = (p: string | null): Code => (p ? PRIORITY[p]! : "magenta");
 
 function glyph(status: string, paint: ReturnType<typeof painter>): string {
@@ -168,11 +185,13 @@ function blocks(items: Item[], st: Style, paint: ReturnType<typeof painter>): st
   }
 
   const idWidth = Math.max(...items.map((i) => String(i.id).length)) + 1;
+  const tag = tags(items, st.width - 7 - 2 - idWidth - 2, paint);
   const line = (i: Item, lead: string, leadWidth: number) => {
     const id = `#${i.id}`.padEnd(idWidth);
-    const room = st.width - leadWidth - 2 - idWidth - 2;
-    const title = render(fit(cells(i.title), room), paint, ...(i.status === "done" ? (["dim"] as Code[]) : []));
-    return `${lead}${glyph(i.status, paint)} ${paint(id, "dim")}  ${title}`;
+    const room = st.width - leadWidth - 2 - idWidth - 2 - tag.width;
+    const cut = fit(cells(i.title), room);
+    const title = render(cut, paint, ...(i.status === "done" ? (["dim"] as Code[]) : []));
+    return `${lead}${glyph(i.status, paint)} ${paint(id, "dim")}  ${title}${tag.of(i, widthOf(cut), room)}`;
   };
 
   for (const block of byLane.values()) {
@@ -232,11 +251,13 @@ function doingNow(items: Item[], withRepo: boolean, st: Style, paint: ReturnType
   const out = ["", ` ${paint("Doing now", "bold")}`, ` ${paint("─".repeat(st.width - 1), "dim")}`];
   const idWidth = Math.max(...doing.map((i) => String(i.id).length)) + 1;
   const repoWidth = withRepo ? Math.min(Math.max(...doing.map((i) => i.repo_name.length)), Math.floor(st.width * 0.3)) + 2 : 0;
+  const tag = tags(doing, st.width - 5 - idWidth - 2 - repoWidth, paint);
   for (const i of doing) {
     const r = fit(cells(i.repo_name), repoWidth - 2);
     const repo = withRepo ? `${render(r, paint)}${" ".repeat(repoWidth - widthOf(r))}` : "";
-    const room = st.width - 5 - idWidth - 2 - repoWidth;
-    out.push(`   ${glyph("doing", paint)} ${paint(`#${i.id}`.padEnd(idWidth), "dim")}  ${repo}${render(fit(cells(i.title), room), paint)}`);
+    const room = st.width - 5 - idWidth - 2 - repoWidth - tag.width;
+    const cut = fit(cells(i.title), room);
+    out.push(`   ${glyph("doing", paint)} ${paint(`#${i.id}`.padEnd(idWidth), "dim")}  ${repo}${render(cut, paint)}${tag.of(i, widthOf(cut), room)}`);
   }
   return out;
 }
@@ -317,6 +338,7 @@ export function showView(data: ShowData, st: Style, now = Date.now()): string[] 
     text(item.repo_name, "bold"),
     ...(group ? [text(group.name)] : []),
     ...(item.section ? [text(item.section)] : []),
+    text(`by ${authorLabel(item)}`, ...(isAgent(authorLabel(item)) ? (["blue"] as Code[]) : [])),
     ...(item.archived_at ? [text("archived", "red")] : []),
   ];
   let row = "";
@@ -356,10 +378,12 @@ export function showView(data: ShowData, st: Style, now = Date.now()): string[] 
     heading("History");
     const when = events.map((e) => ago(e.at, now));
     const whenWidth = Math.max(...when.map((w) => w.length));
-    const actorWidth = Math.min(Math.max(...events.map((e) => widthOf(cells(e.actor)))), Math.floor(width * 0.3));
+    // Who made the change; events from before authors were kept only know where it came from.
+    const who = events.map((e) => e.author ?? e.actor);
+    const actorWidth = Math.min(Math.max(...who.map((w) => widthOf(cells(w)))), Math.floor(width * 0.3));
     const lead = 4 + whenWidth + 2 + actorWidth + 2;
     events.forEach((e, n) => {
-      const actor = fit(cells(e.actor), actorWidth);
+      const actor = fit(cells(who[n]!), actorWidth);
       const [first, ...more] = wrap(cells(describe(e)), width - lead);
       out.push(`    ${paint(when[n]!.padEnd(whenWidth), "dim")}  ${render(actor, paint)}${" ".repeat(actorWidth - widthOf(actor))}  ${render(first!, paint)}`);
       for (const l of more) out.push(`${" ".repeat(lead)}${render(l, paint)}`);

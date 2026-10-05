@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ApiAuthorsRouteImport } from './routes/api/authors'
 import { Route as ApiGroupsRouteImport } from './routes/api/groups'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiImportsRouteImport } from './routes/api/imports'
@@ -45,6 +46,11 @@ const LogoutRoute = LogoutRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthorsRoute = ApiAuthorsRouteImport.update({
+  id: '/api/authors',
+  path: '/api/authors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGroupsRoute = ApiGroupsRouteImport.update({
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/api/authors': typeof ApiAuthorsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/api/authors': typeof ApiAuthorsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
@@ -157,6 +165,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/api/authors': typeof ApiAuthorsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
@@ -178,6 +187,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/api/authors'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/api/authors'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/api/authors'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
   SettingsRoute: typeof SettingsRoute
+  ApiAuthorsRoute: typeof ApiAuthorsRoute
   ApiGroupsRoute: typeof ApiGroupsRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   ApiImportsRoute: typeof ApiImportsRouteWithChildren
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/authors': {
+      id: '/api/authors'
+      path: '/api/authors'
+      fullPath: '/api/authors'
+      preLoaderRoute: typeof ApiAuthorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/groups': {
@@ -437,6 +457,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,
   SettingsRoute: SettingsRoute,
+  ApiAuthorsRoute: ApiAuthorsRoute,
   ApiGroupsRoute: ApiGroupsRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   ApiImportsRoute: ApiImportsRouteWithChildren,

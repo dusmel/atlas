@@ -3,6 +3,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { isatty } from "node:tty";
 import { agentEnabled, socketPath, spawnAgent, UNREACHABLE } from "./agent.ts";
 
 /** A failure with the exit code from spec section 7: 1 server, 2 usage, 3 auth, 4 network. */
@@ -15,7 +16,7 @@ export class CliError extends Error {
   }
 }
 
-export type Config = { url: string; token: string; device: string };
+export type Config = { url: string; token: string; device: string; author: string };
 
 export const configPath = () => `${process.env.HOME}/.config/atlas/config.json`;
 
@@ -34,7 +35,19 @@ export function loadConfig(): Config {
       device = readFileSync(`${process.env.HOME}/.device_name`, "utf8").trim();
     } catch {}
   }
-  return { url: url.replace(/\/$/, ""), token, device: device ?? "" };
+  return { url: url.replace(/\/$/, ""), token, device: device ?? "", author: authorOf() };
+}
+
+/**
+ * Who runs this command: ATLAS_AUTHOR when set, then an agent's own marker, then me at a
+ * terminal. Anything else is a script, so an agent we cannot detect is never taken for me.
+ */
+export function authorOf(env: Record<string, string | undefined> = process.env, terminal = isatty(0) || isatty(1)): string {
+  if (env.ATLAS_AUTHOR) return env.ATLAS_AUTHOR;
+  // Claude Code sets AI_AGENT=claude-code_2-1-282_agent and CLAUDECODE=1.
+  if (env.AI_AGENT) return env.AI_AGENT.split("_")[0]!.toLowerCase();
+  if (env.CLAUDECODE === "1") return "claude-code";
+  return terminal ? "me" : "script";
 }
 
 /** Through the helper when it runs; otherwise direct, starting the helper for next time. */
@@ -68,6 +81,7 @@ export async function api<T = unknown>(cfg: Config, method: string, path: string
     headers: {
       authorization: `Bearer ${cfg.token}`,
       ...(cfg.device ? { "x-atlas-device": cfg.device } : {}),
+      "x-atlas-author": cfg.author,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),

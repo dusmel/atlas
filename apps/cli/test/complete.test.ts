@@ -32,6 +32,7 @@ describe("complete", () => {
     try {
       expect(await complete(["todo", "add", "x", "--group", ""])).toEqual([]);
       expect(await complete(["todo", "show", ""])).toEqual([]);
+      expect(await complete(["todo", "list", "--by", ""])).toEqual([]);
     } finally {
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k];

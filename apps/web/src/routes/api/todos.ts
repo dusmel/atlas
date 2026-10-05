@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { getDb } from "@/server/app-db"
-import { actorOf } from "@/server/auth"
+import { whoOf } from "@/server/auth"
 import { handle, readJson } from "@/server/http"
 import { createTodo, listTodos } from "@/server/todos"
 
@@ -18,6 +18,7 @@ export const Route = createFileRoute("/api/todos")({
             repo: many(url, "repo"),
             status: many(url, "status"),
             priority: many(url, "priority"),
+            by: many(url, "by"),
             group: one("group"),
             parent: one("parent"),
             q: one("q"),
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/api/todos")({
           }),
         )
       },
-      POST: ({ request, context }) => handle(async () => createTodo(getDb(), actorOf(context!.auth, request), await readJson(request)), 201),
+      POST: ({ request, context }) => handle(async () => createTodo(getDb(), whoOf(context!.auth, request), await readJson(request)), 201),
     },
   },
 })
