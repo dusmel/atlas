@@ -5,6 +5,7 @@ test("the author: ATLAS_AUTHOR, then the agent's marker, then me at a terminal, 
   expect(authorOf({ ATLAS_AUTHOR: "opencode", AI_AGENT: "claude-code_2-1-282_agent" }, true)).toBe("opencode");
   expect(authorOf({ AI_AGENT: "claude-code_2-1-282_agent" }, true)).toBe("claude-code");
   expect(authorOf({ CLAUDECODE: "1" }, false)).toBe("claude-code");
+  expect(authorOf({ OPENCODE: "1", AGENT: "1" }, false)).toBe("opencode");
   expect(authorOf({}, true)).toBe("me");
   expect(authorOf({}, false)).toBe("script");
 });

@@ -48,7 +48,7 @@ export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the rep
 Every command takes --repo NAME, --personal or --all (list only), and --json.
 --body - reads the body from stdin.
 --by filters on who made the item: me, agent (any agent), an agent's name, script or unknown.
-Each change records who made it: ATLAS_AUTHOR if set, else the agent (Claude Code is detected),
+Each change records who made it: ATLAS_AUTHOR if set, else the agent (Claude Code and opencode are detected),
 else me at a terminal, else script.
 At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.`;
 

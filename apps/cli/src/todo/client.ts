@@ -47,6 +47,8 @@ export function authorOf(env: Record<string, string | undefined> = process.env, 
   // Claude Code sets AI_AGENT=claude-code_2-1-282_agent and CLAUDECODE=1.
   if (env.AI_AGENT) return env.AI_AGENT.split("_")[0]!.toLowerCase();
   if (env.CLAUDECODE === "1") return "claude-code";
+  // opencode sets OPENCODE=1 for its shell commands (packages/opencode/src/index.ts).
+  if (env.OPENCODE === "1") return "opencode";
   return terminal ? "me" : "script";
 }
 

@@ -67,7 +67,7 @@ afterAll(() => {
 });
 
 // The tests may run inside an agent; clear its markers so the author is decided by each test.
-const NO_AGENT = { AI_AGENT: "", CLAUDECODE: "", ATLAS_AUTHOR: "" };
+const NO_AGENT = { AI_AGENT: "", CLAUDECODE: "", OPENCODE: "", ATLAS_AUTHOR: "" };
 
 async function cli(args: string[], opts: { cwd?: string; stdin?: string; env?: Record<string, string> } = {}) {
   const p = Bun.spawn(["bun", CLI, "todo", ...args], {
