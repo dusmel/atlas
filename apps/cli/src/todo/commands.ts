@@ -15,6 +15,22 @@ import { repoParam, scopeOf, type Scope } from "./scope.ts";
 
 const SCOPE: FlagSpec = { repo: "string", all: "boolean", personal: "boolean", json: "boolean" };
 
+/** Every subcommand and its flags. The parser and `atlas __complete` both read this. */
+export const TODO_COMMANDS: Record<string, { about: string; flags: FlagSpec }> = {
+  list: { about: "List todos", flags: { ...SCOPE, plain: "boolean", status: "string", priority: "string", group: "string" } },
+  add: { about: "Add a todo", flags: { ...SCOPE, body: "string", priority: "string", group: "string", parent: "string", status: "string" } },
+  show: { about: "Show one todo", flags: { ...SCOPE, plain: "boolean" } },
+  set: { about: "Change a todo", flags: { ...SCOPE, title: "string", body: "string", priority: "string", group: "string", parent: "string", section: "string" } },
+  move: { about: "Move a todo", flags: { ...SCOPE, before: "string", after: "string", top: "boolean", bottom: "boolean", priority: "string", status: "string" } },
+  start: { about: "Set status to doing", flags: SCOPE },
+  done: { about: "Set status to done", flags: SCOPE },
+  archive: { about: "Archive a todo", flags: SCOPE },
+  groups: { about: "List groups", flags: SCOPE },
+  group: { about: "Add a group: group add NAME", flags: { ...SCOPE, doc: "string", note: "string" } },
+  import: { about: "Import TODO.md files", flags: { apply: "boolean", repo: "string", json: "boolean" } },
+};
+const flagsOf = (command: string) => TODO_COMMANDS[command]!.flags;
+
 export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the repo in the current directory.
 
   atlas todo list    [--status todo,doing,done] [--priority P0|inbox] [--group NAME] [--all] [--plain] [--json]
@@ -83,14 +99,14 @@ async function run(args: string[]): Promise<number> {
   }
 
   if (sub === "import") {
-    const { flags } = parseArgs(rest, { apply: "boolean", repo: "string", json: "boolean" });
+    const { flags } = parseArgs(rest, flagsOf("import"));
     return importTodos(flags.apply ? loadConfig() : null, { apply: !!flags.apply, repo: flags.repo as string | undefined, json: !!flags.json });
   }
 
   const cfg = loadConfig();
   switch (sub) {
     case "list": {
-      const { flags } = parseArgs(rest, { ...SCOPE, plain: "boolean", status: "string", priority: "string", group: "string" });
+      const { flags } = parseArgs(rest, flagsOf("list"));
       const scope = await scopeOf(flags);
       const q = new URLSearchParams();
       if (scope !== "all") q.set("repo", repoParam(scope));
@@ -112,7 +128,7 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "add": {
-      const { flags, rest: words } = parseArgs(rest, { ...SCOPE, body: "string", priority: "string", group: "string", parent: "string", status: "string" });
+      const { flags, rest: words } = parseArgs(rest, flagsOf("add"));
       if (!words[0]) throw new CliError(2, 'Usage: atlas todo add "title"');
       const repo = requireRepo(await scopeOf(flags));
       const body = {
@@ -128,7 +144,7 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "show": {
-      const { flags, rest: words } = parseArgs(rest, { ...SCOPE, plain: "boolean" });
+      const { flags, rest: words } = parseArgs(rest, flagsOf("show"));
       const data = await api<Parameters<typeof showLines>[0]>(cfg, "GET", `/todos/${itemId(words, "show")}`);
       const style = pretty(flags);
       if (style) await out(showView(data, style).join("\n"));
@@ -136,7 +152,7 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "set": {
-      const { flags, rest: words } = parseArgs(rest, { ...SCOPE, title: "string", body: "string", priority: "string", group: "string", parent: "string", section: "string" });
+      const { flags, rest: words } = parseArgs(rest, flagsOf("set"));
       const body = {
         title: flags.title,
         body: await textFlag(flags.body),
@@ -150,7 +166,7 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "move": {
-      const { flags, rest: words } = parseArgs(rest, { ...SCOPE, before: "string", after: "string", top: "boolean", bottom: "boolean", priority: "string", status: "string" });
+      const { flags, rest: words } = parseArgs(rest, flagsOf("move"));
       const id = itemId(words, "move");
       const neighbour = (v: string | boolean | undefined) => (typeof v === "string" ? itemId([v], "move") : undefined);
       const body = { before: neighbour(flags.before), after: neighbour(flags.after), top: flags.top, bottom: flags.bottom, priority: nullable(flags.priority, "inbox"), status: flags.status };
@@ -159,17 +175,17 @@ async function run(args: string[]): Promise<number> {
     }
     case "start":
     case "done": {
-      const { flags, rest: words } = parseArgs(rest, SCOPE);
+      const { flags, rest: words } = parseArgs(rest, flagsOf(sub));
       await single(cfg, "PATCH", `/todos/${itemId(words, sub)}`, { status: sub === "start" ? "doing" : "done" }, !!flags.json);
       return 0;
     }
     case "archive": {
-      const { flags, rest: words } = parseArgs(rest, SCOPE);
+      const { flags, rest: words } = parseArgs(rest, flagsOf(sub));
       await single(cfg, "POST", `/todos/${itemId(words, "archive")}/archive`, undefined, !!flags.json);
       return 0;
     }
     case "groups": {
-      const { flags } = parseArgs(rest, SCOPE);
+      const { flags } = parseArgs(rest, flagsOf(sub));
       const scope = await scopeOf(flags);
       const groups = await api<{ id: number; name: string; repo_name: string; doc_path: string | null; open: number }[]>(
         cfg,
@@ -184,7 +200,7 @@ async function run(args: string[]): Promise<number> {
     case "group": {
       const [action, ...more] = rest;
       if (action !== "add") throw new CliError(2, 'Usage: atlas todo group add "name" [--doc plan.html] [--note TEXT|-]');
-      const { flags, rest: words } = parseArgs(more, { ...SCOPE, doc: "string", note: "string" });
+      const { flags, rest: words } = parseArgs(more, flagsOf("group"));
       if (!words[0]) throw new CliError(2, 'Usage: atlas todo group add "name"');
       const repo = requireRepo(await scopeOf(flags));
       const group = await api<{ id: number; name: string }>(cfg, "POST", "/groups", { repo, name: words.join(" "), doc_path: flags.doc, note: await textFlag(flags.note) });

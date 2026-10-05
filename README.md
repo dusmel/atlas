@@ -21,6 +21,7 @@ This includes features docs, implementation plans, how things work, current todo
 | `atlas observe --cmd "..." --exit 0` | score a command (called by zsh hooks) |
 | `atlas open` | pick an atlas HTML file to open (default `index.html`) |
 | `atlas todo list` / `add` / `move` / ... | todos on `atlas.hadadus.me` for the current repo (`atlas todo --help`) |
+| `atlas completion zsh` | the zsh completion script; install with `atlas completion zsh > ~/.zsh/completions/_atlas` and put that folder on `fpath` |
 
 ---
 

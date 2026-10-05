@@ -19,6 +19,7 @@ Usage:
   atlas status [--repo PATH]        Show atlas state: promoted | candidate | untracked
   atlas open [--repo PATH]          Open an atlas HTML file (default index.html)
   atlas todo <command>              Todos on the Atlas server (atlas todo --help)
+  atlas completion zsh              Print the zsh completion script
 
 Examples:
   atlas status

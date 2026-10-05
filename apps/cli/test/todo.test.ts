@@ -145,6 +145,23 @@ describe("atlas todo", () => {
   });
 });
 
+describe("completion", () => {
+  test("offers open ids with titles, and the scope's groups", async () => {
+    const p = Bun.spawn(["bun", CLI, "__complete", "todo", "show", ""], {
+      cwd: repoDir,
+      env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0" },
+      stdout: "pipe",
+    });
+    const ids = (await new Response(p.stdout).text()).trim().split("\n");
+    expect(ids).toContain(`${(await json(["list"], { cwd: repoDir }))[0].id}:Write the docs`);
+    const g = Bun.spawn(["bun", CLI, "__complete", "todo", "add", "x", "--repo", "app", "--group", ""], {
+      env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0" },
+      stdout: "pipe",
+    });
+    expect(await new Response(g.stdout).text()).toContain("Launch:");
+  });
+});
+
 describe("exit codes", () => {
   test("2 for usage, 1 for the server refusing, 3 for a bad token, 4 when unreachable", async () => {
     expect((await cli(["list", "--nope"])).code).toBe(2);
