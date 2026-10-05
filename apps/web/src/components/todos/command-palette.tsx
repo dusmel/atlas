@@ -18,6 +18,7 @@ import { activeCount, FACETS, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, ty
 import { PriorityIcon, StatusIcon } from "./icons"
 import { FacetCommand, type Option } from "./filters"
 import { plainTitle } from "./rich-title"
+import { VIEWS, type View } from "./view-tabs"
 
 export type PaletteActions = {
   openItem: (id: number) => void
@@ -27,6 +28,7 @@ export type PaletteActions = {
   setPriority: (r: Row) => void
   setStatus: (s: Status) => void
   toggleDone: () => void
+  view: (v: View) => void
   shortcuts: () => void
   settings: () => void
   theme: (t: "light" | "dark" | "system") => void
@@ -121,6 +123,15 @@ function Palette({ page: startPage, items, selected, filters, doneAll, options, 
             </CommandItem>
           </CommandGroup>
         )}
+        <CommandGroup heading="Views">
+          {VIEWS.map((v, n) => (
+            <CommandItem key={v.id} value={`view ${v.label}`} onSelect={close(() => run.view(v.id))}>
+              <v.icon />
+              {v.label}
+              <CommandShortcut>V {n + 1}</CommandShortcut>
+            </CommandItem>
+          ))}
+        </CommandGroup>
         <CommandGroup heading="Board">
           <CommandItem onSelect={close(run.newItem)}>
             <PlusIcon />

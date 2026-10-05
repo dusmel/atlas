@@ -30,5 +30,9 @@ export const SEED = {
     item(web, "Press one on me", "P3"),
     item(web, "Synced with the CLI", "P2", "todo", { group: "Onboarding" }),
     item(api, "Write the **rollback** plan", "P1", "done", { group: "Release prep" }),
+    item(api, "Bulk one", "P3"),
+    item(api, "Bulk two", "P3"),
+    item(web, "Keys tick me", "P3"),
+    item(web, "Keys tick me too", "P3"),
   ],
 }

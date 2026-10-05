@@ -222,19 +222,35 @@ export const SHORTCUTS: { keys: string[]; label: string; section: string }[] = [
   { keys: ["F"], label: "Filter by repo, group, priority, status or author", section: "Anywhere" },
   { keys: ["N"], label: "New item in Inbox", section: "Anywhere" },
   { keys: ["?"], label: "This list", section: "Anywhere" },
+  { keys: ["V", "then", "1"], label: "Board", section: "Views" },
+  { keys: ["V", "then", "2"], label: "List", section: "Views" },
+  { keys: ["V", "then", "3"], label: "Triage", section: "Views" },
+  { keys: ["V", "then", "4"], label: "Overview", section: "Views" },
+  { keys: ["V", "then", "5"], label: "Activity", section: "Views" },
   { keys: ["J"], label: "Next card down the lane", section: "Board" },
   { keys: ["K"], label: "Previous card", section: "Board" },
   { keys: ["H"], label: "Lane to the left", section: "Board" },
   { keys: ["L"], label: "Lane to the right", section: "Board" },
   { keys: ["Enter"], label: "Open the card", section: "Board" },
   { keys: ["Space"], label: "Pick up, move with arrows, Space to drop", section: "Board" },
-  { keys: ["0", "–", "3"], label: "Set priority P0 to P3", section: "Selected card" },
-  { keys: ["I"], label: "Send to Inbox", section: "Selected card" },
-  { keys: ["S"], label: "Next status: todo, doing, done", section: "Selected card" },
-  { keys: ["M"], label: "Move to another row or lane", section: "Selected card" },
-  { keys: ["A"], label: "Archive", section: "Selected card" },
-  { keys: ["Z"], label: "Undo the last archive", section: "Selected card" },
-  { keys: ["Esc"], label: "Close the panel or dialog", section: "Selected card" },
+  { keys: ["J"], label: "Next row", section: "List" },
+  { keys: ["K"], label: "Previous row", section: "List" },
+  { keys: ["X"], label: "Tick the row, to change several at once", section: "List" },
+  { keys: ["Shift", "click"], label: "Tick every row in between", section: "List" },
+  { keys: ["Esc"], label: "Untick all", section: "List" },
+  { keys: ["0", "–", "3"], label: "Set priority P0 to P3", section: "Selected card, or ticked rows" },
+  { keys: ["I"], label: "Send to Inbox", section: "Selected card, or ticked rows" },
+  { keys: ["S"], label: "Next status: todo, doing, done", section: "Selected card, or ticked rows" },
+  { keys: ["M"], label: "Move to another row or lane", section: "Selected card, or ticked rows" },
+  { keys: ["A"], label: "Archive", section: "Selected card, or ticked rows" },
+  { keys: ["Z"], label: "Undo the last archive", section: "Selected card, or ticked rows" },
+  { keys: ["Esc"], label: "Close the panel or dialog", section: "Selected card, or ticked rows" },
+  { keys: ["0", "–", "3"], label: "Set the priority, then show the next item", section: "Triage" },
+  { keys: ["G"], label: "Pick a group", section: "Triage" },
+  { keys: ["A"], label: "Archive", section: "Triage" },
+  { keys: ["S"], label: "Skip for now", section: "Triage" },
+  { keys: ["Enter"], label: "Open the item", section: "Triage" },
+  { keys: ["Z"], label: "Undo the last step", section: "Triage" },
 ]
 
 export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -255,7 +271,7 @@ export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () 
                   <dt>{s.label}</dt>
                   <dd>
                     <KbdGroup>
-                      {s.keys.map((k) => (k === "–" ? <span key={k} className="text-muted-foreground">–</span> : <Kbd key={k}>{k}</Kbd>))}
+                      {s.keys.map((k) => (k === "–" || k === "then" || k === "click" ? <span key={k} className="text-xs text-muted-foreground">{k}</span> : <Kbd key={k}>{k}</Kbd>))}
                     </KbdGroup>
                   </dd>
                 </div>

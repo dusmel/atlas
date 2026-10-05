@@ -110,17 +110,17 @@ function resolveGroup(db: Database, repoId: string, value: unknown): number | nu
 // `agent` means any author that is not me, script, the importer or unknown (made before authors were kept).
 const NOT_AGENT = ["me", "script", "import"]
 
-/** A SQL condition on items.created_by for a list of authors, with its arguments. */
-function byFilter(by: string[]): [string, string[]] {
+/** A SQL condition on an author column for a list of authors, with its arguments. */
+function byFilter(by: string[], col = "items.created_by"): [string, string[]] {
   const parts: string[] = []
   const args: string[] = []
   for (const b of by) {
     if (b === "agent") {
-      parts.push(`(items.created_by IS NOT NULL AND items.created_by NOT IN (${NOT_AGENT.map(() => "?").join(", ")}))`)
+      parts.push(`(${col} IS NOT NULL AND ${col} NOT IN (${NOT_AGENT.map(() => "?").join(", ")}))`)
       args.push(...NOT_AGENT)
-    } else if (b === "unknown") parts.push("items.created_by IS NULL")
+    } else if (b === "unknown") parts.push(`${col} IS NULL`)
     else {
-      parts.push("items.created_by = ?")
+      parts.push(`${col} = ?`)
       args.push(b)
     }
   }
@@ -274,6 +274,38 @@ export function getTodo(db: Database, id: number) {
       .all(id)
       .map((e) => ({ ...e, data: JSON.parse(e.data) })),
   }
+}
+
+export type EventQuery = { repo: string[]; by: string[]; limit?: string; before?: string }
+
+/** Changes across every item, newest first. `by` is who made the change, not who made the item. */
+export function listEvents(db: Database, query: EventQuery) {
+  const where: string[] = []
+  const args: (string | number)[] = []
+  if (query.repo.length) {
+    const marks = query.repo.map(() => "?").join(", ")
+    where.push(`(items.repo_id IN (${marks}) OR repos.name IN (${marks}))`)
+    args.push(...query.repo, ...query.repo)
+  }
+  if (query.by.length) {
+    const [sql, by] = byFilter(query.by, "events.author")
+    where.push(sql)
+    args.push(...by)
+  }
+  if (query.before !== undefined) {
+    where.push("events.id < ?")
+    args.push(toInt(query.before, "before"))
+  }
+  const limit = query.limit === undefined ? 100 : Number(query.limit)
+  if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw bad("bad_limit", "limit must be 1 to 500")
+  return db
+    .query<Event & { data: string; title: string; repo_id: string; repo_name: string }, (string | number)[]>(
+      `SELECT events.*, items.title, items.repo_id, repos.name AS repo_name
+       FROM events JOIN items ON items.id = events.item_id JOIN repos ON repos.id = items.repo_id
+       ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY events.id DESC LIMIT ?`,
+    )
+    .all(...args, limit)
+    .map((e) => ({ ...e, data: JSON.parse(e.data) }))
 }
 
 function parentFor(db: Database, item: { id?: number; repo_id: string }, value: unknown): number | null {

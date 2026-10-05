@@ -15,6 +15,7 @@ import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TodosRouteImport } from './routes/todos'
 import { Route as ApiAuthorsRouteImport } from './routes/api/authors'
+import { Route as ApiEventsRouteImport } from './routes/api/events'
 import { Route as ApiGroupsRouteImport } from './routes/api/groups'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiImportsRouteImport } from './routes/api/imports'
@@ -57,6 +58,11 @@ const TodosRoute = TodosRouteImport.update({
 const ApiAuthorsRoute = ApiAuthorsRouteImport.update({
   id: '/api/authors',
   path: '/api/authors',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiEventsRoute = ApiEventsRouteImport.update({
+  id: '/api/events',
+  path: '/api/events',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGroupsRoute = ApiGroupsRouteImport.update({
@@ -132,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
+  '/api/events': typeof ApiEventsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
+  '/api/events': typeof ApiEventsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
+  '/api/events': typeof ApiEventsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/todos'
     | '/api/authors'
+    | '/api/events'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/todos'
     | '/api/authors'
+    | '/api/events'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/todos'
     | '/api/authors'
+    | '/api/events'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
@@ -262,6 +274,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TodosRoute: typeof TodosRoute
   ApiAuthorsRoute: typeof ApiAuthorsRoute
+  ApiEventsRoute: typeof ApiEventsRoute
   ApiGroupsRoute: typeof ApiGroupsRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   ApiImportsRoute: typeof ApiImportsRouteWithChildren
@@ -312,6 +325,13 @@ declare module '@tanstack/react-router' {
       path: '/api/authors'
       fullPath: '/api/authors'
       preLoaderRoute: typeof ApiAuthorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/events': {
+      id: '/api/events'
+      path: '/api/events'
+      fullPath: '/api/events'
+      preLoaderRoute: typeof ApiEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/groups': {
@@ -479,6 +499,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TodosRoute: TodosRoute,
   ApiAuthorsRoute: ApiAuthorsRoute,
+  ApiEventsRoute: ApiEventsRoute,
   ApiGroupsRoute: ApiGroupsRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   ApiImportsRoute: ApiImportsRouteWithChildren,

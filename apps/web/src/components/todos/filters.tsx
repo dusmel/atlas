@@ -100,7 +100,7 @@ const optionOf = (facet: Facet, value: string, options: Record<Facet, Option[]>)
 const badgeLabel = (facet: Facet, value: string, options: Record<Facet, Option[]>) => optionOf(facet, value, options)?.label ?? value
 
 // A group's colour, or a hollow ring for "No group".
-const GroupDot = ({ color }: { color?: string }) => (
+export const GroupDot = ({ color }: { color?: string }) => (
   <span aria-hidden className={cn("mx-0.5 size-2.5 shrink-0 rounded-full", !color && "border border-muted-foreground")} style={color ? { background: color } : undefined} />
 )
 
@@ -110,7 +110,8 @@ type BarProps = {
   onChange: (f: Filters) => void
   desktop: boolean
   searchRef: React.RefObject<HTMLInputElement | null>
-  shown: number
+  /** Items in view; left out where a count means nothing, as in Activity. */
+  shown?: number
 }
 
 export function FilterBar({ filters, options, onChange, desktop, searchRef, shown }: BarProps) {
@@ -172,9 +173,11 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
             </DrawerContent>
           </Drawer>
         )}
-        <span className="ml-auto hidden text-sm text-muted-foreground tabular-nums sm:inline" aria-live="polite">
-          {shown} {shown === 1 ? "item" : "items"}
-        </span>
+        {shown !== undefined && (
+          <span className="ml-auto hidden text-sm text-muted-foreground tabular-nums sm:inline" aria-live="polite">
+            {shown} {shown === 1 ? "item" : "items"}
+          </span>
+        )}
       </div>
       {tags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">

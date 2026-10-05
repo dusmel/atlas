@@ -1,5 +1,5 @@
 import { PRIORITIES, rankBetween, STATUSES, type Priority, type Status } from "@atlas/todos"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import type { Item } from "@/server/todos"
 import { api, ApiError, send } from "./api"
@@ -18,6 +18,8 @@ export const STATUS_LABEL: Record<Status, string> = { todo: "Todo", doing: "Doin
 export type Group = { id: number; repo_id: string; repo_name: string; name: string; doc_path: string | null; open: number }
 export type Repo = { id: string; name: string; open: number }
 export type ItemEvent = { id: number; at: string; actor: string; author: string | null; action: string; data: Record<string, unknown> }
+/** An event from GET /events, with the item it belongs to. */
+export type FeedEvent = ItemEvent & { item_id: number; title: string; repo_id: string; repo_name: string }
 export type ItemDetail = { item: Item; children: Item[]; group: { name: string; doc_path: string | null } | null; events: ItemEvent[] }
 
 const ITEMS = ["items"]
@@ -29,6 +31,24 @@ export const useRepos = () => useQuery({ queryKey: ["repos"], queryFn: () => api
 export const useGroups = () => useQuery({ queryKey: ["groups"], queryFn: () => api<Group[]>("/groups"), staleTime: 60_000 })
 export const useItemDetail = (id: number | null) =>
   useQuery({ queryKey: ["item", id], queryFn: () => api<ItemDetail>(`/todos/${id}`), enabled: id !== null })
+
+const EVENTS_PAGE = 100
+
+/** The Activity feed, newest first, a page at a time. Only the repo and author filters apply. */
+export const useEvents = (repo: string[] = [], by: string[] = []) =>
+  useInfiniteQuery({
+    queryKey: ["events", repo, by],
+    queryFn: ({ pageParam }) => {
+      const q = new URLSearchParams({ limit: String(EVENTS_PAGE) })
+      if (repo.length) q.set("repo", repo.join(","))
+      if (by.length) q.set("by", by.join(","))
+      if (pageParam) q.set("before", String(pageParam))
+      return api<FeedEvent[]>(`/events?${q}`)
+    },
+    initialPageParam: 0,
+    getNextPageParam: (page) => (page.length === EVENTS_PAGE ? page.at(-1)!.id : undefined),
+    refetchInterval: 15_000,
+  })
 
 export const byRank = (a: Item, b: Item) => (a.rank < b.rank ? -1 : a.rank > b.rank ? 1 : a.id - b.id)
 export const laneOf = (items: Item[], priority: Row, status: Status, except?: number) =>
@@ -58,7 +78,7 @@ function facetMatches(i: Item, facet: Facet, wanted: (string | number)[]): boole
   return wanted.map(String).includes(facetValue(i, facet))
 }
 
-const DONE_DAYS = 14
+export const DONE_DAYS = 14
 
 export function matches(i: Item, f: Filters, skip?: Facet, now = Date.now()): boolean {
   for (const facet of FACETS) {
@@ -96,7 +116,8 @@ const upsert = (items: Item[] | undefined, item: Item) => {
 }
 const replace = (items: Item[], id: number, patch: Partial<Item>) => items.map((i) => (i.id === id ? { ...i, ...patch } : i))
 
-type Change = { apply: (items: Item[]) => Item[]; request: () => Promise<Item>; done?: (item: Item) => void; failed?: (latest?: Item) => void }
+// A change can touch several items (the List view's bulk actions); the server answers with each of them.
+type Change = { apply: (items: Item[]) => Item[]; request: () => Promise<Item[]>; done?: (items: Item[]) => void; failed?: (latest?: Item) => void }
 
 function useChange() {
   const qc = useQueryClient()
@@ -112,14 +133,17 @@ function useChange() {
       if (ctx?.before) qc.setQueryData(ITEMS, ctx.before)
       const latest = err instanceof ApiError ? (err.body as { item?: Item } | null)?.item : undefined
       if (latest) qc.setQueryData<Item[]>(ITEMS, (xs) => upsert(xs, latest))
+      // Part of a bulk change may have landed before the error, so reload the truth.
+      void qc.invalidateQueries({ queryKey: ITEMS })
       if (err instanceof ApiError && err.status === 409) toast.error(`#${latest?.id ?? ""} changed somewhere else`, { description: "Your text is still in the editor. Save again to replace the other change." })
       else toast.error(err.message)
       c.failed?.(latest)
     },
-    onSuccess: (item, c) => {
-      qc.setQueryData<Item[]>(ITEMS, (xs) => upsert(xs, item))
-      void qc.invalidateQueries({ queryKey: ["item", item.id] })
-      c.done?.(item)
+    onSuccess: (items, c) => {
+      qc.setQueryData<Item[]>(ITEMS, (xs) => items.reduce(upsert, xs ?? []))
+      for (const item of items) void qc.invalidateQueries({ queryKey: ["item", item.id] })
+      void qc.invalidateQueries({ queryKey: ["events"] })
+      c.done?.(items)
     },
   })
 }
@@ -127,7 +151,14 @@ function useChange() {
 export type Place = { priority: Row; status: Status; before?: number; after?: number }
 export type Fields = { title?: string; body?: string; priority?: Row; status?: Status; group?: number | null; parent?: number | null }
 
-let lastArchived: Item | null = null
+let lastArchived: Item[] = []
+
+// One request at a time, so items moved to the same lane keep their order.
+const each = async (items: Item[], request: (item: Item) => Promise<Item>) => {
+  const out: Item[] = []
+  for (const item of items) out.push(await request(item))
+  return out
+}
 
 /** Every change the board makes, each shown at once and rolled back if the server says no. */
 export function useActions() {
@@ -159,12 +190,12 @@ export function useActions() {
     const done_at = to.status === "done" ? (item.done_at ?? stamp()) : null
     change.mutate({
       apply: (xs) => replace(xs, item.id, { priority: to.priority, status: to.status, rank, done_at }),
-      request: () => api<Item>(`/todos/${item.id}/move`, send("POST", { priority: to.priority, status: to.status, ...where })),
+      request: async () => [await api<Item>(`/todos/${item.id}/move`, send("POST", { priority: to.priority, status: to.status, ...where }))],
     })
   }
 
   /** `base` is the updated_at the edit started from; the server answers 409 if the item changed since. */
-  const update = (item: Item, fields: Fields, opts: { base?: string; done?: (item: Item) => void; failed?: (latest?: Item) => void } = {}) => {
+  const patchOf = (item: Item, fields: Fields) => {
     const patch: Partial<Item> = {}
     if (fields.title !== undefined) patch.title = fields.title
     if (fields.body !== undefined) patch.body = fields.body
@@ -179,41 +210,64 @@ export function useActions() {
       Object.assign(patch, { priority, status, rank: bottomRank(priority, status, item.id) })
       patch.done_at = status === "done" ? (item.done_at ?? stamp()) : null
     }
-    change.mutate({
-      apply: (xs) => replace(xs, item.id, patch),
-      request: () => api<Item>(`/todos/${item.id}`, send("PATCH", { ...fields, if_updated_at: opts.base ?? item.updated_at })),
-      done: opts.done,
-      failed: opts.failed,
-    })
+    return patch
   }
 
-  const unarchive = (id: number) =>
-    change.mutate({ apply: (xs) => xs, request: () => api<Item>(`/todos/${id}/unarchive`, send("POST")), done: (i) => toast.success(`Restored #${i.id}`) })
-
-  const archive = (item: Item) => {
-    lastArchived = item
+  const update = (item: Item, fields: Fields, opts: { base?: string; done?: (item: Item) => void; failed?: (latest?: Item) => void } = {}) =>
     change.mutate({
-      apply: (xs) => xs.filter((i) => i.id !== item.id),
-      request: () => api<Item>(`/todos/${item.id}/archive`, send("POST")),
-      done: () => toast(`Archived #${item.id}`, { description: item.title, duration: 5000, action: { label: "Undo", onClick: () => unarchive(item.id) } }),
+      apply: (xs) => replace(xs, item.id, patchOf(item, fields)),
+      request: async () => [await api<Item>(`/todos/${item.id}`, send("PATCH", { ...fields, if_updated_at: opts.base ?? item.updated_at }))],
+      done: opts.done && (([i]) => opts.done!(i!)),
+      failed: opts.failed,
+    })
+
+  /** The same fields on several items, as one change. */
+  const updateMany = (targets: Item[], fields: Fields) =>
+    change.mutate({
+      apply: (xs) => targets.reduce((acc, item) => replace(acc, item.id, patchOf(item, fields)), xs),
+      request: () => each(targets, (item) => api<Item>(`/todos/${item.id}`, send("PATCH", fields))),
+      done: (items) => items.length > 1 && toast.success(`Changed ${items.length} items`),
+    })
+
+  const unarchive = (targets: Item[]) =>
+    change.mutate({
+      apply: (xs) => xs,
+      request: () => each(targets, (item) => api<Item>(`/todos/${item.id}/unarchive`, send("POST"))),
+      done: (items) => toast.success(items.length === 1 ? `Restored #${items[0]!.id}` : `Restored ${items.length} items`),
+    })
+
+  const archive = (item: Item | Item[]) => {
+    const targets = Array.isArray(item) ? item : [item]
+    const ids = new Set(targets.map((i) => i.id))
+    lastArchived = targets
+    const one = targets.length === 1 ? targets[0]! : null
+    change.mutate({
+      apply: (xs) => xs.filter((i) => !ids.has(i.id)),
+      request: () => each(targets, (i) => api<Item>(`/todos/${i.id}/archive`, send("POST"))),
+      done: () =>
+        toast(one ? `Archived #${one.id}` : `Archived ${targets.length} items`, {
+          description: one?.title,
+          duration: 5000,
+          action: { label: "Undo", onClick: () => unarchive(targets) },
+        }),
     })
   }
 
   const undoArchive = () => {
-    if (!lastArchived) return toast("Nothing to undo")
-    unarchive(lastArchived.id)
-    lastArchived = null
+    if (!lastArchived.length) return toast("Nothing to undo")
+    unarchive(lastArchived)
+    lastArchived = []
   }
 
   const create = (input: { repo: string; title: string; priority: Row; status?: Status; group?: number | null }, done?: (item: Item) => void) =>
     change.mutate({
       apply: (xs) => xs,
-      request: () => api<Item>("/todos", send("POST", { ...input, group: input.group ?? undefined })),
-      done: (item) => {
-        toast.success(`Added #${item.id}`, { description: item.title })
-        done?.(item)
+      request: async () => [await api<Item>("/todos", send("POST", { ...input, group: input.group ?? undefined }))],
+      done: ([item]) => {
+        toast.success(`Added #${item!.id}`, { description: item!.title })
+        done?.(item!)
       },
     })
 
-  return { move, update, archive, unarchive, undoArchive, create, pending: change.isPending }
+  return { move, update, updateMany, archive, unarchive, undoArchive, create, pending: change.isPending }
 }

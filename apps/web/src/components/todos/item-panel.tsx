@@ -66,7 +66,7 @@ const keepOpen = (e: KeyboardEvent) => {
 }
 
 // Bodies imported from TODO.md keep their list indent, which Markdown would read as a code block.
-const dedent = (text: string) => {
+export const dedent = (text: string) => {
   const lines = text.split("\n")
   const indent = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^[ \t]*/)![0].length))
   return Number.isFinite(indent) && indent > 0 ? lines.map((l) => l.slice(indent)).join("\n") : text

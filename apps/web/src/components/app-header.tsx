@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react"
+import { KeyboardIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -11,7 +11,7 @@ const NAV = [
 ] as const
 
 /** The header on every page. Search, Shared and the docs pill join it in the phases that build them. */
-export function AppHeader({ onCommand }: { onCommand?: () => void }) {
+export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; onShortcuts?: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/80 sm:gap-4 sm:px-6">
@@ -40,6 +40,11 @@ export function AppHeader({ onCommand }: { onCommand?: () => void }) {
               <Kbd>⌘</Kbd>
               <Kbd>K</Kbd>
             </KbdGroup>
+          </Button>
+        )}
+        {onShortcuts && (
+          <Button variant="ghost" size="icon" className="hidden size-9 sm:inline-flex" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" onClick={onShortcuts}>
+            <KeyboardIcon />
           </Button>
         )}
         <DropdownMenu>
