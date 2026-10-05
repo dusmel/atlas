@@ -98,8 +98,8 @@ export function authenticate(db: Database, request: Request): Auth | null {
 /** Where a change came from (actor) and who made it (author). */
 export type Who = { actor: string; author: string }
 
-// "agent" is the filter for every agent and "import" is the importer, so neither can be claimed.
-const AUTHOR = /^(?!agent$|import$)[a-z0-9][a-z0-9._-]{0,31}$/
+// "agent" and "unknown" are --by filters and "import" is the importer, so none can be claimed.
+const AUTHOR = /^(?!agent$|import$|unknown$)[a-z0-9][a-z0-9._-]{0,31}$/
 
 export function whoOf(auth: Auth, request: Request): Who {
   if (auth.kind === "session") return { actor: "web", author: "me" }

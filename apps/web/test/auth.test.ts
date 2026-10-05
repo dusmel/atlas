@@ -107,7 +107,7 @@ describe("whoOf", () => {
   })
 
   test("a missing, malformed or reserved author is a script", () => {
-    for (const author of ["", "Claude Code", "agent", "import", "x".repeat(33)]) {
+    for (const author of ["", "Claude Code", "agent", "import", "unknown", "x".repeat(33)]) {
       expect(whoOf(token, req(author ? { "x-atlas-author": author } : {})).author).toBe("script")
     }
   })
