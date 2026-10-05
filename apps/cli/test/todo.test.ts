@@ -120,6 +120,18 @@ describe("atlas todo", () => {
     expect(groups.out).toContain("Launch  → plan.html");
   });
 
+  test("--status all and --archived", async () => {
+    const live = await json(["add", "Still here", "--repo", "app", "--priority", "P3", "--status", "done"]);
+    const gone = await json(["add", "Archived one", "--repo", "app", "--priority", "P3"]);
+    await json(["archive", String(gone.id)]);
+    const ids = async (...extra: string[]) => (await json(["list", "--repo", "app", "--priority", "P3", ...extra])).map((i: { id: number }) => i.id);
+    expect(await ids()).toEqual([]);
+    expect(await ids("--status", "all")).toEqual([live.id]);
+    expect(await ids("--status", "all", "--archived")).toEqual([gone.id, live.id]);
+    expect((await cli(["list", "--repo", "app", "--priority", "P3", "--archived"])).out).toContain("Archived one   (archived)");
+    await json(["archive", String(live.id)]);
+  });
+
   test("set clears with none and inbox", async () => {
     const a = await json(["add", "Clear me", "--repo", "app", "--priority", "P2"]);
     const set = await json(["set", String(a.id), "--priority", "inbox", "--title", "Cleared"]);

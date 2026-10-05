@@ -75,6 +75,16 @@ describe("listView", () => {
     expect(fits(out, 60)).toBe(true);
   });
 
+  test("archived items are marked in the outline and left out of the summary", () => {
+    const gone = item({ id: 20, title: "Dropped idea", archived_at: "2026-10-02T00:00:00Z" });
+    const out = listView(atlas, [...atlas, gone], false, plain);
+    expect(out[0]).toMatch(/^ atlas +3 todo · 1 doing · 1 done$/);
+    expect(out.find((l) => l.includes("#20"))).toMatch(/^   ○ #20  archived Dropped idea +· me$/);
+    expect(fits(out, 60)).toBe(true);
+    const only = listView([], [{ ...gone, repo_name: "sem" }], true, plain);
+    expect(only.some((l) => l.includes("archived Dropped idea"))).toBe(true);
+  });
+
   test("colour only when asked for", () => {
     expect(listView(items, items, true, plain).join("")).not.toContain("\x1b[");
     expect(listView(items, items, true, { width: 60, color: true }).join("")).toContain("\x1b[33m◐\x1b[39m");

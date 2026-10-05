@@ -17,7 +17,8 @@ describe("complete", () => {
   });
 
   test("fixed values, folders for a repo path, nothing for free text", async () => {
-    expect(await complete(["todo", "list", "--status", ""])).toEqual(["todo", "doing", "done"]);
+    expect(await complete(["todo", "list", "--status", ""])).toEqual(["todo", "doing", "done", "all"]);
+    expect(await complete(["todo", "add", "x", "--status", ""])).toEqual(["todo", "doing", "done"]);
     expect(await complete(["todo", "set", "4", "--priority", ""])).toContain("inbox");
     expect(await complete(["status", "--repo", ""])).toEqual(["!dirs"]);
     expect(await complete(["todo", "add", "--body", ""])).toEqual([]);

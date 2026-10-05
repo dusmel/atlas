@@ -69,6 +69,7 @@ function config(): Config | null {
 }
 
 async function values(flag: string, sub: string, words: string[], spec: FlagSpec): Promise<string[]> {
+  if (flag === "status" && sub === "list") return [...FIXED.status!, "all"];
   if (FIXED[flag]) return FIXED[flag]!;
   const cfg = config();
   if (!cfg) return [];

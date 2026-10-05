@@ -28,7 +28,7 @@ export function itemLines(items: Item[], withRepo: boolean): string[] {
     const cols = [(i.priority ?? "In").padEnd(2), `#${i.id}`.padStart(idWidth), i.status.padEnd(5)];
     if (withRepo) cols.push(i.repo_name.padEnd(repoWidth));
     const group = i.group_name ? `   [${i.group_name}]` : "";
-    return `${cols.join("  ")}  ${i.parent_id ? "↳ " : ""}${i.title}${group}`;
+    return `${cols.join("  ")}  ${i.parent_id ? "↳ " : ""}${i.title}${group}${i.archived_at ? "   (archived)" : ""}`;
   });
 }
 

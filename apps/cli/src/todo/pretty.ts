@@ -188,10 +188,11 @@ function blocks(items: Item[], st: Style, paint: ReturnType<typeof painter>): st
   const tag = tags(items, st.width - 7 - 2 - idWidth - 2, paint);
   const line = (i: Item, lead: string, leadWidth: number) => {
     const id = `#${i.id}`.padEnd(idWidth);
-    const room = st.width - leadWidth - 2 - idWidth - 2 - tag.width;
+    const mark = i.archived_at ? "archived " : "";
+    const room = st.width - leadWidth - 2 - idWidth - 2 - tag.width - mark.length;
     const cut = fit(cells(i.title), room);
-    const title = render(cut, paint, ...(i.status === "done" ? (["dim"] as Code[]) : []));
-    return `${lead}${glyph(i.status, paint)} ${paint(id, "dim")}  ${title}${tag.of(i, widthOf(cut), room)}`;
+    const title = render(cut, paint, ...(i.status === "done" || mark ? (["dim"] as Code[]) : []));
+    return `${lead}${glyph(i.status, paint)} ${paint(id, "dim")}  ${paint(mark, "red")}${title}${tag.of(i, widthOf(cut), room)}`;
   };
 
   for (const block of byLane.values()) {
@@ -263,18 +264,20 @@ function doingNow(items: Item[], withRepo: boolean, st: Style, paint: ReturnType
 }
 
 /**
- * `atlas todo list` at a terminal. The summary counts `everything` (all statuses), the
- * outline shows only `shown`, which is what --status asked for.
+ * `atlas todo list` at a terminal. The summary counts `everything` (all statuses, never
+ * archived), the outline shows only `shown`, which is what --status and --archived asked for.
  */
 export function listView(everything: Item[], shown: Item[], all: boolean, st: Style): string[] {
   const paint = painter(st.color);
-  if (!everything.length) return ["No todos."];
-  const out = header(all ? "All repos" : everything[0]!.repo_name, everything, st, paint);
+  if (!everything.length && !shown.length) return ["No todos."];
+  const out = header(all ? "All repos" : (everything[0] ?? shown[0])!.repo_name, everything, st, paint);
   const rows = all ? bucket(everything, (i) => i.repo_name) : bucket(everything, (i) => i.group_name ?? "No group");
-  out.push("", ...summaryRows(rows, st, paint), ...doingNow(everything, all, st, paint));
+  if (rows.length) out.push("", ...summaryRows(rows, st, paint), ...doingNow(everything, all, st, paint));
   if (!shown.length) return [...out, "", " No todos match these filters."];
   if (!all) return [...out, ...blocks(shown, st, paint)];
-  for (const [name] of rows) {
+  // A repo can have only archived items, so it has no summary row but still gets a block.
+  const repos = [...new Set([...rows.map(([name]) => name), ...shown.map((i) => i.repo_name)])];
+  for (const name of repos) {
     const repoShown = shown.filter((i) => i.repo_name === name);
     if (repoShown.length) out.push("", "", ...header(name, everything.filter((i) => i.repo_name === name), st, paint), ...blocks(repoShown, st, paint));
   }
