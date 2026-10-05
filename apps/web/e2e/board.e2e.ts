@@ -31,6 +31,13 @@ test("reordering within a lane persists", async ({ page }) => {
   await expect.poll(() => idsIn(lane)).toEqual([c, a, b])
 })
 
+test("cards show who made them", async ({ page }) => {
+  await openBoard(page, "/todos?q=Two tabs edit this")
+  await expect(page.locator("[data-item]").getByRole("img", { name: "opencode" })).toBeVisible()
+  await openBoard(page, "/todos?q=Archive then undo")
+  await expect(page.locator("[data-item]").getByRole("img", { name: "claude-code" })).toBeVisible()
+})
+
 test("adding an item puts it in Inbox", async ({ page }) => {
   await openBoard(page, "/todos")
   await page.keyboard.press("n")

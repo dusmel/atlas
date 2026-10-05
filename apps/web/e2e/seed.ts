@@ -4,7 +4,8 @@ export const PASSWORD = "e2e-only-password"
 const api = { id: "github.com-demo-api", name: "demo-api" }
 const web = { id: "github.com-demo-web", name: "demo-web" }
 
-const item = (repo: typeof api, title: string, priority: string | null, status = "todo", extra: Record<string, unknown> = {}) => ({ repo, title, priority, status, ...extra })
+// `by` is the author; every other field goes to createTodo.
+const item = (repo: typeof api, title: string, priority: string | null, status = "todo", extra: { by?: string; group?: string } = {}) => ({ repo, title, priority, status, ...extra })
 
 export const SEED = {
   groups: [
@@ -21,8 +22,8 @@ export const SEED = {
     item(web, "Order B", "P3"),
     item(web, "Order C", "P3"),
     item(api, "Body gets edited", "P1"),
-    item(api, "Archive then undo", "P1"),
-    item(api, "Two tabs edit this", "P1"),
+    item(api, "Archive then undo", "P1", "todo", { by: "claude-code" }),
+    item(api, "Two tabs edit this", "P1", "todo", { by: "opencode" }),
     item(web, "Jump here by number", "P3", "doing"),
     item(api, "Ranking tweak one", "P2", "todo", { group: "Search quality" }),
     item(api, "Ranking tweak two", "P2", "todo", { group: "Search quality" }),

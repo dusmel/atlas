@@ -9,9 +9,8 @@ import { PASSWORD, SEED } from "./seed"
 
 const dir = mkdtempSync(join(tmpdir(), "atlas-e2e-"))
 const db = freshDb(join(dir, "atlas.db"))
-const who = { actor: "cli:seed", author: "me" }
 for (const group of SEED.groups) createGroup(db, group)
-for (const item of SEED.items) createTodo(db, who, item)
+for (const { by = "me", ...item } of SEED.items) createTodo(db, { actor: "cli:seed", author: by }, item)
 db.close()
 
 process.env.ATLAS_DATA_DIR = dir
