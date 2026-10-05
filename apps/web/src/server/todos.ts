@@ -21,6 +21,7 @@ export type Item = {
   repo_name: string
   group_id: number | null
   group_name: string | null
+  group_doc: string | null
   parent_id: number | null
   section: string | null
   title: string
@@ -35,7 +36,7 @@ export type Item = {
   import_id: number | null
 }
 
-const SELECT = `SELECT items.*, repos.name AS repo_name, groups.name AS group_name
+const SELECT = `SELECT items.*, repos.name AS repo_name, groups.name AS group_name, groups.doc_path AS group_doc
   FROM items JOIN repos ON repos.id = items.repo_id LEFT JOIN groups ON groups.id = items.group_id`
 // Inbox first, then P0 to P3, then the board's lane order.
 const ORDER = `ORDER BY items.priority IS NOT NULL, items.priority,

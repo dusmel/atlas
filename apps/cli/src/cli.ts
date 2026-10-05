@@ -11,11 +11,12 @@ import * as tty from "node:tty";
 import { autocomplete, isCancel } from "@clack/prompts";
 import { threshold, staleSeconds } from "./config.ts";
 import type { Candidate, RepoInfo } from "./types.ts";
-import { err, nowEpoch, nowIso, run, usage } from "./util.ts";
+import { err, nowEpoch, nowIso, out, run, usage } from "./util.ts";
 import { resolveRepo, resolveProject, bestGuessRoot, dirRepoInfo, isUnsafeAutoRoot } from "./git.ts";
 import { loadCandidate, saveCandidate, clearCandidate } from "./state.ts";
 import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId, chooseProjectRoot } from "./repo.ts";
 import { cmdTodo } from "./todo/commands.ts";
+import { complete, ZSH_SCRIPT } from "./complete.ts";
 
 /**
  * Git-first resolution with plain-directory fallback.
@@ -264,6 +265,12 @@ export async function main(): Promise<void> {
       break;
     case "todo":
       await cmdTodo(args);
+      break;
+    case "completion":
+      await out(ZSH_SCRIPT);
+      break;
+    case "__complete":
+      await out((await complete(args)).join("\n"));
       break;
     case "-h":
     case "--help":

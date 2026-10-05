@@ -19,11 +19,20 @@ Usage:
   atlas status [--repo PATH]        Show atlas state: promoted | candidate | untracked
   atlas open [--repo PATH]          Open an atlas HTML file (default index.html)
   atlas todo <command>              Todos on the Atlas server (atlas todo --help)
+  atlas completion zsh              Print the zsh completion script
 
 Examples:
   atlas status
   atlas observe --cmd "git commit" --exit 0
   atlas promote --repo ~/projects/my-repo`);
+}
+
+/**
+ * Print to stdout for output that can be large. Not console.log: once clack has loaded (it
+ * reads process.stdout), Bun 1.3 drops piped console.log output past 64 KB.
+ */
+export function out(text: string): Promise<void> {
+  return new Promise((resolve) => process.stdout.write(`${text}\n`, () => resolve()));
 }
 
 /** Print an error message to stderr. */
