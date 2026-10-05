@@ -5,7 +5,7 @@
  */
 
 import { parseArgs, type FlagSpec } from "./todo/args.ts";
-import { api, loadConfig } from "./todo/client.ts";
+import { api, loadConfig, type Config } from "./todo/client.ts";
 import { TODO_COMMANDS } from "./todo/commands.ts";
 import type { Item } from "./todo/format.ts";
 import { repoParam, scopeOf } from "./todo/scope.ts";
@@ -59,9 +59,19 @@ async function scopeQuery(words: string[], spec: FlagSpec): Promise<string> {
   }
 }
 
+/** The server config, or null without one: completion then offers nothing from the server. */
+function config(): Config | null {
+  try {
+    return loadConfig();
+  } catch {
+    return null;
+  }
+}
+
 async function values(flag: string, sub: string, words: string[], spec: FlagSpec): Promise<string[]> {
   if (FIXED[flag]) return FIXED[flag]!;
-  const cfg = loadConfig();
+  const cfg = config();
+  if (!cfg) return [];
   if (flag === "repo") {
     const repos = await quick(api<{ name: string; open: number }[]>(cfg, "GET", "/repos"));
     return (repos ?? []).map((r) => line(r.name, `${r.open} open`));
@@ -75,7 +85,9 @@ async function values(flag: string, sub: string, words: string[], spec: FlagSpec
 }
 
 async function ids(words: string[], spec: FlagSpec): Promise<string[]> {
-  const items = await quick(api<Item[]>(loadConfig(), "GET", `/todos?status=todo,doing&${await scopeQuery(words, spec)}`));
+  const cfg = config();
+  if (!cfg) return [];
+  const items = await quick(api<Item[]>(cfg, "GET", `/todos?status=todo,doing&${await scopeQuery(words, spec)}`));
   return (items ?? []).map((i) => line(String(i.id), `${i.status === "doing" ? "◐ " : ""}${i.title.replace(/`|\*\*/g, "").slice(0, 70)}`));
 }
 

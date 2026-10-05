@@ -24,6 +24,22 @@ describe("complete", () => {
     expect(await complete(["nope", ""])).toEqual([]);
   });
 
+  test("without a server config, server lookups give nothing instead of failing", async () => {
+    const saved = { HOME: process.env.HOME, ATLAS_URL: process.env.ATLAS_URL, ATLAS_TOKEN: process.env.ATLAS_TOKEN };
+    process.env.HOME = "/nonexistent";
+    delete process.env.ATLAS_URL;
+    delete process.env.ATLAS_TOKEN;
+    try {
+      expect(await complete(["todo", "add", "x", "--group", ""])).toEqual([]);
+      expect(await complete(["todo", "show", ""])).toEqual([]);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
   test("the zsh script asks atlas for its candidates", () => {
     expect(ZSH_SCRIPT).toStartWith("#compdef atlas");
     expect(ZSH_SCRIPT).toContain('atlas __complete "${(@)words[2,CURRENT]}"');
