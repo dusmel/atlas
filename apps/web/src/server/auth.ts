@@ -95,10 +95,20 @@ export function authenticate(db: Database, request: Request): Auth | null {
 }
 
 // Who wrote an event: the browser, or a token, named after its device when the CLI says which.
-export function actorOf(auth: Auth, request: Request): string {
-  if (auth.kind === "session") return "web"
+/** Where a change came from (actor) and who made it (author). */
+export type Who = { actor: string; author: string }
+
+// "agent" and "unknown" are --by filters and "import" is the importer, so none can be claimed.
+const AUTHOR = /^(?!agent$|import$|unknown$)[a-z0-9][a-z0-9._-]{0,31}$/
+
+export function whoOf(auth: Auth, request: Request): Who {
+  if (auth.kind === "session") return { actor: "web", author: "me" }
   const device = request.headers.get("x-atlas-device")
-  return device && /^[\w.-]{1,64}$/.test(device) ? `cli:${device}` : `token:${auth.name}`
+  const author = request.headers.get("x-atlas-author") ?? ""
+  return {
+    actor: device && /^[\w.-]{1,64}$/.test(device) ? `cli:${device}` : `token:${auth.name}`,
+    author: AUTHOR.test(author) ? author : "script",
+  }
 }
 
 // Traefik sets X-Real-Ip to the address it saw, overwriting whatever the client sent.

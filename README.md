@@ -108,6 +108,7 @@ Two hooks live in `~/.zsh/hooks/atlas.zsh`:
 | `ATLAS_ROOT` | `~/MEGA/Documents/atlas` | base storage directory |
 | `ATLAS_THRESHOLD` | `4` | score needed for auto-promotion |
 | `ATLAS_URL`, `ATLAS_TOKEN` | from `~/.config/atlas/config.json` | server and token for `atlas todo` |
+| `ATLAS_AUTHOR` | the agent, else `me` at a terminal, else `script` | who `atlas todo` records as the author of a change; set it for agents the CLI cannot detect |
 
 ---
 

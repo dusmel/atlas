@@ -12,6 +12,22 @@ describe("migrations", () => {
     expect(db.query("SELECT id FROM repos").all()).toEqual([{ id: "_personal" }])
   })
 
+  test("002 fills in the author where the old actor tells it, and leaves the rest unknown", () => {
+    const db = openDb(":memory:")
+    migrate(db, realMigrations().slice(0, 1))
+    db.run("INSERT INTO repos (id, name, updated_at) VALUES ('r', 'r', 'now')")
+    for (const [id, actor] of [[1, "import"], [2, "web"], [3, "cli:irembo-mac"]] as const) {
+      db.run("INSERT INTO items (id, repo_id, title, rank, created_at, updated_at) VALUES (?, 'r', 't', 'a0', 'now', 'now')", [id])
+      db.run("INSERT INTO events (item_id, actor, action, data, at) VALUES (?, ?, 'create', '{}', 'now')", [id, actor])
+    }
+    migrate(db, realMigrations())
+    expect(db.query("SELECT id, created_by FROM items ORDER BY id").all()).toEqual([
+      { id: 1, created_by: "import" },
+      { id: 2, created_by: "me" },
+      { id: 3, created_by: null },
+    ])
+  })
+
   test("running again applies nothing", () => {
     const db = freshDb()
     expect(migrate(db, realMigrations())).toEqual([])

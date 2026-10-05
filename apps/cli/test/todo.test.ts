@@ -66,10 +66,13 @@ afterAll(() => {
   if (tmp) rmSync(tmp, { recursive: true, force: true });
 });
 
+// The tests may run inside an agent; clear its markers so the author is decided by each test.
+const NO_AGENT = { AI_AGENT: "", CLAUDECODE: "", OPENCODE: "", ATLAS_AUTHOR: "" };
+
 async function cli(args: string[], opts: { cwd?: string; stdin?: string; env?: Record<string, string> } = {}) {
   const p = Bun.spawn(["bun", CLI, "todo", ...args], {
     cwd: opts.cwd ?? tmp,
-    env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0", ...opts.env },
+    env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0", ...NO_AGENT, ...opts.env },
     stdin: opts.stdin === undefined ? "ignore" : new Blob([opts.stdin]),
     stdout: "pipe",
     stderr: "pipe",
@@ -117,6 +120,18 @@ describe("atlas todo", () => {
     expect(groups.out).toContain("Launch  → plan.html");
   });
 
+  test("--status all and --archived", async () => {
+    const live = await json(["add", "Still here", "--repo", "app", "--priority", "P3", "--status", "done"]);
+    const gone = await json(["add", "Archived one", "--repo", "app", "--priority", "P3"]);
+    await json(["archive", String(gone.id)]);
+    const ids = async (...extra: string[]) => (await json(["list", "--repo", "app", "--priority", "P3", ...extra])).map((i: { id: number }) => i.id);
+    expect(await ids()).toEqual([]);
+    expect(await ids("--status", "all")).toEqual([live.id]);
+    expect(await ids("--status", "all", "--archived")).toEqual([gone.id, live.id]);
+    expect((await cli(["list", "--repo", "app", "--priority", "P3", "--archived"])).out).toContain("Archived one   (archived)");
+    await json(["archive", String(live.id)]);
+  });
+
   test("set clears with none and inbox", async () => {
     const a = await json(["add", "Clear me", "--repo", "app", "--priority", "P2"]);
     const set = await json(["set", String(a.id), "--priority", "inbox", "--title", "Cleared"]);
@@ -159,6 +174,21 @@ describe("completion", () => {
       stdout: "pipe",
     });
     expect(await new Response(g.stdout).text()).toContain("Launch:");
+  });
+});
+
+describe("authors", () => {
+  test("an agent's items carry its name, and --by filters list and groups", async () => {
+    await json(["group", "add", "Authors", "--repo", "app"]);
+    const mine = await json(["add", "Typed by me", "--repo", "app", "--group", "Authors"], { env: { ATLAS_AUTHOR: "me" } });
+    const claude = await json(["add", "Filed by Claude", "--repo", "app", "--group", "Authors"], { env: { AI_AGENT: "claude-code_2-1-282_agent" } });
+    const piped = await json(["add", "From a script", "--repo", "app"]);
+    expect([mine.created_by, claude.created_by, piped.created_by]).toEqual(["me", "claude-code", "script"]);
+    const ids = async (by: string) => (await json(["list", "--repo", "app", "--by", by])).map((i: { id: number }) => i.id);
+    expect(await ids("agent")).toEqual([claude.id]);
+    expect(await ids("me")).toEqual([mine.id]);
+    expect((await json(["groups", "--repo", "app", "--by", "agent"])).map((g: { name: string; open: number }) => [g.name, g.open])).toEqual([["Authors", 1]]);
+    for (const i of [mine, claude, piped]) await json(["archive", String(i.id)]);
   });
 });
 

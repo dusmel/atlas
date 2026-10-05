@@ -17,7 +17,8 @@ describe("complete", () => {
   });
 
   test("fixed values, folders for a repo path, nothing for free text", async () => {
-    expect(await complete(["todo", "list", "--status", ""])).toEqual(["todo", "doing", "done"]);
+    expect(await complete(["todo", "list", "--status", ""])).toEqual(["todo", "doing", "done", "all"]);
+    expect(await complete(["todo", "add", "x", "--status", ""])).toEqual(["todo", "doing", "done"]);
     expect(await complete(["todo", "set", "4", "--priority", ""])).toContain("inbox");
     expect(await complete(["status", "--repo", ""])).toEqual(["!dirs"]);
     expect(await complete(["todo", "add", "--body", ""])).toEqual([]);
@@ -32,6 +33,7 @@ describe("complete", () => {
     try {
       expect(await complete(["todo", "add", "x", "--group", ""])).toEqual([]);
       expect(await complete(["todo", "show", ""])).toEqual([]);
+      expect(await complete(["todo", "list", "--by", ""])).toEqual([]);
     } finally {
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k];

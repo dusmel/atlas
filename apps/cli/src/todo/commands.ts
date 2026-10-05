@@ -17,7 +17,7 @@ const SCOPE: FlagSpec = { repo: "string", all: "boolean", personal: "boolean", j
 
 /** Every subcommand and its flags. The parser and `atlas __complete` both read this. */
 export const TODO_COMMANDS: Record<string, { about: string; flags: FlagSpec }> = {
-  list: { about: "List todos", flags: { ...SCOPE, plain: "boolean", status: "string", priority: "string", group: "string" } },
+  list: { about: "List todos", flags: { ...SCOPE, plain: "boolean", status: "string", priority: "string", group: "string", by: "string", archived: "boolean" } },
   add: { about: "Add a todo", flags: { ...SCOPE, body: "string", priority: "string", group: "string", parent: "string", status: "string" } },
   show: { about: "Show one todo", flags: { ...SCOPE, plain: "boolean" } },
   set: { about: "Change a todo", flags: { ...SCOPE, title: "string", body: "string", priority: "string", group: "string", parent: "string", section: "string" } },
@@ -25,7 +25,7 @@ export const TODO_COMMANDS: Record<string, { about: string; flags: FlagSpec }> =
   start: { about: "Set status to doing", flags: SCOPE },
   done: { about: "Set status to done", flags: SCOPE },
   archive: { about: "Archive a todo", flags: SCOPE },
-  groups: { about: "List groups", flags: SCOPE },
+  groups: { about: "List groups", flags: { ...SCOPE, by: "string" } },
   group: { about: "Add a group: group add NAME", flags: { ...SCOPE, doc: "string", note: "string" } },
   import: { about: "Import TODO.md files", flags: { apply: "boolean", repo: "string", json: "boolean" } },
 };
@@ -33,7 +33,7 @@ const flagsOf = (command: string) => TODO_COMMANDS[command]!.flags;
 
 export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the repo in the current directory.
 
-  atlas todo list    [--status todo,doing,done] [--priority P0|inbox] [--group NAME] [--all] [--plain] [--json]
+  atlas todo list    [--status todo,doing,done|all] [--priority P0|inbox] [--group NAME] [--by me|agent|NAME] [--archived] [--all] [--plain] [--json]
   atlas todo add     "title" [--body TEXT|-] [--priority P1] [--group NAME] [--parent 12] [--status doing]
   atlas todo show    42 [--plain]
   atlas todo set     42 [--title T] [--body TEXT|-] [--priority P2|inbox] [--group NAME|none] [--parent 12|none]
@@ -41,12 +41,16 @@ export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the rep
   atlas todo start   42        status doing
   atlas todo done    42        status done
   atlas todo archive 42
-  atlas todo groups
+  atlas todo groups  [--by me|agent|NAME]
   atlas todo group add "name" [--doc plan.html] [--note TEXT|-]
   atlas todo import  [--apply] [--repo NAME]
 
 Every command takes --repo NAME, --personal or --all (list only), and --json.
 --body - reads the body from stdin.
+--status all is todo, doing and done. --archived adds archived items, whatever their status.
+--by filters on who made the item: me, agent (any agent), an agent's name, script or unknown.
+Each change records who made it: ATLAS_AUTHOR if set, else the agent (Claude Code and opencode are detected),
+else me at a terminal, else script.
 At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.`;
 
 /** The readable layout only for a person: never for --json, --plain or a pipe, which is how agents call it. */
@@ -57,6 +61,10 @@ function pretty(flags: Record<string, string | boolean>): Style | null {
 }
 
 const print = (json: boolean, data: unknown, human: () => string[]) => out(json ? JSON.stringify(data, null, 2) : human().join("\n"));
+
+/** --status as a list, with `all` for every status. */
+const statusList = (v: string | boolean | undefined) =>
+  typeof v === "string" ? [...new Set(v.split(",").flatMap((x) => (x.trim() === "all" ? STATUSES : [x.trim()])))] : undefined;
 
 /** `none` and `inbox` clear a field; the API takes null for both. */
 const nullable = (v: string | boolean | undefined, word: string) => (v === undefined ? undefined : v === word ? null : v);
@@ -111,19 +119,23 @@ async function run(args: string[]): Promise<number> {
       const scope = await scopeOf(flags);
       const q = new URLSearchParams();
       if (scope !== "all") q.set("repo", repoParam(scope));
-      for (const k of ["priority", "group"]) if (typeof flags[k] === "string") q.set(k, flags[k] as string);
+      for (const k of ["priority", "group", "by"]) if (typeof flags[k] === "string") q.set(k, flags[k] as string);
+      if (flags.archived) q.set("include_archived", "1");
+      const statuses = statusList(flags.status);
       const style = pretty(flags);
       if (style) {
         // The summary counts every status, so fetch them all and leave --status to the outline.
-        const want = typeof flags.status === "string" ? flags.status.split(",").map((x) => x.trim()) : ["todo", "doing"];
+        const want = statuses ?? ["todo", "doing"];
         const bad = want.find((x) => !STATUSES.includes(x as Status));
-        if (bad) throw new CliError(2, `Status must be one of ${STATUSES.join(", ")}, not ${bad}`);
+        if (bad) throw new CliError(2, `Status must be one of ${STATUSES.join(", ")} or all, not ${bad}`);
         q.set("status", STATUSES.join(","));
-        const everything = await api<Item[]>(cfg, "GET", `/todos?${q}`);
-        await out(listView(everything, everything.filter((i) => want.includes(i.status)), scope === "all", style).join("\n"));
+        const fetched = await api<Item[]>(cfg, "GET", `/todos?${q}`);
+        // Archived items are listed when asked for, but never counted in the summary.
+        const live = fetched.filter((i) => !i.archived_at);
+        await out(listView(live, fetched.filter((i) => want.includes(i.status)), scope === "all", style).join("\n"));
         return 0;
       }
-      if (typeof flags.status === "string") q.set("status", flags.status);
+      if (statuses) q.set("status", statuses.join(","));
       const items = await api<Item[]>(cfg, "GET", `/todos?${q}`);
       await print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
       return 0;
@@ -188,10 +200,13 @@ async function run(args: string[]): Promise<number> {
     case "groups": {
       const { flags } = parseArgs(rest, flagsOf(sub));
       const scope = await scopeOf(flags);
+      const q = new URLSearchParams();
+      if (scope !== "all") q.set("repo", repoParam(scope));
+      if (typeof flags.by === "string") q.set("by", flags.by);
       const groups = await api<{ id: number; name: string; repo_name: string; doc_path: string | null; open: number }[]>(
         cfg,
         "GET",
-        `/groups${scope === "all" ? "" : `?repo=${encodeURIComponent(repoParam(scope))}`}`,
+        `/groups?${q}`,
       );
       await print(!!flags.json, groups, () =>
         groups.length ? groups.map((g) => `${String(g.open).padStart(3)} open  ${scope === "all" ? `${g.repo_name}  ` : ""}${g.name}${g.doc_path ? `  → ${g.doc_path}` : ""}`) : ["No groups."],

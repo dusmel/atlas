@@ -69,12 +69,17 @@ function config(): Config | null {
 }
 
 async function values(flag: string, sub: string, words: string[], spec: FlagSpec): Promise<string[]> {
+  if (flag === "status" && sub === "list") return [...FIXED.status!, "all"];
   if (FIXED[flag]) return FIXED[flag]!;
   const cfg = config();
   if (!cfg) return [];
   if (flag === "repo") {
     const repos = await quick(api<{ name: string; open: number }[]>(cfg, "GET", "/repos"));
     return (repos ?? []).map((r) => line(r.name, `${r.open} open`));
+  }
+  if (flag === "by") {
+    const authors = await quick(api<{ author: string; items: number }[]>(cfg, "GET", "/authors"));
+    return [line("agent", "any agent"), ...(authors ?? []).map((a) => line(a.author, `${a.items} items`))];
   }
   if (flag === "group") {
     const groups = await quick(api<{ name: string; open: number }[]>(cfg, "GET", `/groups?${await scopeQuery(words, spec)}`));

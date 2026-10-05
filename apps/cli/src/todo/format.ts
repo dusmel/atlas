@@ -17,6 +17,7 @@ export type Item = {
   priority: string | null;
   updated_at: string;
   archived_at: string | null;
+  created_by?: string | null;
 };
 
 /** `P1  #42  doing  Build todo store   [Atlas Web v1]`, with a repo column for --all. */
@@ -27,7 +28,7 @@ export function itemLines(items: Item[], withRepo: boolean): string[] {
     const cols = [(i.priority ?? "In").padEnd(2), `#${i.id}`.padStart(idWidth), i.status.padEnd(5)];
     if (withRepo) cols.push(i.repo_name.padEnd(repoWidth));
     const group = i.group_name ? `   [${i.group_name}]` : "";
-    return `${cols.join("  ")}  ${i.parent_id ? "↳ " : ""}${i.title}${group}`;
+    return `${cols.join("  ")}  ${i.parent_id ? "↳ " : ""}${i.title}${group}${i.archived_at ? "   (archived)" : ""}`;
   });
 }
 

@@ -16,6 +16,7 @@ const item = (over: Partial<Item>): Item => ({
   priority: "P1",
   updated_at: "2026-10-01T00:00:00Z",
   archived_at: null,
+  created_by: "me",
   ...over,
 });
 
@@ -56,10 +57,10 @@ describe("listView", () => {
   test("children sit under their parent, backticks go and long titles are cut to the width", () => {
     const out = listView(atlas, atlas, false, plain);
     const at = out.findLastIndex((l) => l.startsWith("   ◐ #10"));
-    expect(out[at]).toBe("   ◐ #10  Phase 3: Board with a drag-and-drop layout");
-    expect(out[at + 1]).toBe("     ├ ○ #11  First child");
-    expect(out[at + 2]).toBe("     └ ● #12  Second child");
-    expect(out[at + 3]).toEndWith("x…");
+    expect(out[at]).toMatch(/^   ◐ #10  Phase 3: Board with a drag-and-drop layout +· me$/);
+    expect(out[at + 1]).toMatch(/^     ├ ○ #11  First child +· me$/);
+    expect(out[at + 2]).toMatch(/^     └ ● #12  Second child +· me$/);
+    expect(out[at + 3]).toEndWith("x… · me");
     expect(fits(out, 60)).toBe(true);
   });
 
@@ -74,6 +75,16 @@ describe("listView", () => {
     expect(fits(out, 60)).toBe(true);
   });
 
+  test("archived items are marked in the outline and left out of the summary", () => {
+    const gone = item({ id: 20, title: "Dropped idea", archived_at: "2026-10-02T00:00:00Z" });
+    const out = listView(atlas, [...atlas, gone], false, plain);
+    expect(out[0]).toMatch(/^ atlas +3 todo · 1 doing · 1 done$/);
+    expect(out.find((l) => l.includes("#20"))).toMatch(/^   ○ #20  archived Dropped idea +· me$/);
+    expect(fits(out, 60)).toBe(true);
+    const only = listView([], [{ ...gone, repo_name: "sem" }], true, plain);
+    expect(only.some((l) => l.includes("archived Dropped idea"))).toBe(true);
+  });
+
   test("colour only when asked for", () => {
     expect(listView(items, items, true, plain).join("")).not.toContain("\x1b[");
     expect(listView(items, items, true, { width: 60, color: true }).join("")).toContain("\x1b[33m◐\x1b[39m");
@@ -82,8 +93,16 @@ describe("listView", () => {
   test("**bold** loses its stars and keeps the weight", () => {
     const bold = [item({ id: 30, title: "**Only blocker left:** GPU quota" })];
     const out = listView(bold, bold, false, plain);
-    expect(out).toContain("   ○ #30  Only blocker left: GPU quota");
+    expect(out.find((l) => l.includes("#30"))).toMatch(/^   ○ #30  Only blocker left: GPU quota +· me$/);
     expect(listView(bold, bold, false, { width: 60, color: true }).join("")).toContain("\x1b[1mOnly blocker left:\x1b[22m");
+  });
+
+  test("every line ends with who made it, agents in colour, in one aligned column", () => {
+    const mixed = [item({ id: 40, title: "Mine" }), item({ id: 41, title: "Filed by Claude", created_by: "claude-code" }), item({ id: 42, title: "Old", created_by: null })];
+    const out = listView(mixed, mixed, false, plain).filter((l) => /#4\d/.test(l));
+    expect(out.map((l) => l.slice(l.lastIndexOf("·")))).toEqual(["· me", "· claude-code", "· unknown"]);
+    expect(new Set(out.map((l) => l.lastIndexOf("·"))).size).toBe(1);
+    expect(listView(mixed, mixed, false, { width: 60, color: true }).join("")).toContain("\x1b[34mclaude-code\x1b[39m");
   });
 
   test("an empty list says so", () => {
@@ -98,7 +117,7 @@ describe("showView", () => {
     children: [item({ id: 66, parent_id: 65, title: "Child" })],
     group: { name: "Web v1", doc_path: "spec.html" },
     events: [
-      { at: "2026-10-05T10:00:00Z", actor: "cli:irembo-mac", action: "update", data: { status: ["doing", "done"], rank: ["a0", "az"], done_at: [null, "x"] } },
+      { at: "2026-10-05T10:00:00Z", actor: "cli:irembo-mac", author: "claude-code", action: "update", data: { status: ["doing", "done"], rank: ["a0", "az"], done_at: [null, "x"] } },
       { at: "2026-08-01T16:00:00Z", actor: "import", action: "import", data: { import_id: 1 } },
     ],
   };
@@ -109,13 +128,13 @@ describe("showView", () => {
     expect(out[1]).toBe(`│ ${"Phase 2: Todo store, merged with the importer".padEnd(46)} │`);
     expect(out[2]).toBe(`│ ${"and the atlas todo client".padEnd(46)} │`);
     expect(out[3]).toBe(`╰${"─".repeat(48)}╯`);
-    expect(out[4]).toBe("   P1  · ● done · atlas · Web v1");
+    expect(out[4]).toBe("   P1  · ● done · atlas · Web v1 · by me");
     expect(out[5]).toBe("  plan  spec.html");
     expect(out).toContain("  - A bullet long enough to wrap onto a second");
     expect(out).toContain("    line in a narrow terminal");
     expect(out).toContain("  Children (1)");
-    expect(out).toContain("    2h ago  cli:irembo-mac  doing → done");
-    expect(out).toContain("    1 Aug   import          imported");
+    expect(out).toContain("    2h ago  claude-code  doing → done");
+    expect(out).toContain("    1 Aug   import       imported");
     expect(fits(out, 50)).toBe(true);
   });
 });
