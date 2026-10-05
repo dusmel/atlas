@@ -137,19 +137,23 @@ function glyph(status: string, paint: ReturnType<typeof painter>): string {
   return s.code ? paint(s.glyph, s.code) : s.glyph;
 }
 
-/** One repo: a header with counts, then a block per priority and group, children under their parent. */
-function repoSection(name: string, items: Item[], st: Style, paint: ReturnType<typeof painter>): string[] {
+/** A bold title with counts on the right, over a heavy rule. */
+function header(title: string, items: Item[], st: Style, paint: ReturnType<typeof painter>): string[] {
   const c = counts(items);
-  const out = [spread(` ${paint(name, "bold")}`, 1 + Bun.stringWidth(name), c.render(paint), c.width, st.width), paint("━".repeat(st.width), "dim")];
+  return [spread(` ${paint(title, "bold")}`, 1 + Bun.stringWidth(title), c.render(paint), c.width, st.width), paint("━".repeat(st.width), "dim")];
+}
 
+/** A block per priority and group, children under their parent. */
+function blocks(items: Item[], st: Style, paint: ReturnType<typeof painter>): string[] {
+  const out: string[] = [];
   const ids = new Set(items.map((i) => i.id));
   const children = new Map<number, Item[]>();
   for (const i of items) if (i.parent_id && ids.has(i.parent_id)) children.set(i.parent_id, [...(children.get(i.parent_id) ?? []), i]);
-  const blocks = new Map<string, Item[]>();
+  const byLane = new Map<string, Item[]>();
   for (const i of items) {
     if (i.parent_id && ids.has(i.parent_id)) continue;
     const key = `${i.priority}\n${i.group_name ?? ""}`;
-    blocks.set(key, [...(blocks.get(key) ?? []), i]);
+    byLane.set(key, [...(byLane.get(key) ?? []), i]);
   }
 
   const idWidth = Math.max(...items.map((i) => String(i.id).length)) + 1;
@@ -160,7 +164,7 @@ function repoSection(name: string, items: Item[], st: Style, paint: ReturnType<t
     return `${lead}${glyph(i.status, paint)} ${paint(id, "dim")}  ${title}`;
   };
 
-  for (const block of blocks.values()) {
+  for (const block of byLane.values()) {
     const first = block[0]!;
     const label = priorityLabel(first.priority);
     const group = first.group_name ?? "";
@@ -177,47 +181,65 @@ function repoSection(name: string, items: Item[], st: Style, paint: ReturnType<t
   return out;
 }
 
-/** `atlas todo list` at a terminal. With --all, a summary of every repo comes first. */
-export function listView(items: Item[], all: boolean, st: Style): string[] {
-  const paint = painter(st.color);
-  if (!items.length) return ["No todos."];
-  const repos = new Map<string, Item[]>();
-  for (const i of items) repos.set(i.repo_name, [...(repos.get(i.repo_name) ?? []), i]);
-  const ordered = [...repos.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-  if (!all) return ordered.flatMap(([name, xs]) => repoSection(name, xs, st, paint));
+const bucket = (items: Item[], key: (i: Item) => string) => {
+  const m = new Map<string, Item[]>();
+  for (const i of items) m.set(key(i), [...(m.get(key(i)) ?? []), i]);
+  return [...m.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+};
 
-  const c = counts(items);
-  const out = [spread(` ${paint("All repos", "bold")}`, 10, c.render(paint), c.width, st.width), paint("━".repeat(st.width), "dim"), ""];
-  const nameWidth = Math.max(...ordered.map(([n]) => Bun.stringWidth(n)));
-  const shown = STATUS_ORDER.filter((s) => items.some((i) => i.status === s));
-  const most = ordered[0]![1].length;
-  const barRoom = Math.max(8, st.width - 3 - nameWidth - shown.length * 10 - 2);
+/** A row per repo or group: counts for every status, and a bar of done, doing and todo. */
+function summaryRows(rows: [string, Item[]][], st: Style, paint: ReturnType<typeof painter>): string[] {
+  const nameWidth = Math.min(Math.max(...rows.map(([n]) => widthOf(cells(n)))), Math.floor(st.width * 0.4));
+  const barRoom = Math.max(8, st.width - 3 - nameWidth - STATUS_ORDER.length * 10 - 2);
+  const most = Math.max(...rows.map(([, xs]) => xs.length));
   const scale = (n: number) => Math.round((n / most) * barRoom);
-  for (const [name, xs] of ordered) {
-    const cols = shown.map((s) => `${String(xs.filter((i) => i.status === s).length).padStart(4)} ${s.padEnd(5)}`).join("");
+  return rows.map(([name, xs]) => {
+    const n = (s: string) => xs.filter((i) => i.status === s).length;
+    const cols = STATUS_ORDER.map((s) => `${String(n(s)).padStart(4)} ${s.padEnd(5)}`).join("");
     // Segments from running totals, so rounding never makes a bar longer than the room.
     let before = 0;
-    const bar = shown
+    const bar = ["done", "doing", "todo"]
       .map((s) => {
-        const n = xs.filter((i) => i.status === s).length;
-        const seg = scale(before + n) - scale(before);
-        before += n;
+        const seg = scale(before + n(s)) - scale(before);
+        before += n(s);
         return paint("█".repeat(seg), ...(STATUS[s]!.code ? [STATUS[s]!.code!] : ["dim" as Code]));
       })
       .join("");
-    out.push(`   ${name.padEnd(nameWidth)}${cols}  ${bar}`);
-  }
+    const label = fit(cells(name), nameWidth);
+    return `   ${render(label, paint)}${" ".repeat(nameWidth - widthOf(label))}${cols}  ${bar}`;
+  });
+}
 
+function doingNow(items: Item[], withRepo: boolean, st: Style, paint: ReturnType<typeof painter>): string[] {
   const doing = items.filter((i) => i.status === "doing");
-  if (doing.length) {
-    out.push("", ` ${paint("Doing now", "bold")}`, ` ${paint("─".repeat(st.width - 1), "dim")}`);
-    const idWidth = Math.max(...doing.map((i) => String(i.id).length)) + 1;
-    for (const i of doing) {
-      const room = st.width - 5 - idWidth - 2 - nameWidth - 2;
-      out.push(`   ${glyph("doing", paint)} ${paint(`#${i.id}`.padEnd(idWidth), "dim")}  ${i.repo_name.padEnd(nameWidth)}  ${render(fit(cells(i.title), room), paint)}`);
-    }
+  if (!doing.length) return [];
+  const out = ["", ` ${paint("Doing now", "bold")}`, ` ${paint("─".repeat(st.width - 1), "dim")}`];
+  const idWidth = Math.max(...doing.map((i) => String(i.id).length)) + 1;
+  const repoWidth = withRepo ? Math.max(...doing.map((i) => i.repo_name.length)) + 2 : 0;
+  for (const i of doing) {
+    const repo = withRepo ? i.repo_name.padEnd(repoWidth) : "";
+    const room = st.width - 5 - idWidth - 2 - repoWidth;
+    out.push(`   ${glyph("doing", paint)} ${paint(`#${i.id}`.padEnd(idWidth), "dim")}  ${repo}${render(fit(cells(i.title), room), paint)}`);
   }
-  for (const [name, xs] of ordered) out.push("", "", ...repoSection(name, xs, st, paint));
+  return out;
+}
+
+/**
+ * `atlas todo list` at a terminal. The summary counts `everything` (all statuses), the
+ * outline shows only `shown`, which is what --status asked for.
+ */
+export function listView(everything: Item[], shown: Item[], all: boolean, st: Style): string[] {
+  const paint = painter(st.color);
+  if (!everything.length) return ["No todos."];
+  const out = header(all ? "All repos" : everything[0]!.repo_name, everything, st, paint);
+  const rows = all ? bucket(everything, (i) => i.repo_name) : bucket(everything, (i) => i.group_name ?? "No group");
+  out.push("", ...summaryRows(rows, st, paint), ...doingNow(everything, all, st, paint));
+  if (!shown.length) return [...out, "", " No todos match these filters."];
+  if (!all) return [...out, ...blocks(shown, st, paint)];
+  for (const [name] of rows) {
+    const repoShown = shown.filter((i) => i.repo_name === name);
+    if (repoShown.length) out.push("", "", ...header(name, everything.filter((i) => i.repo_name === name), st, paint), ...blocks(repoShown, st, paint));
+  }
   return out;
 }
 

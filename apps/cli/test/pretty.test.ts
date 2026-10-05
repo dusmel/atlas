@@ -33,17 +33,29 @@ describe("listView", () => {
     item({ id: 14, repo_name: "sem", priority: "P0", title: "Fix the reindex" }),
   ];
 
-  test("a repo gets a header with counts, then a block per priority and group", () => {
-    const out = listView(items.filter((i) => i.repo_name === "atlas"), false, plain);
+  const atlas = items.filter((i) => i.repo_name === "atlas");
+  const open = (xs: Item[]) => xs.filter((i) => i.status !== "done");
+
+  test("a repo gets a header with counts, a row per group, then a block per priority and group", () => {
+    const out = listView(atlas, atlas, false, plain);
     expect(out[0]).toMatch(/^ atlas +3 todo · 1 doing · 1 done$/);
     expect(out[1]).toBe("━".repeat(60));
+    expect(out[3]).toMatch(/^ {3}Web v1 +2 todo +1 doing +1 done +█+$/);
+    expect(out[4]).toMatch(/^ {3}No group +1 todo +0 doing +0 done +█+$/);
     expect(out).toContain(" Inbox");
-    expect(out.find((l) => l.includes("Web v1"))).toMatch(/^ P1 {4}Web v1 +→ spec\.html$/);
+    expect(out.find((l) => l.startsWith(" P1"))).toMatch(/^ P1 {4}Web v1 +→ spec\.html$/);
+  });
+
+  test("the summary counts done items the outline leaves out", () => {
+    const out = listView(atlas, open(atlas), false, plain);
+    expect(out[0]).toEndWith("1 done");
+    expect(out.some((l) => l.includes("#12"))).toBe(false);
+    expect(listView(atlas, [], false, plain).at(-1)).toBe(" No todos match these filters.");
   });
 
   test("children sit under their parent, backticks go and long titles are cut to the width", () => {
-    const out = listView(items.filter((i) => i.repo_name === "atlas"), false, plain);
-    const at = out.findIndex((l) => l.includes("#10"));
+    const out = listView(atlas, atlas, false, plain);
+    const at = out.findLastIndex((l) => l.startsWith("   ◐ #10"));
     expect(out[at]).toBe("   ◐ #10  Phase 3: Board with a drag-and-drop layout");
     expect(out[at + 1]).toBe("     ├ ○ #11  First child");
     expect(out[at + 2]).toBe("     └ ● #12  Second child");
@@ -52,7 +64,7 @@ describe("listView", () => {
   });
 
   test("--all opens with a row per repo and what is in progress", () => {
-    const out = listView(items, true, plain);
+    const out = listView(items, open(items), true, plain);
     expect(out[0]).toMatch(/^ All repos +4 todo · 1 doing · 1 done$/);
     expect(out.find((l) => l.startsWith("   atlas"))).toMatch(/^ {3}atlas +3 todo +1 doing +1 done +█+$/);
     expect(out.find((l) => l.startsWith("   sem"))).toMatch(/^ {3}sem +1 todo +0 doing +0 done +█+$/);
@@ -63,18 +75,19 @@ describe("listView", () => {
   });
 
   test("colour only when asked for", () => {
-    expect(listView(items, true, plain).join("")).not.toContain("\x1b[");
-    expect(listView(items, true, { width: 60, color: true }).join("")).toContain("\x1b[33m◐\x1b[39m");
+    expect(listView(items, items, true, plain).join("")).not.toContain("\x1b[");
+    expect(listView(items, items, true, { width: 60, color: true }).join("")).toContain("\x1b[33m◐\x1b[39m");
   });
 
   test("**bold** loses its stars and keeps the weight", () => {
-    const out = listView([item({ id: 30, title: "**Only blocker left:** GPU quota" })], false, plain);
+    const bold = [item({ id: 30, title: "**Only blocker left:** GPU quota" })];
+    const out = listView(bold, bold, false, plain);
     expect(out).toContain("   ○ #30  Only blocker left: GPU quota");
-    expect(listView([item({ id: 30, title: "**Only blocker left:** GPU quota" })], false, { width: 60, color: true }).join("")).toContain("\x1b[1mOnly blocker left:\x1b[22m");
+    expect(listView(bold, bold, false, { width: 60, color: true }).join("")).toContain("\x1b[1mOnly blocker left:\x1b[22m");
   });
 
   test("an empty list says so", () => {
-    expect(listView([], false, plain)).toEqual(["No todos."]);
+    expect(listView([], [], false, plain)).toEqual(["No todos."]);
   });
 });
 

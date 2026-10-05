@@ -3,6 +3,7 @@
  */
 
 import { isatty } from "node:tty";
+import { STATUSES, type Status } from "@atlas/todos";
 import { err, out } from "../util.ts";
 import { itemId, parseArgs, textFlag, type FlagSpec } from "./args.ts";
 import { serveAgent } from "./agent.ts";
@@ -93,11 +94,21 @@ async function run(args: string[]): Promise<number> {
       const scope = await scopeOf(flags);
       const q = new URLSearchParams();
       if (scope !== "all") q.set("repo", repoParam(scope));
-      for (const k of ["status", "priority", "group"]) if (typeof flags[k] === "string") q.set(k, flags[k] as string);
-      const items = await api<Item[]>(cfg, "GET", `/todos?${q}`);
+      for (const k of ["priority", "group"]) if (typeof flags[k] === "string") q.set(k, flags[k] as string);
       const style = pretty(flags);
-      if (style) await out(listView(items, scope === "all", style).join("\n"));
-      else await print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
+      if (style) {
+        // The summary counts every status, so fetch them all and leave --status to the outline.
+        const want = typeof flags.status === "string" ? flags.status.split(",").map((x) => x.trim()) : ["todo", "doing"];
+        const bad = want.find((x) => !STATUSES.includes(x as Status));
+        if (bad) throw new CliError(2, `Status must be one of ${STATUSES.join(", ")}, not ${bad}`);
+        q.set("status", STATUSES.join(","));
+        const everything = await api<Item[]>(cfg, "GET", `/todos?${q}`);
+        await out(listView(everything, everything.filter((i) => want.includes(i.status)), scope === "all", style).join("\n"));
+        return 0;
+      }
+      if (typeof flags.status === "string") q.set("status", flags.status);
+      const items = await api<Item[]>(cfg, "GET", `/todos?${q}`);
+      await print(!!flags.json, items, () => (items.length ? itemLines(items, scope === "all") : ["No todos."]));
       return 0;
     }
     case "add": {
