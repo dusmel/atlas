@@ -3,7 +3,8 @@ import { CSS } from "@dnd-kit/utilities"
 import { BoxIcon, ListTreeIcon } from "lucide-react"
 import { cn } from "cn"
 import { exact, shortDate } from "@/lib/format"
-import { PRIORITY_NAME, rowKey, rowLabel, type Item } from "@/lib/todos"
+import { authorOf, PRIORITY_NAME, rowKey, rowLabel, type Item } from "@/lib/todos"
+import { AuthorAvatar } from "./author-avatar"
 import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { plainTitle, RichTitle } from "./rich-title"
@@ -47,6 +48,7 @@ export function ItemCard({ item, showRepo, children, selected, dragging, overlay
         <span className="ml-auto" title={`${done && item.done_at ? "Done" : "Created"} ${exact(done && item.done_at ? item.done_at : item.created_at)}`}>
           {shortDate(done && item.done_at ? item.done_at : item.created_at)}
         </span>
+        <AuthorAvatar author={authorOf(item)} />
       </div>
       <div className="flex items-start gap-2">
         <StatusIcon status={item.status} className="mt-[0.2rem]" />

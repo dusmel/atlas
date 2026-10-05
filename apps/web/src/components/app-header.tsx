@@ -15,7 +15,8 @@ export function AppHeader({ onCommand }: { onCommand?: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/80 sm:gap-4 sm:px-6">
-      <Link to="/todos" className="mr-1 text-[15px] font-semibold tracking-tight">
+      <Link to="/todos" className="mr-1 flex items-center gap-2 text-[15px] font-semibold tracking-tight">
+        <img src="/icon.png" alt="" width={24} height={24} className="size-6" />
         Atlas
       </Link>
       <nav aria-label="Main" className="flex items-center gap-1">
@@ -83,3 +84,4 @@ export function AppHeader({ onCommand }: { onCommand?: () => void }) {
     </header>
   )
 }
+

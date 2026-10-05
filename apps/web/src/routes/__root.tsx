@@ -26,10 +26,7 @@ export const Route = createRootRoute({
         rel: "stylesheet",
         href: appCss,
       },
-      {
-        rel: "icon",
-        href: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Cpath d='M9 24 16 8l7 16M11.6 18h8.8' stroke='%23fff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
-      },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
     ],
   }),
   notFoundComponent: () => (

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -7,7 +7,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { laneOf, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, useActions, type Group, type Item, type Repo, type Row, type Status } from "@/lib/todos"
+import { laneOf, PRIORITY_NAME, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, useActions, type Group, type Item, type Repo, type Row, type Status } from "@/lib/todos"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { plainTitle } from "./rich-title"
 
@@ -23,14 +23,18 @@ const readRepo = () => {
 // The outline toggle's own "on" state is a faint grey. A filled segment reads at a glance.
 const ON = "data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90 data-[state=on]:hover:text-primary-foreground"
 
+// Inbox means "not prioritised yet", so it sits apart from P0 to P3.
 export function PriorityToggle({ value, onChange }: { value: Row; onChange: (r: Row) => void }) {
   return (
     <ToggleGroup type="single" variant="outline" value={rowKey(value)} onValueChange={(v) => v && onChange(v === "inbox" ? null : (v as Row))} className="w-full">
       {ROWS.map((r) => (
-        <ToggleGroupItem key={rowKey(r)} value={rowKey(r)} className={cn("min-h-9 flex-1 gap-1.5", ON)}>
-          <PriorityIcon row={rowKey(r)} />
-          {rowLabel(r)}
-        </ToggleGroupItem>
+        <Fragment key={rowKey(r)}>
+          <ToggleGroupItem value={rowKey(r)} title={r ? `${r} ${PRIORITY_NAME[r]}` : "Inbox: not prioritised yet"} className={cn("min-h-9 flex-auto gap-1.5 px-2", ON)}>
+            <PriorityIcon row={rowKey(r)} />
+            {rowLabel(r)}
+          </ToggleGroupItem>
+          {r === null && <span aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-border" />}
+        </Fragment>
       ))}
     </ToggleGroup>
   )

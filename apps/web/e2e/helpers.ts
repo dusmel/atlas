@@ -44,3 +44,7 @@ export async function drag(page: Page, from: Locator, to: Locator, at: "center" 
   await page.mouse.move(b.x + b.width / 2, at === "top" ? b.y + 6 : b.y + b.height / 2, { steps: 20 })
   await page.mouse.up()
 }
+
+// Behaviour tests pass even when text spills out of a control, so check the layout too.
+export const overflowing = (scope: Locator) =>
+  scope.locator("button, [role=radio], [role=tab]").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent?.trim()))

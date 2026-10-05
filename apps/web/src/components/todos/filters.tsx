@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronDownIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react"
+import { BoxIcon, CheckIcon, ChevronDownIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react"
 import { useMemo, useRef } from "react"
 import { cn } from "cn"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Kbd } from "@/components/ui/kbd"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { activeCount, facetCounts, FACETS, isAgent, rowLabel, STATUS_LABEL, type Facet, type Filters, type Group, type Item, type Repo } from "@/lib/todos"
+import { AuthorAvatar } from "./author-avatar"
+import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { plainTitle } from "./rich-title"
 
@@ -28,16 +30,16 @@ export function useOptions(items: Item[], filters: Filters, repos: Repo[], group
     const byCounts = counted("by")
     const authors = [...new Set(items.map((i) => i.created_by ?? "unknown"))].sort((a, b) => n(byCounts, b) - n(byCounts, a))
     return {
-      repo: [...new Set(repos.map((r) => r.name))].map((name) => ({ value: name, label: name, count: n(repoCounts, name) })).sort((a, b) => b.count - a.count),
+      repo: [...new Set(repos.map((r) => r.name))].map((name) => ({ value: name, label: name, count: n(repoCounts, name), icon: <BoxIcon className="text-muted-foreground" /> })).sort((a, b) => b.count - a.count),
       group: [
-        ...groups.map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)) })),
-        { value: "none", label: "No group", count: n(groupCounts, "none") },
+        ...groups.map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)), icon: <GroupDot color={groupColor(g.name)} /> })),
+        { value: "none", label: "No group", count: n(groupCounts, "none"), icon: <GroupDot /> },
       ],
       priority: ["inbox", "P0", "P1", "P2", "P3"].map((p) => ({ value: p, label: rowLabel(p === "inbox" ? null : (p as "P0")), count: n(priorityCounts, p), icon: <PriorityIcon row={p} /> })),
       status: (["todo", "doing", "done"] as const).map((s) => ({ value: s, label: STATUS_LABEL[s], count: n(statusCounts, s), icon: <StatusIcon status={s} /> })),
       by: [
-        { value: "agent", label: "Any agent", count: n(byCounts, "agent") },
-        ...authors.map((a) => ({ value: a, label: a, section: isAgent(a) ? "Agents" : "People and tools", count: n(byCounts, a) })),
+        { value: "agent", label: "Any agent", count: n(byCounts, "agent"), icon: <AuthorAvatar author="agent" /> },
+        ...authors.map((a) => ({ value: a, label: a, section: isAgent(a) ? "Agents" : "People and tools", count: n(byCounts, a), icon: <AuthorAvatar author={a} /> })),
       ],
     }
   }, [items, filters, repos, groups])
@@ -94,7 +96,13 @@ export function FacetCommand({ facets, options, filters, onChange, autoFocus }: 
   )
 }
 
-const badgeLabel = (facet: Facet, value: string, options: Record<Facet, Option[]>) => options[facet].find((x) => x.value === value)?.label ?? value
+const optionOf = (facet: Facet, value: string, options: Record<Facet, Option[]>) => options[facet].find((x) => x.value === value)
+const badgeLabel = (facet: Facet, value: string, options: Record<Facet, Option[]>) => optionOf(facet, value, options)?.label ?? value
+
+// A group's colour, or a hollow ring for "No group".
+const GroupDot = ({ color }: { color?: string }) => (
+  <span aria-hidden className={cn("mx-0.5 size-2.5 shrink-0 rounded-full", !color && "border border-muted-foreground")} style={color ? { background: color } : undefined} />
+)
 
 type BarProps = {
   filters: Filters
@@ -173,6 +181,7 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
           {tags.map(({ facet, value }) => (
             <Badge key={`${facet}:${value}`} variant="secondary" className="h-7 gap-1 pr-1 font-normal">
               <span className="text-muted-foreground">{FACET_LABEL[facet]}</span>
+              <span className="flex items-center [&>svg]:size-3.5 [&>[role=img]]:size-4">{optionOf(facet, value, options)?.icon}</span>
               {badgeLabel(facet, value, options)}
               <button
                 type="button"
