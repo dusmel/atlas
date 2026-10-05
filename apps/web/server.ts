@@ -19,7 +19,9 @@ const server = Bun.serve({
         return new Response(file, { headers })
       }
     }
-    return app.fetch(req)
+    // Start hands back a plain error object when a handler throws. Bun would answer that with a 200 welcome page.
+    const res = await app.fetch(req)
+    return res instanceof Response ? res : Response.json({ error: { code: "internal", message: "Unexpected server error" } }, { status: 500 })
   },
 })
 

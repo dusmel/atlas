@@ -2,12 +2,21 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
+    --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+    --color-inbox: var(--inbox);
+    --color-p0: var(--p0);
+    --color-p1: var(--p1);
+    --color-p2: var(--p2);
+    --color-p3: var(--p3);
+    --color-doing: var(--doing);
+    --color-done: var(--done);
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -81,6 +90,16 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    /* Priority rails and status marks: the one place the board uses colour. */
+    --inbox: oklch(0.55 0.2 295);
+    --p0: oklch(0.58 0.22 27);
+    --p1: oklch(0.7 0.16 65);
+    --p2: oklch(0.58 0.16 250);
+    --p3: oklch(0.65 0.02 260);
+    --doing: oklch(0.7 0.16 65);
+    --done: oklch(0.6 0.14 155);
+    --group-l: 0.62;
+    --group-c: 0.13;
 }
 
 .dark {
@@ -115,6 +134,15 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --inbox: oklch(0.7 0.17 295);
+    --p0: oklch(0.7 0.19 25);
+    --p1: oklch(0.8 0.15 75);
+    --p2: oklch(0.72 0.13 250);
+    --p3: oklch(0.6 0.02 260);
+    --doing: oklch(0.8 0.15 75);
+    --done: oklch(0.72 0.14 155);
+    --group-l: 0.72;
+    --group-c: 0.12;
 }
 
 @layer base {
@@ -126,5 +154,24 @@
     }
   html {
     @apply font-sans;
+    -webkit-tap-highlight-color: transparent;
     }
+  button, a, [role="button"] {
+    touch-action: manipulation;
+    }
+}
+/* Markdown in item bodies: plain spacing for the elements notes use, no typography plugin. */
+@layer components {
+  .markdown > * + * { margin-top: 0.6em; }
+  .markdown h1, .markdown h2, .markdown h3 { font-weight: 600; line-height: 1.3; }
+  .markdown h1 { font-size: 1.15em; }
+  .markdown h2 { font-size: 1.05em; }
+  .markdown ul { list-style: disc; padding-left: 1.25em; }
+  .markdown ol { list-style: decimal; padding-left: 1.25em; }
+  .markdown li + li { margin-top: 0.2em; }
+  .markdown a { text-decoration: underline; text-underline-offset: 3px; }
+  .markdown code { font-family: var(--font-mono); font-size: 0.88em; background: var(--muted); border-radius: 4px; padding: 0.1em 0.3em; }
+  .markdown pre { background: var(--muted); border-radius: 6px; padding: 0.75em; overflow-x: auto; }
+  .markdown pre code { background: none; padding: 0; }
+  .markdown blockquote { border-left: 2px solid var(--border); padding-left: 0.75em; color: var(--muted-foreground); }
 }
