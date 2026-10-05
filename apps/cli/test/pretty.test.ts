@@ -120,6 +120,39 @@ describe("showView", () => {
   });
 });
 
+describe("narrow terminals and long names", () => {
+  const long = "Replace `guardrails-ai` with offline, auditable alternatives ".repeat(3);
+  const items = [
+    item({ id: 1, repo_name: "iremboai-chatbot-api-with-a-long-name", group_name: long, group_doc: "guardrails-replacement-plan-with-a-long-name.html", status: "doing" }),
+    item({ id: 2, repo_name: "sem", group_name: "Short", status: "done" }),
+    item({ id: 3, repo_name: "sem", priority: null, title: "y".repeat(300) }),
+  ];
+  const show = {
+    item: item({ id: 1, title: long, status: "doing", section: long, archived_at: "x", body: `${" ".repeat(60)}- deep\n${long}` }),
+    children: [item({ id: 2, parent_id: 1, title: long })],
+    group: { name: long, doc_path: "a-very-long-plan-document-name-that-keeps-going-and-going.html" },
+    events: [{ at: "2026-10-01T00:00:00Z", actor: `token:${"a".repeat(60)}`, action: "update", data: { status: ["todo", "doing"], priority: [null, "P1"], title: ["a", "b"], body: ["a", "b"], group_id: [1, 2], parent_id: [null, 3] } }],
+  };
+
+  for (const width of [40, 41, 60, 80, 120]) {
+    test(`no line is wider than ${width} columns`, () => {
+      for (const color of [false, true]) {
+        const st = { width, color };
+        const lines = [...listView(items, items, true, st), ...listView(items, items, false, st), ...showView(show, st)];
+        const widest = Math.max(...lines.map((l) => Bun.stringWidth(l)));
+        expect(widest).toBeLessThanOrEqual(width);
+      }
+    });
+  }
+
+  test("a plan link that does not fit moves to its own line", () => {
+    const out = listView(items, items, false, { width: 60, color: false });
+    const at = out.findIndex((l) => l.startsWith(" P1"));
+    expect(out[at]).toEndWith("…");
+    expect(out[at + 1]).toMatch(/^ +→ guardrails-replacement-plan/);
+  });
+});
+
 describe("history wording", () => {
   const e = (action: string, data: unknown) => describeEvent({ at: "", actor: "", action, data });
   test("names what changed and hides bookkeeping fields", () => {

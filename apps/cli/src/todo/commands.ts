@@ -10,7 +10,7 @@ import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
 import { itemLines, showLines, type Item } from "./format.ts";
 import { importTodos } from "./import.ts";
-import { listView, showView, type Style } from "./pretty.ts";
+import { listView, MIN_WIDTH, showView, type Style } from "./pretty.ts";
 import { repoParam, scopeOf, type Scope } from "./scope.ts";
 
 const SCOPE: FlagSpec = { repo: "string", all: "boolean", personal: "boolean", json: "boolean" };
@@ -52,7 +52,8 @@ At a terminal, list and show print a readable layout; --plain, or a pipe, gives 
 /** The readable layout only for a person: never for --json, --plain or a pipe, which is how agents call it. */
 function pretty(flags: Record<string, string | boolean>): Style | null {
   if (flags.json || flags.plain || !isatty(1)) return null;
-  return { width: Math.min(process.stdout.columns || 100, 120), color: !process.env.NO_COLOR };
+  const width = Math.min(process.stdout.columns || 100, 120);
+  return width < MIN_WIDTH ? null : { width, color: !process.env.NO_COLOR };
 }
 
 const print = (json: boolean, data: unknown, human: () => string[]) => out(json ? JSON.stringify(data, null, 2) : human().join("\n"));

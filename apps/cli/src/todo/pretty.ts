@@ -7,6 +7,9 @@ import type { Item } from "./format.ts";
 
 export type Style = { width: number; color: boolean };
 
+/** Narrower than this, the CLI prints the plain one-line format instead. */
+export const MIN_WIDTH = 40;
+
 type ShowData = {
   item: Item;
   children: Item[];
@@ -113,10 +116,18 @@ function render(cs: Cell[], paint: ReturnType<typeof painter>, ...base: Code[]):
   return out;
 }
 
-/** `left` and `right` on one line, `right` pushed to the edge when there is room. */
-function spread(left: string, leftWidth: number, right: string, rightWidth: number, width: number): string {
-  if (!right) return left;
-  return leftWidth + 2 + rightWidth > width ? `${left}  ${right}` : `${left}${" ".repeat(width - leftWidth - rightWidth)}${right}`;
+/**
+ * `name` after `prefix`, with `right` pushed to the edge. When they do not fit on one line,
+ * `right` moves to a line of its own and `name` is cut to the width.
+ */
+function spread(prefix: string, prefixWidth: number, name: Cell[], right: string, rightWidth: number, st: Style, paint: ReturnType<typeof painter>, ...codes: Code[]): string[] {
+  const nameWidth = widthOf(name);
+  if (prefixWidth + nameWidth + 2 + rightWidth <= st.width) {
+    const gap = right ? " ".repeat(st.width - prefixWidth - nameWidth - rightWidth) : "";
+    return [`${prefix}${render(name, paint, ...codes)}${gap}${right}`];
+  }
+  const first = `${prefix}${render(fit(name, st.width - prefixWidth), paint, ...codes)}`;
+  return right ? [first, `${" ".repeat(Math.max(0, st.width - rightWidth))}${right}`] : [first];
 }
 
 function counts(items: Item[]): { text: string; width: number; render: (paint: ReturnType<typeof painter>) => string } {
@@ -140,7 +151,7 @@ function glyph(status: string, paint: ReturnType<typeof painter>): string {
 /** A bold title with counts on the right, over a heavy rule. */
 function header(title: string, items: Item[], st: Style, paint: ReturnType<typeof painter>): string[] {
   const c = counts(items);
-  return [spread(` ${paint(title, "bold")}`, 1 + Bun.stringWidth(title), c.render(paint), c.width, st.width), paint("━".repeat(st.width), "dim")];
+  return [...spread(" ", 1, cells(title), c.render(paint), c.width, st, paint, "bold"), paint("━".repeat(st.width), "dim")];
 }
 
 /** A block per priority and group, children under their parent. */
@@ -168,9 +179,9 @@ function blocks(items: Item[], st: Style, paint: ReturnType<typeof painter>): st
     const first = block[0]!;
     const label = priorityLabel(first.priority);
     const group = first.group_name ?? "";
-    const left = ` ${paint(label.padEnd(5), priorityCode(first.priority), "bold")}${group ? ` ${paint(group, "bold")}` : ""}`;
-    const doc = first.group_doc ? `→ ${first.group_doc}` : "";
-    out.push("", spread(left, 6 + (group ? 1 + Bun.stringWidth(group) : 0), paint(doc, "dim"), Bun.stringWidth(doc), st.width));
+    const prefix = ` ${paint(label.padEnd(5), priorityCode(first.priority), "bold")}${group ? " " : ""}`;
+    const doc = first.group_doc ? fit(cells(`→ ${first.group_doc}`), st.width) : [];
+    out.push("", ...spread(prefix, group ? 7 : 6, cells(group), render(doc, paint, "dim"), widthOf(doc), st, paint, "bold"));
     out.push(` ${paint("─".repeat(st.width - 1), "dim")}`);
     for (const i of block) {
       out.push(line(i, "   ", 3));
@@ -189,8 +200,13 @@ const bucket = (items: Item[], key: (i: Item) => string) => {
 
 /** A row per repo or group: counts for every status, and a bar of done, doing and todo. */
 function summaryRows(rows: [string, Item[]][], st: Style, paint: ReturnType<typeof painter>): string[] {
-  const nameWidth = Math.min(Math.max(...rows.map(([n]) => widthOf(cells(n)))), Math.floor(st.width * 0.4));
-  const barRoom = Math.max(8, st.width - 3 - nameWidth - STATUS_ORDER.length * 10 - 2);
+  const fixed = 3 + STATUS_ORDER.length * 10;
+  const longest = Math.max(...rows.map(([n]) => widthOf(cells(n))));
+  // The name gets up to 40% of the width. A bar shorter than 8 says nothing, so a narrow
+  // terminal drops it and gives the name the room instead.
+  const named = Math.min(longest, Math.floor(st.width * 0.4));
+  const barRoom = st.width - fixed - named - 2 >= 8 ? st.width - fixed - named - 2 : 0;
+  const nameWidth = barRoom ? named : Math.min(longest, st.width - fixed);
   const most = Math.max(...rows.map(([, xs]) => xs.length));
   const scale = (n: number) => Math.round((n / most) * barRoom);
   return rows.map(([name, xs]) => {
@@ -206,7 +222,7 @@ function summaryRows(rows: [string, Item[]][], st: Style, paint: ReturnType<type
       })
       .join("");
     const label = fit(cells(name), nameWidth);
-    return `   ${render(label, paint)}${" ".repeat(nameWidth - widthOf(label))}${cols}  ${bar}`;
+    return `   ${render(label, paint)}${" ".repeat(nameWidth - widthOf(label))}${cols}${barRoom ? `  ${bar}` : ""}`;
   });
 }
 
@@ -215,9 +231,10 @@ function doingNow(items: Item[], withRepo: boolean, st: Style, paint: ReturnType
   if (!doing.length) return [];
   const out = ["", ` ${paint("Doing now", "bold")}`, ` ${paint("─".repeat(st.width - 1), "dim")}`];
   const idWidth = Math.max(...doing.map((i) => String(i.id).length)) + 1;
-  const repoWidth = withRepo ? Math.max(...doing.map((i) => i.repo_name.length)) + 2 : 0;
+  const repoWidth = withRepo ? Math.min(Math.max(...doing.map((i) => i.repo_name.length)), Math.floor(st.width * 0.3)) + 2 : 0;
   for (const i of doing) {
-    const repo = withRepo ? i.repo_name.padEnd(repoWidth) : "";
+    const r = fit(cells(i.repo_name), repoWidth - 2);
+    const repo = withRepo ? `${render(r, paint)}${" ".repeat(repoWidth - widthOf(r))}` : "";
     const room = st.width - 5 - idWidth - 2 - repoWidth;
     out.push(`   ${glyph("doing", paint)} ${paint(`#${i.id}`.padEnd(idWidth), "dim")}  ${repo}${render(fit(cells(i.title), room), paint)}`);
   }
@@ -288,25 +305,41 @@ export function showView(data: ShowData, st: Style, now = Date.now()): string[] 
   for (const l of wrap(cells(item.title), inner)) out.push(`${paint("│", "dim")} ${render(l, paint, "bold")}${" ".repeat(inner - widthOf(l))} ${paint("│", "dim")}`);
   out.push(paint(`╰${"─".repeat(width - 2)}╯`, "dim"));
 
-  const sep = paint(" · ", "dim");
-  const facts = [
-    paint(` ${priorityLabel(item.priority)} `, priorityCode(item.priority), "inverse"),
-    `${glyph(item.status, paint)} ${item.status}`,
-    paint(item.repo_name, "bold"),
-    ...(group ? [group.name] : []),
-    ...(item.section ? [item.section] : []),
-    ...(item.archived_at ? [paint("archived", "red")] : []),
+  // Facts as [text, width], laid out left to right and wrapped onto more lines when needed.
+  const text = (s: string, ...codes: Code[]): [string, number] => {
+    const c = fit(cells(s), width - 2);
+    return [render(c, paint, ...codes), widthOf(c)];
+  };
+  const priority = ` ${priorityLabel(item.priority)} `;
+  const facts: [string, number][] = [
+    [paint(priority, priorityCode(item.priority), "inverse"), priority.length],
+    [`${glyph(item.status, paint)} ${item.status}`, 2 + item.status.length],
+    text(item.repo_name, "bold"),
+    ...(group ? [text(group.name)] : []),
+    ...(item.section ? [text(item.section)] : []),
+    ...(item.archived_at ? [text("archived", "red")] : []),
   ];
-  out.push(`  ${facts.join(sep)}`);
-  if (group?.doc_path) out.push(`  ${paint("plan", "dim")}  ${group.doc_path}`);
+  let row = "";
+  let used = 2;
+  for (const [s, w] of facts) {
+    if (row && used + 3 + w > width) {
+      out.push(`  ${row}`);
+      row = "";
+      used = 2;
+    }
+    row += row ? `${paint(" · ", "dim")}${s}` : s;
+    used += (used > 2 ? 3 : 0) + w;
+  }
+  out.push(`  ${row}`);
+  if (group?.doc_path) out.push(`  ${paint("plan", "dim")}  ${render(fit(cells(group.doc_path), width - 8), paint)}`);
   if (item.parent_id) out.push(`  ${paint("child of", "dim")}  #${item.parent_id}`);
 
   if (item.body) {
     out.push("");
     for (const raw of item.body.split("\n")) {
       const indent = raw.length - raw.trimStart().length;
-      const hang = indent + (/^\s*[-*] /.test(raw) ? 2 : 0);
-      wrap(cells(raw.trimStart()), inner - hang).forEach((l, n) => out.push(`  ${" ".repeat(n ? hang : indent)}${render(l, paint)}`));
+      const hang = Math.min(indent + (/^\s*[-*] /.test(raw) ? 2 : 0), Math.floor(inner / 2));
+      wrap(cells(raw.trimStart()), inner - hang).forEach((l, n) => out.push(`  ${" ".repeat(n ? hang : Math.min(indent, hang))}${render(l, paint)}`));
     }
   }
 
@@ -323,8 +356,14 @@ export function showView(data: ShowData, st: Style, now = Date.now()): string[] 
     heading("History");
     const when = events.map((e) => ago(e.at, now));
     const whenWidth = Math.max(...when.map((w) => w.length));
-    const actorWidth = Math.max(...events.map((e) => e.actor.length));
-    events.forEach((e, n) => out.push(`    ${paint(when[n]!.padEnd(whenWidth), "dim")}  ${e.actor.padEnd(actorWidth)}  ${describe(e)}`));
+    const actorWidth = Math.min(Math.max(...events.map((e) => widthOf(cells(e.actor)))), Math.floor(width * 0.3));
+    const lead = 4 + whenWidth + 2 + actorWidth + 2;
+    events.forEach((e, n) => {
+      const actor = fit(cells(e.actor), actorWidth);
+      const [first, ...more] = wrap(cells(describe(e)), width - lead);
+      out.push(`    ${paint(when[n]!.padEnd(whenWidth), "dim")}  ${render(actor, paint)}${" ".repeat(actorWidth - widthOf(actor))}  ${render(first!, paint)}`);
+      for (const l of more) out.push(`${" ".repeat(lead)}${render(l, paint)}`);
+    });
   }
   return out;
 }
