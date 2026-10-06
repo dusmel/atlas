@@ -160,3 +160,11 @@ for (const view of ["list", "triage", "overview", "activity"]) {
     expect(await overflowing(page.locator("main"))).toEqual([])
   })
 }
+
+test("a long group name in a filter badge fits a phone screen", async ({ page }) => {
+  const item = await itemByTitle(page, "In the long-named group")
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`/todos?group=${item.group_id}`)
+  await expect(page.getByRole("button", { name: /Remove Group demo-web \/ A group name long enough/ })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})

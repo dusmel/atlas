@@ -12,6 +12,7 @@ export const SEED = {
     { repo: api, name: "Search quality" },
     { repo: api, name: "Release prep" },
     { repo: web, name: "Onboarding" },
+    { repo: web, name: "A group name long enough to push a filter badge past the edge of a phone" },
   ],
   items: [
     item(api, "Inbox idea about caching", null),
@@ -34,5 +35,6 @@ export const SEED = {
     item(api, "Bulk two", "P3"),
     item(web, "Keys tick me", "P3"),
     item(web, "Keys tick me too", "P3"),
+    item(web, "In the long-named group", "P3", "todo", { group: "A group name long enough to push a filter badge past the edge of a phone" }),
   ],
 }
