@@ -36,7 +36,8 @@ export type PaletteActions = {
 
 type Props = {
   open: boolean
-  page: "root" | "filter"
+  page: "root" | "filter" | "views"
+  view: View
   onOpenChange: (open: boolean) => void
   items: Item[]
   selected: Item | null
@@ -50,19 +51,55 @@ type Props = {
 /** ⌘K: jump to any item by number or title, filter, and act on the selected card. */
 export function CommandPalette(props: Props) {
   return (
-    <CommandDialog open={props.open} onOpenChange={props.onOpenChange} title="Command palette" description="Jump to an item, filter the board, or run an action." className="sm:max-w-xl">
+    <CommandDialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={props.page === "views" ? "Switch view" : "Command palette"}
+      description={props.page === "views" ? "Press a view's number, or pick it from the list." : "Jump to an item, filter the board, or run an action."}
+      className={props.page === "views" ? "sm:max-w-sm" : "sm:max-w-xl"}
+    >
       {props.open && <Palette key={props.page} {...props} />}
     </CommandDialog>
   )
 }
 
-function Palette({ page: startPage, items, selected, filters, doneAll, options, onFilters, onOpenChange, run }: Props) {
+function Palette({ page: startPage, view, items, selected, filters, doneAll, options, onFilters, onOpenChange, run }: Props) {
   const [page, setPage] = useState(startPage)
   const [search, setSearch] = useState("")
   const close = (then: () => void) => () => {
     onOpenChange(false)
     then()
   }
+
+  // V opens this page. View names hold no digits, so a number picks a view instead of searching.
+  if (page === "views")
+    return (
+      <Command
+        loop
+        onKeyDown={(e) => {
+          const v = VIEWS[Number(e.key) - 1]
+          if (!v || e.metaKey || e.ctrlKey) return
+          e.preventDefault()
+          onOpenChange(false)
+          run.view(v.id)
+        }}
+      >
+        <CommandInput autoFocus placeholder="Switch to a view…" />
+        <CommandList>
+          <CommandEmpty>No view by that name.</CommandEmpty>
+          <CommandGroup>
+            {VIEWS.map((v, n) => (
+              <CommandItem key={v.id} value={v.label} onSelect={close(() => run.view(v.id))}>
+                <v.icon />
+                {v.label}
+                {v.id === view && <span className="text-xs text-muted-foreground">Current</span>}
+                <CommandShortcut>{n + 1}</CommandShortcut>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </Command>
+    )
 
   if (page === "filter")
     return (

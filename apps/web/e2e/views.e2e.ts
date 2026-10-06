@@ -105,7 +105,7 @@ test("Overview: the counts match atlas todo list --all --json", async ({ page })
   }
 })
 
-test("? and the header button open the shortcuts; V then 2 opens the List", async ({ page }) => {
+test("? and the header button open the shortcuts", async ({ page }) => {
   await page.goto("/todos")
   await page.locator("[data-item]").first().waitFor()
   await page.keyboard.press("?")
@@ -116,11 +116,38 @@ test("? and the header button open the shortcuts; V then 2 opens the List", asyn
   await page.getByRole("button", { name: "Keyboard shortcuts" }).click()
   await expect(dialog).toBeVisible()
   await page.keyboard.press("Escape")
+})
 
+test("V opens the view picker: a number or a search picks the view", async ({ page }) => {
+  await page.goto("/todos")
+  await page.locator("[data-item]").first().waitFor()
+  const picker = page.getByRole("dialog", { name: "Switch view" })
   await page.keyboard.press("v")
+  await expect(picker).toBeVisible()
   await page.keyboard.press("2")
+  await expect(picker).toBeHidden()
   await expect(page).toHaveURL(/view=list/)
   await expect(page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "page")
+
+  await page.keyboard.press("v")
+  await page.keyboard.type("activ")
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/view=activity/)
+})
+
+test("Overview: a group opens the board filtered to it, and a total opens the List", async ({ page }) => {
+  await page.goto("/todos?view=overview")
+  await page.locator('section[data-repo="demo-api"]').getByRole("link", { name: /Search quality/ }).click()
+  await expect(page).toHaveURL(/group=\d+/)
+  await expect(page).not.toHaveURL(/view=/)
+  await expect(page.locator("[data-item]")).toHaveText([/Ranking tweak/, /Ranking tweak/])
+
+  await page.goto("/todos?view=overview")
+  await page.getByRole("navigation", { name: "Totals" }).getByRole("link", { name: /Doing/ }).click()
+  await expect(page).toHaveURL(/view=list.*status=doing/)
+  const statuses = await page.locator("[data-row]").evaluateAll((rows) => rows.map((r) => r.textContent ?? ""))
+  expect(statuses.length).toBeGreaterThan(0)
+  for (const text of statuses) expect(text).toContain("Doing")
 })
 
 for (const view of ["list", "triage", "overview", "activity"]) {

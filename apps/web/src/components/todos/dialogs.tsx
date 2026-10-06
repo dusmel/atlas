@@ -222,11 +222,7 @@ export const SHORTCUTS: { keys: string[]; label: string; section: string }[] = [
   { keys: ["F"], label: "Filter by repo, group, priority, status or author", section: "Anywhere" },
   { keys: ["N"], label: "New item in Inbox", section: "Anywhere" },
   { keys: ["?"], label: "This list", section: "Anywhere" },
-  { keys: ["V", "then", "1"], label: "Board", section: "Views" },
-  { keys: ["V", "then", "2"], label: "List", section: "Views" },
-  { keys: ["V", "then", "3"], label: "Triage", section: "Views" },
-  { keys: ["V", "then", "4"], label: "Overview", section: "Views" },
-  { keys: ["V", "then", "5"], label: "Activity", section: "Views" },
+  { keys: ["V"], label: "Switch view: then 1 Board, 2 List, 3 Triage, 4 Overview, 5 Activity", section: "Anywhere" },
   { keys: ["J"], label: "Next card down the lane", section: "Board" },
   { keys: ["K"], label: "Previous card", section: "Board" },
   { keys: ["H"], label: "Lane to the left", section: "Board" },
@@ -271,7 +267,7 @@ export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () 
                   <dt>{s.label}</dt>
                   <dd>
                     <KbdGroup>
-                      {s.keys.map((k) => (k === "–" || k === "then" || k === "click" ? <span key={k} className="text-xs text-muted-foreground">{k}</span> : <Kbd key={k}>{k}</Kbd>))}
+                      {s.keys.map((k) => (k === "–" || k === "click" ? <span key={k} className="text-xs text-muted-foreground">{k}</span> : <Kbd key={k}>{k}</Kbd>))}
                     </KbdGroup>
                   </dd>
                 </div>

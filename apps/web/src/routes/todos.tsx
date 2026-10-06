@@ -141,7 +141,7 @@ function TodosPage() {
   const selected = all.find((i) => i.id === selectedId) ?? null
   const [adding, setAdding] = useState<{ priority: Row } | null>(null)
   const [moving, setMoving] = useState<number | null>(null)
-  const [palette, setPalette] = useState<{ open: boolean; page: "root" | "filter" }>({ open: false, page: "root" })
+  const [palette, setPalette] = useState<{ open: boolean; page: "root" | "filter" | "views" }>({ open: false, page: "root" })
   const [shortcuts, setShortcuts] = useState(false)
 
   // The open item may be filtered out, or older than the Done window, so fall back to fetching it.
@@ -178,7 +178,7 @@ function TodosPage() {
     f: () => setPalette({ open: true, page: "filter" }),
     n: () => setAdding({ priority: null }),
     "?": () => setShortcuts(true),
-    ...Object.fromEntries(VIEWS.map((v, n) => [`v ${n + 1}`, () => setView(v.id)])),
+    v: () => setPalette({ open: true, page: "views" }),
   }
 
   const boardKeys: Hotkeys = {
@@ -323,6 +323,7 @@ function TodosPage() {
       <CommandPalette
         open={palette.open}
         page={palette.page}
+        view={view}
         onOpenChange={(o) => setPalette((p) => ({ ...p, open: o }))}
         items={all}
         selected={selected}
