@@ -32,7 +32,8 @@ export function useOptions(items: Item[], filters: Filters, repos: Repo[], group
     return {
       repo: [...new Set(repos.map((r) => r.name))].map((name) => ({ value: name, label: name, count: n(repoCounts, name), icon: <BoxIcon className="text-muted-foreground" /> })).sort((a, b) => b.count - a.count),
       group: [
-        ...groups.map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)), icon: <GroupDot color={groupColor(g.name)} /> })),
+        // With a repo picked, only that repo's groups make sense.
+        ...groups.filter((g) => !filters.repo?.length || filters.repo.includes(g.repo_name)).map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)), icon: <GroupDot color={groupColor(g.name)} /> })),
         { value: "none", label: "No group", count: n(groupCounts, "none"), icon: <GroupDot /> },
       ],
       priority: ["inbox", "P0", "P1", "P2", "P3"].map((p) => ({ value: p, label: rowLabel(p === "inbox" ? null : (p as "P0")), count: n(priorityCounts, p), icon: <PriorityIcon row={p} /> })),
@@ -47,10 +48,22 @@ export function useOptions(items: Item[], filters: Filters, repos: Repo[], group
 
 const selected = (filters: Filters, facet: Facet) => (filters[facet] ?? []).map(String)
 
-export function toggle(filters: Filters, facet: Facet, value: string): Filters {
+export function toggle(filters: Filters, facet: Facet, value: string, options: Record<Facet, Option[]>): Filters {
   const now = selected(filters, facet)
-  const next = now.includes(value) ? now.filter((v) => v !== value) : [...now, value]
-  return { ...filters, [facet]: next.length ? (facet === "group" ? next.map((v) => (v === "none" ? v : Number(v))) : next) : undefined }
+  const on = !now.includes(value)
+  const next = on ? [...now, value] : now.filter((v) => v !== value)
+  const out: Filters = { ...filters, [facet]: next.length ? (facet === "group" ? next.map((v) => (v === "none" ? v : Number(v))) : next) : undefined }
+  // A group lives in one repo, so picking a group picks its repo, and dropping a repo drops its groups.
+  if (facet === "group" && on) {
+    const repo = optionOf("group", value, options)?.section
+    if (repo && !out.repo?.includes(repo)) out.repo = [...(out.repo ?? []), repo]
+  }
+  if (facet === "repo" && !on) {
+    const gone = new Set(options.group.filter((g) => g.section === value).map((g) => g.value))
+    const kept = out.group?.filter((g) => !gone.has(String(g)))
+    out.group = kept?.length ? kept : undefined
+  }
+  return out
 }
 
 /** A searchable list of filter values: one facet in a popover, or all of them in the palette and the phone drawer. */
@@ -75,7 +88,7 @@ export function FacetCommand({ facets, options, filters, onChange, autoFocus }: 
                   <CommandItem
                     key={o.value}
                     value={`${facet} ${o.section ?? ""} ${o.label} ${o.value}`}
-                    onSelect={() => onChange(toggle(filters, facet, o.value))}
+                    onSelect={() => onChange(toggle(filters, facet, o.value, options))}
                     aria-checked={on}
                     className="[&>svg:last-child]:hidden"
                   >
@@ -190,7 +203,7 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
                 type="button"
                 className="rounded-sm p-0.5 hover:bg-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 aria-label={`Remove ${FACET_LABEL[facet]} ${badgeLabel(facet, value, options)}`}
-                onClick={() => onChange(toggle(filters, facet, value))}
+                onClick={() => onChange(toggle(filters, facet, value, options))}
               >
                 <XIcon className="size-3.5" />
               </button>

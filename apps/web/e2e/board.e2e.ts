@@ -48,6 +48,26 @@ test("adding an item puts it in Inbox", async ({ page }) => {
   expect(added).toMatchObject({ priority: null, status: "todo" })
 })
 
+test("a new item can have a description and a parent, and the toast opens it", async ({ page }) => {
+  const parent = await itemByTitle(page, "Body gets edited")
+  await openBoard(page, "/todos")
+  await page.keyboard.press("n")
+  const dialog = page.getByRole("dialog", { name: "New item" })
+  await dialog.getByLabel("Title").fill("A child with notes")
+  await dialog.getByRole("combobox", { name: "Repo" }).click()
+  await page.getByRole("option", { name: "demo-api" }).click()
+  await dialog.getByRole("button", { name: "Add description" }).click()
+  await dialog.getByLabel("Description").fill("Some **notes** here")
+  await dialog.getByRole("combobox", { name: "Parent" }).click()
+  await page.getByRole("option", { name: new RegExp(`#${parent.id} `) }).click()
+  await dialog.getByRole("button", { name: "Add item" }).click()
+
+  await page.getByRole("button", { name: "Open" }).click()
+  await expect(page.getByRole("dialog").locator("[data-title]")).toHaveText("A child with notes")
+  const added = await itemByTitle(page, "A child with notes")
+  expect(added).toMatchObject({ body: "Some **notes** here", parent_id: parent.id })
+})
+
 test("editing the body saves it", async ({ page }) => {
   const item = await itemByTitle(page, "Body gets edited")
   await openBoard(page, `/todos?item=${item.id}`)

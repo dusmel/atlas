@@ -259,13 +259,14 @@ export function useActions() {
     lastArchived = []
   }
 
-  const create = (input: { repo: string; title: string; priority: Row; status?: Status; group?: number | null }, done?: (item: Item) => void) =>
+  type NewItem = { repo: string; title: string; priority: Row; status?: Status; group?: number | null; body?: string; parent?: number | null }
+  const create = (input: NewItem, then: { done?: (item: Item) => void; open?: (id: number) => void } = {}) =>
     change.mutate({
       apply: (xs) => xs,
-      request: async () => [await api<Item>("/todos", send("POST", { ...input, group: input.group ?? undefined }))],
+      request: async () => [await api<Item>("/todos", send("POST", { ...input, group: input.group ?? undefined, parent: input.parent ?? undefined }))],
       done: ([item]) => {
-        toast.success(`Added #${item!.id}`, { description: item!.title })
-        done?.(item!)
+        toast.success(`Added #${item!.id}`, { description: item!.title, action: then.open && { label: "Open", onClick: () => then.open!(item!.id) } })
+        then.done?.(item!)
       },
     })
 

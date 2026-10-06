@@ -314,9 +314,11 @@ function TodosPage() {
         priority={adding?.priority ?? null}
         repos={repos}
         groups={groups}
+        items={all}
         repoHint={filters.repo?.length === 1 ? filters.repo[0] : undefined}
         onClose={() => setAdding(null)}
         onCreated={(item) => select(item.id)}
+        onOpen={open}
       />
       <MoveDialog item={all.find((i) => i.id === moving) ?? null} items={all} onClose={() => setMoving(null)} />
       <ShortcutsDialog open={shortcuts} onClose={() => setShortcuts(false)} />

@@ -192,7 +192,7 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
           </Field>
           <Field>
             <FieldLabel>Parent</FieldLabel>
-            <ParentPicker item={item} items={items} hasChildren={children.length > 0} onPick={(parent) => set({ parent })} label={parent ? `#${parent.id} ${plainTitle(parent.title)}` : "None"} />
+            <ParentPicker repoId={item.repo_id} exclude={item.id} value={item.parent_id} items={items} hasChildren={children.length > 0} onPick={(parent) => set({ parent })} label={parent ? `#${parent.id} ${plainTitle(parent.title)}` : "None"} />
           </Field>
         {item.group_doc && (
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -306,13 +306,31 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
 }
 
 /** Items in the same repo that can be a parent: one level only, so not items that already have one. */
-function ParentPicker({ item, items, hasChildren, onPick, label }: { item: Item; items: Item[]; hasChildren: boolean; onPick: (id: number | null) => void; label: string }) {
+export function ParentPicker({
+  repoId,
+  exclude,
+  value,
+  items,
+  hasChildren = false,
+  onPick,
+  label,
+  id,
+}: {
+  repoId: string
+  exclude?: number
+  value: number | null
+  items: Item[]
+  hasChildren?: boolean
+  onPick: (id: number | null) => void
+  label: string
+  id?: string
+}) {
   const [open, setOpen] = useState(false)
-  const candidates = items.filter((i) => i.repo_id === item.repo_id && i.id !== item.id && i.parent_id === null && i.status !== "done")
+  const candidates = items.filter((i) => i.repo_id === repoId && i.id !== exclude && i.parent_id === null && i.status !== "done")
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} disabled={hasChildren} className="w-full justify-between font-normal" title={hasChildren ? "An item with children can't have a parent" : undefined}>
+        <Button id={id} variant="outline" role="combobox" aria-expanded={open} disabled={hasChildren} className="w-full justify-between font-normal" title={hasChildren ? "An item with children can't have a parent" : undefined}>
           <span className="truncate">{label}</span>
           <ChevronsUpDownIcon data-icon="inline-end" className="text-muted-foreground" />
         </Button>
@@ -323,11 +341,11 @@ function ParentPicker({ item, items, hasChildren, onPick, label }: { item: Item;
           <CommandList>
             <CommandEmpty>No item matches.</CommandEmpty>
             <CommandGroup>
-              <CommandItem value="none no parent" data-checked={item.parent_id === null} onSelect={() => (onPick(null), setOpen(false))}>
+              <CommandItem value="none no parent" data-checked={value === null} onSelect={() => (onPick(null), setOpen(false))}>
                 No parent
               </CommandItem>
               {candidates.map((c) => (
-                <CommandItem key={c.id} value={`${c.id} ${plainTitle(c.title)}`} data-checked={item.parent_id === c.id} onSelect={() => (onPick(c.id), setOpen(false))}>
+                <CommandItem key={c.id} value={`${c.id} ${plainTitle(c.title)}`} data-checked={value === c.id} onSelect={() => (onPick(c.id), setOpen(false))}>
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">#{c.id}</span>
                   <span className="min-w-0 flex-1 truncate">{plainTitle(c.title)}</span>
                 </CommandItem>

@@ -46,7 +46,26 @@ test("the filter search finds a group and filters the board to it", async ({ pag
   await page.keyboard.type("Search quality")
   await page.keyboard.press("Enter")
   await page.keyboard.press("Escape")
-  await expect(page).toHaveURL(/\?group=\d+$/)
+  await expect(page).toHaveURL(/\?repo=demo-api&group=\d+$/)
   const titles = await page.locator("[data-item]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")!.replace(/^#\d+ /, "")))
   expect(titles.sort()).toEqual(["Ranking tweak one", "Ranking tweak two"])
+})
+
+test("a picked repo narrows the group list, and a picked group brings its repo", async ({ page }) => {
+  await openBoard(page, "/todos?repo=demo-web")
+  await page.getByRole("button", { name: "Group" }).click()
+  const list = page.getByRole("listbox")
+  await expect(list.getByRole("option", { name: /Onboarding/ })).toBeVisible()
+  await expect(list.getByRole("option", { name: /Search quality/ })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+
+  await openBoard(page, "/todos")
+  await page.getByRole("button", { name: "Group" }).click()
+  await page.getByRole("option", { name: /Search quality/ }).click()
+  await page.keyboard.press("Escape")
+  await expect(page).toHaveURL(/repo=demo-api/)
+
+  // Dropping the repo drops its groups with it.
+  await page.getByRole("button", { name: /Remove Repo demo-api/ }).click()
+  await expect(page).not.toHaveURL(/group=/)
 })
