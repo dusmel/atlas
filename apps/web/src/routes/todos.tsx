@@ -6,25 +6,32 @@ import { AppHeader } from "@/components/app-header"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ActivityView } from "@/components/todos/activity-view"
 import { Board } from "@/components/todos/board"
 import { CommandPalette } from "@/components/todos/command-palette"
 import { MoveDialog, NewItemDialog, ShortcutsDialog } from "@/components/todos/dialogs"
 import { FilterBar, useOptions } from "@/components/todos/filters"
 import { ItemPanel } from "@/components/todos/item-panel"
+import { ListView } from "@/components/todos/list-view"
 import { MobileBoard } from "@/components/todos/mobile-board"
-import { useHotkeys } from "@/hooks/use-hotkeys"
+import { OverviewView } from "@/components/todos/overview-view"
+import { TriageView } from "@/components/todos/triage-view"
+import { VIEWS, ViewTabs, type View } from "@/components/todos/view-tabs"
+import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
 import { useIsDesktop } from "@/hooks/use-media-query"
 import { layout, step } from "@/lib/board"
 import { matches, STATUSES, useActions, useGroups, useItemDetail, useItems, useRepos, type Filters, type Row, type Status } from "@/lib/todos"
 
-// Filters live in the URL as comma lists, so a bookmark is a saved view: /todos?repo=sem&priority=P0,P1
-type Search = { repo?: string; group?: string; priority?: string; status?: string; by?: string; q?: string; done?: "all"; item?: number; lane?: Status }
+// Filters live in the URL as comma lists, so a bookmark is a saved view: /todos?view=list&repo=sem&priority=P0,P1
+type Search = { view?: Exclude<View, "board">; sort?: string; repo?: string; group?: string; priority?: string; status?: string; by?: string; q?: string; done?: "all"; item?: number; lane?: Status }
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
 export const Route = createFileRoute("/todos")({
   head: () => ({ meta: [{ title: "Todos · Atlas" }] }),
   validateSearch: (s: Record<string, unknown>): Search => ({
+    view: VIEWS.some((v) => v.id === s.view && v.id !== "board") ? (s.view as Search["view"]) : undefined,
+    sort: text(s.sort),
     repo: text(s.repo),
     group: text(s.group),
     priority: text(s.priority),
@@ -134,7 +141,7 @@ function TodosPage() {
   const selected = all.find((i) => i.id === selectedId) ?? null
   const [adding, setAdding] = useState<{ priority: Row } | null>(null)
   const [moving, setMoving] = useState<number | null>(null)
-  const [palette, setPalette] = useState<{ open: boolean; page: "root" | "filter" }>({ open: false, page: "root" })
+  const [palette, setPalette] = useState<{ open: boolean; page: "root" | "filter" | "views" }>({ open: false, page: "root" })
   const [shortcuts, setShortcuts] = useState(false)
 
   // The open item may be filtered out, or older than the Done window, so fall back to fetching it.
@@ -156,12 +163,25 @@ function TodosPage() {
   }
   const onSelected = (fn: (item: NonNullable<typeof selected>) => void) => () => selected && fn(selected)
 
-  useHotkeys({
+  const view: View = search.view ?? "board"
+  const setView = (v: View) => setSearch({ view: v === "board" ? undefined : v })
+  const inbox = useMemo(
+    () => all.filter((i) => i.priority === null && i.status !== "done" && matches(i, filters, "priority")).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id),
+    [all, filters],
+  )
+  const overviewItems = useMemo(() => all.filter((i) => matches(i, { ...filters, done: "all" })), [all, filters])
+
+  // Every view adds its own keys to these; only the view on screen listens.
+  const keys: Hotkeys = {
     "mod+k": () => setPalette({ open: true, page: "root" }),
     "/": () => searchRef.current?.focus(),
     f: () => setPalette({ open: true, page: "filter" }),
     n: () => setAdding({ priority: null }),
     "?": () => setShortcuts(true),
+    v: () => setPalette({ open: true, page: "views" }),
+  }
+
+  const boardKeys: Hotkeys = {
     j: () => select(step(rows, selectedId, "down")),
     k: () => select(step(rows, selectedId, "up")),
     h: () => (desktop ? select(step(rows, selectedId, "left")) : undefined),
@@ -184,7 +204,9 @@ function TodosPage() {
       setSelectedId(null)
       ;(document.activeElement as HTMLElement | null)?.blur()
     },
-  })
+  }
+  // List and Triage listen for themselves, with these keys added to their own.
+  useHotkeys(view === "board" ? { ...keys, ...boardKeys } : keys, view === "board" || view === "overview" || view === "activity")
 
   // A card that changes row or lane is drawn again elsewhere; keep the keyboard on it.
   const position = selected ? `${selected.priority}:${selected.status}` : ""
@@ -212,14 +234,24 @@ function TodosPage() {
 
   return (
     <div className="min-h-dvh">
-      <a href="#board" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2">
-        Skip to the board
+      <a href="#todos" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2">
+        Skip to the {VIEWS.find((v) => v.id === view)!.label.toLowerCase()}
       </a>
-      <AppHeader onCommand={() => setPalette({ open: true, page: "root" })} />
-      <main id="board">
-        <h1 className="sr-only">Todos</h1>
-        <FilterBar filters={filters} options={options} onChange={setFilters} desktop={desktop} searchRef={searchRef} shown={visible.length} />
-        {itemsQuery.isPending ? (
+      <AppHeader onCommand={() => setPalette({ open: true, page: "root" })} onShortcuts={() => setShortcuts(true)} />
+      <main id="todos">
+        <h1 className="sr-only">Todos: {VIEWS.find((v) => v.id === view)!.label}</h1>
+        <ViewTabs view={view} inbox={inbox.length} />
+        <FilterBar
+          filters={filters}
+          options={options}
+          onChange={setFilters}
+          desktop={desktop}
+          searchRef={searchRef}
+          shown={view === "board" || view === "list" ? visible.length : view === "triage" ? inbox.length : view === "overview" ? overviewItems.length : undefined}
+        />
+        {view === "activity" ? (
+          <ActivityView repo={filters.repo} by={filters.by} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
+        ) : itemsQuery.isPending ? (
           <BoardSkeleton />
         ) : itemsQuery.isError ? (
           <Empty className="mx-4 my-10 border">
@@ -231,6 +263,10 @@ function TodosPage() {
               <Button onClick={() => itemsQuery.refetch()}>Try again</Button>
             </EmptyContent>
           </Empty>
+        ) : view === "triage" ? (
+          <TriageView inbox={inbox} all={all} groups={groups} onOpen={open} onCurrent={setSelectedId} keys={keys} />
+        ) : view === "overview" ? (
+          <OverviewView items={overviewItems} onOpen={open} />
         ) : visible.length === 0 ? (
           <Empty className="mx-4 my-10 border sm:mx-6">
             <EmptyHeader>
@@ -241,6 +277,19 @@ function TodosPage() {
               {all.length ? <Button onClick={() => setFilters({ done: filters.done })}>Clear filters</Button> : <Button onClick={() => setAdding({ priority: null })}>New item</Button>}
             </EmptyContent>
           </Empty>
+        ) : view === "list" ? (
+          <ListView
+            items={visible}
+            groups={groups}
+            showRepo={showRepo}
+            sort={search.sort}
+            onSort={(sort) => setSearch({ sort })}
+            cursor={selectedId}
+            onCursor={setSelectedId}
+            onOpen={open}
+            onMove={setMoving}
+            keys={keys}
+          />
         ) : desktop ? (
           <Board {...boardProps} />
         ) : (
@@ -248,7 +297,7 @@ function TodosPage() {
         )}
       </main>
 
-      {!desktop && (
+      {!desktop && view !== "triage" && (
         <Button
           size="icon"
           className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 size-14 rounded-full shadow-lg"
@@ -265,15 +314,18 @@ function TodosPage() {
         priority={adding?.priority ?? null}
         repos={repos}
         groups={groups}
+        items={all}
         repoHint={filters.repo?.length === 1 ? filters.repo[0] : undefined}
         onClose={() => setAdding(null)}
         onCreated={(item) => select(item.id)}
+        onOpen={open}
       />
       <MoveDialog item={all.find((i) => i.id === moving) ?? null} items={all} onClose={() => setMoving(null)} />
       <ShortcutsDialog open={shortcuts} onClose={() => setShortcuts(false)} />
       <CommandPalette
         open={palette.open}
         page={palette.page}
+        view={view}
         onOpenChange={(o) => setPalette((p) => ({ ...p, open: o }))}
         items={all}
         selected={selected}
@@ -289,6 +341,7 @@ function TodosPage() {
           setPriority: (r) => selected && actions.update(selected, { priority: r }),
           setStatus: (s) => selected && actions.update(selected, { status: s }),
           toggleDone: boardProps.onToggleDone,
+          view: setView,
           shortcuts: () => setShortcuts(true),
           settings: () => navigate({ to: "/settings" }),
           theme: setTheme,

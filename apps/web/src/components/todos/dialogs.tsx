@@ -1,3 +1,4 @@
+import { PlusIcon } from "lucide-react"
 import { Fragment, useState } from "react"
 import { cn } from "cn"
 import { Button } from "@/components/ui/button"
@@ -9,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { laneOf, PRIORITY_NAME, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, useActions, type Group, type Item, type Repo, type Row, type Status } from "@/lib/todos"
 import { PriorityIcon, StatusIcon } from "./icons"
+import { ParentPicker } from "./item-panel"
 import { plainTitle } from "./rich-title"
 
 const LAST_REPO = "atlas.last-repo"
@@ -53,7 +55,17 @@ export function StatusToggle({ value, onChange }: { value: Status; onChange: (s:
   )
 }
 
-type NewProps = { open: boolean; priority: Row; repos: Repo[]; groups: Group[]; repoHint?: string; onClose: () => void; onCreated: (item: Item) => void }
+type NewProps = {
+  open: boolean
+  priority: Row
+  repos: Repo[]
+  groups: Group[]
+  items: Item[]
+  repoHint?: string
+  onClose: () => void
+  onCreated: (item: Item) => void
+  onOpen: (id: number) => void
+}
 
 /** New item. The repo defaults to the one filtered on, then the last one used. */
 export function NewItemDialog(props: NewProps) {
@@ -64,14 +76,23 @@ export function NewItemDialog(props: NewProps) {
   )
 }
 
-function NewItemForm({ priority: startPriority, repos, groups, repoHint, onClose, onCreated }: NewProps) {
+function NewItemForm({ priority: startPriority, repos, groups, items, repoHint, onClose, onCreated, onOpen }: NewProps) {
   const actions = useActions()
   const fallback = repos.find((r) => r.name === repoHint) ?? repos.find((r) => r.id === readRepo()) ?? repos.find((r) => r.name === "personal") ?? repos[0]
   const [title, setTitle] = useState("")
   const [repo, setRepo] = useState(fallback?.id ?? "")
   const [priority, setPriority] = useState<Row>(startPriority)
   const [group, setGroup] = useState("none")
+  const [body, setBody] = useState<string | null>(null)
+  const [parent, setParent] = useState<number | null>(null)
   const repoGroups = groups.filter((g) => g.repo_id === repo)
+  const parentItem = parent === null ? null : items.find((i) => i.id === parent)
+  const pickParent = (id: number | null) => {
+    setParent(id)
+    // A child usually belongs to its parent's group.
+    const g = items.find((i) => i.id === id)?.group_id
+    if (g && group === "none") setGroup(String(g))
+  }
 
   const submit = (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -79,7 +100,7 @@ function NewItemForm({ priority: startPriority, repos, groups, repoHint, onClose
     try {
       localStorage.setItem(LAST_REPO, repo)
     } catch {}
-    actions.create({ repo, title: title.trim(), priority, group: group === "none" ? null : Number(group) }, onCreated)
+    actions.create({ repo, title: title.trim(), priority, group: group === "none" ? null : Number(group), body: body?.trim() || undefined, parent }, { done: onCreated, open: onOpen })
     onClose()
   }
 
@@ -87,7 +108,7 @@ function NewItemForm({ priority: startPriority, repos, groups, repoHint, onClose
     <form onSubmit={submit} className="flex flex-col gap-4">
       <DialogHeader>
         <DialogTitle>New item</DialogTitle>
-        <DialogDescription>Press Enter to add it.</DialogDescription>
+        <DialogDescription>Press Enter to add it, or ⌘Enter from the description.</DialogDescription>
       </DialogHeader>
       <FieldGroup className="gap-4">
         <Field>
@@ -105,10 +126,31 @@ function NewItemForm({ priority: startPriority, repos, groups, repoHint, onClose
             className="field-sizing-content min-h-16 resize-none"
           />
         </Field>
+        {body === null ? (
+          <Button type="button" variant="ghost" size="sm" className="-mt-2 self-start text-muted-foreground" onClick={() => setBody("")}>
+            <PlusIcon data-icon="inline-start" />
+            Add description
+          </Button>
+        ) : (
+          <Field>
+            <FieldLabel htmlFor="new-body">Description</FieldLabel>
+            <Textarea
+              id="new-body"
+              name="body"
+              autoFocus
+              rows={4}
+              value={body}
+              placeholder="Notes, links, a checklist… Markdown works."
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && submit(e)}
+              className="max-h-64 min-h-24"
+            />
+          </Field>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="new-repo">Repo</FieldLabel>
-            <Select value={repo} onValueChange={(v) => (setRepo(v), setGroup("none"))}>
+            <Select value={repo} onValueChange={(v) => (setRepo(v), setGroup("none"), setParent(null))}>
               <SelectTrigger id="new-repo" className="w-full">
                 <SelectValue placeholder="Pick a repo" />
               </SelectTrigger>
@@ -142,6 +184,10 @@ function NewItemForm({ priority: startPriority, repos, groups, repoHint, onClose
             </Select>
           </Field>
         </div>
+        <Field>
+          <FieldLabel htmlFor="new-parent">Parent</FieldLabel>
+          <ParentPicker id="new-parent" repoId={repo} value={parent} items={items} onPick={pickParent} label={parentItem ? `#${parentItem.id} ${plainTitle(parentItem.title)}` : "None"} />
+        </Field>
         <Field>
           <FieldLabel>Priority</FieldLabel>
           <PriorityToggle value={priority} onChange={setPriority} />
@@ -222,19 +268,31 @@ export const SHORTCUTS: { keys: string[]; label: string; section: string }[] = [
   { keys: ["F"], label: "Filter by repo, group, priority, status or author", section: "Anywhere" },
   { keys: ["N"], label: "New item in Inbox", section: "Anywhere" },
   { keys: ["?"], label: "This list", section: "Anywhere" },
+  { keys: ["V"], label: "Switch view: then 1 Board, 2 List, 3 Triage, 4 Overview, 5 Activity", section: "Anywhere" },
   { keys: ["J"], label: "Next card down the lane", section: "Board" },
   { keys: ["K"], label: "Previous card", section: "Board" },
   { keys: ["H"], label: "Lane to the left", section: "Board" },
   { keys: ["L"], label: "Lane to the right", section: "Board" },
   { keys: ["Enter"], label: "Open the card", section: "Board" },
   { keys: ["Space"], label: "Pick up, move with arrows, Space to drop", section: "Board" },
-  { keys: ["0", "–", "3"], label: "Set priority P0 to P3", section: "Selected card" },
-  { keys: ["I"], label: "Send to Inbox", section: "Selected card" },
-  { keys: ["S"], label: "Next status: todo, doing, done", section: "Selected card" },
-  { keys: ["M"], label: "Move to another row or lane", section: "Selected card" },
-  { keys: ["A"], label: "Archive", section: "Selected card" },
-  { keys: ["Z"], label: "Undo the last archive", section: "Selected card" },
-  { keys: ["Esc"], label: "Close the panel or dialog", section: "Selected card" },
+  { keys: ["J"], label: "Next row", section: "List" },
+  { keys: ["K"], label: "Previous row", section: "List" },
+  { keys: ["X"], label: "Tick the row, to change several at once", section: "List" },
+  { keys: ["Shift", "click"], label: "Tick every row in between", section: "List" },
+  { keys: ["Esc"], label: "Untick all", section: "List" },
+  { keys: ["0", "–", "3"], label: "Set priority P0 to P3", section: "Selected card, or ticked rows" },
+  { keys: ["I"], label: "Send to Inbox", section: "Selected card, or ticked rows" },
+  { keys: ["S"], label: "Next status: todo, doing, done", section: "Selected card, or ticked rows" },
+  { keys: ["M"], label: "Move to another row or lane", section: "Selected card, or ticked rows" },
+  { keys: ["A"], label: "Archive", section: "Selected card, or ticked rows" },
+  { keys: ["Z"], label: "Undo the last archive", section: "Selected card, or ticked rows" },
+  { keys: ["Esc"], label: "Close the panel or dialog", section: "Selected card, or ticked rows" },
+  { keys: ["0", "–", "3"], label: "Set the priority, then show the next item", section: "Triage" },
+  { keys: ["G"], label: "Pick a group", section: "Triage" },
+  { keys: ["A"], label: "Archive", section: "Triage" },
+  { keys: ["S"], label: "Skip for now", section: "Triage" },
+  { keys: ["Enter"], label: "Open the item", section: "Triage" },
+  { keys: ["Z"], label: "Undo the last step", section: "Triage" },
 ]
 
 export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -255,7 +313,7 @@ export function ShortcutsDialog({ open, onClose }: { open: boolean; onClose: () 
                   <dt>{s.label}</dt>
                   <dd>
                     <KbdGroup>
-                      {s.keys.map((k) => (k === "–" ? <span key={k} className="text-muted-foreground">–</span> : <Kbd key={k}>{k}</Kbd>))}
+                      {s.keys.map((k) => (k === "–" || k === "click" ? <span key={k} className="text-xs text-muted-foreground">{k}</span> : <Kbd key={k}>{k}</Kbd>))}
                     </KbdGroup>
                   </dd>
                 </div>

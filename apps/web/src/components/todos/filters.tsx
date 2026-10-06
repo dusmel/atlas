@@ -32,7 +32,8 @@ export function useOptions(items: Item[], filters: Filters, repos: Repo[], group
     return {
       repo: [...new Set(repos.map((r) => r.name))].map((name) => ({ value: name, label: name, count: n(repoCounts, name), icon: <BoxIcon className="text-muted-foreground" /> })).sort((a, b) => b.count - a.count),
       group: [
-        ...groups.map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)), icon: <GroupDot color={groupColor(g.name)} /> })),
+        // A picked repo narrows the list to its groups. Picked groups stay, so their badges keep a name.
+        ...groups.filter((g) => !filters.repo?.length || filters.repo.includes(g.repo_name) || filters.group?.includes(g.id)).map((g) => ({ value: String(g.id), label: plainTitle(g.name), section: g.repo_name, count: n(groupCounts, String(g.id)), icon: <GroupDot color={groupColor(g.name)} /> })),
         { value: "none", label: "No group", count: n(groupCounts, "none"), icon: <GroupDot /> },
       ],
       priority: ["inbox", "P0", "P1", "P2", "P3"].map((p) => ({ value: p, label: rowLabel(p === "inbox" ? null : (p as "P0")), count: n(priorityCounts, p), icon: <PriorityIcon row={p} /> })),
@@ -47,10 +48,19 @@ export function useOptions(items: Item[], filters: Filters, repos: Repo[], group
 
 const selected = (filters: Filters, facet: Facet) => (filters[facet] ?? []).map(String)
 
-export function toggle(filters: Filters, facet: Facet, value: string): Filters {
+export function toggle(filters: Filters, facet: Facet, value: string, options: Record<Facet, Option[]>): Filters {
   const now = selected(filters, facet)
-  const next = now.includes(value) ? now.filter((v) => v !== value) : [...now, value]
-  return { ...filters, [facet]: next.length ? (facet === "group" ? next.map((v) => (v === "none" ? v : Number(v))) : next) : undefined }
+  const on = !now.includes(value)
+  const next = on ? [...now, value] : now.filter((v) => v !== value)
+  const out: Filters = { ...filters, [facet]: next.length ? (facet === "group" ? next.map((v) => (v === "none" ? v : Number(v))) : next) : undefined }
+  // A group lives in one repo, so dropping a repo drops its groups. Picking a group leaves the repo
+  // filter alone: groups from several repos can be picked together.
+  if (facet === "repo" && !on) {
+    const gone = new Set(options.group.filter((g) => g.section === value).map((g) => g.value))
+    const kept = out.group?.filter((g) => !gone.has(String(g)))
+    out.group = kept?.length ? kept : undefined
+  }
+  return out
 }
 
 /** A searchable list of filter values: one facet in a popover, or all of them in the palette and the phone drawer. */
@@ -75,7 +85,7 @@ export function FacetCommand({ facets, options, filters, onChange, autoFocus }: 
                   <CommandItem
                     key={o.value}
                     value={`${facet} ${o.section ?? ""} ${o.label} ${o.value}`}
-                    onSelect={() => onChange(toggle(filters, facet, o.value))}
+                    onSelect={() => onChange(toggle(filters, facet, o.value, options))}
                     aria-checked={on}
                     className="[&>svg:last-child]:hidden"
                   >
@@ -97,10 +107,14 @@ export function FacetCommand({ facets, options, filters, onChange, autoFocus }: 
 }
 
 const optionOf = (facet: Facet, value: string, options: Record<Facet, Option[]>) => options[facet].find((x) => x.value === value)
-const badgeLabel = (facet: Facet, value: string, options: Record<Facet, Option[]>) => optionOf(facet, value, options)?.label ?? value
+// Group names repeat across repos, so a group's badge says which repo it is in.
+const badgeLabel = (facet: Facet, value: string, options: Record<Facet, Option[]>) => {
+  const o = optionOf(facet, value, options)
+  return o ? (facet === "group" && o.section ? `${o.section} / ${o.label}` : o.label) : value
+}
 
 // A group's colour, or a hollow ring for "No group".
-const GroupDot = ({ color }: { color?: string }) => (
+export const GroupDot = ({ color }: { color?: string }) => (
   <span aria-hidden className={cn("mx-0.5 size-2.5 shrink-0 rounded-full", !color && "border border-muted-foreground")} style={color ? { background: color } : undefined} />
 )
 
@@ -110,7 +124,8 @@ type BarProps = {
   onChange: (f: Filters) => void
   desktop: boolean
   searchRef: React.RefObject<HTMLInputElement | null>
-  shown: number
+  /** Items in view; left out where a count means nothing, as in Activity. */
+  shown?: number
 }
 
 export function FilterBar({ filters, options, onChange, desktop, searchRef, shown }: BarProps) {
@@ -172,22 +187,24 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
             </DrawerContent>
           </Drawer>
         )}
-        <span className="ml-auto hidden text-sm text-muted-foreground tabular-nums sm:inline" aria-live="polite">
-          {shown} {shown === 1 ? "item" : "items"}
-        </span>
+        {shown !== undefined && (
+          <span className="ml-auto hidden text-sm text-muted-foreground tabular-nums sm:inline" aria-live="polite">
+            {shown} {shown === 1 ? "item" : "items"}
+          </span>
+        )}
       </div>
       {tags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {tags.map(({ facet, value }) => (
-            <Badge key={`${facet}:${value}`} variant="secondary" className="h-7 gap-1 pr-1 font-normal">
+            <Badge key={`${facet}:${value}`} variant="secondary" className="h-7 max-w-full gap-1 pr-1 font-normal" title={badgeLabel(facet, value, options)}>
               <span className="text-muted-foreground">{FACET_LABEL[facet]}</span>
-              <span className="flex items-center [&>svg]:size-3.5 [&>[role=img]]:size-4">{optionOf(facet, value, options)?.icon}</span>
-              {badgeLabel(facet, value, options)}
+              <span className="flex shrink-0 items-center [&>svg]:size-3.5 [&>[role=img]]:size-4">{optionOf(facet, value, options)?.icon}</span>
+              <span className="min-w-0 truncate">{badgeLabel(facet, value, options)}</span>
               <button
                 type="button"
-                className="rounded-sm p-0.5 hover:bg-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="shrink-0 rounded-sm p-0.5 hover:bg-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 aria-label={`Remove ${FACET_LABEL[facet]} ${badgeLabel(facet, value, options)}`}
-                onClick={() => onChange(toggle(filters, facet, value))}
+                onClick={() => onChange(toggle(filters, facet, value, options))}
               >
                 <XIcon className="size-3.5" />
               </button>

@@ -12,6 +12,7 @@ import {
   getImport,
   getTodo,
   listAuthors,
+  listEvents,
   listGroups,
   listRepos,
   listTodos,
@@ -268,5 +269,40 @@ describe("authors", () => {
   test("imported items are made by the importer", () => {
     applyImport(db, { repo, path: "TODO.md", original: "## P1 — X\n\n- [ ] One\n" }, false)
     expect(titles(list({ by: ["import"] }))).toEqual(["One"])
+  })
+})
+
+describe("events", () => {
+  const as = (author: string) => ({ actor: "cli:mac", author })
+  const events = (q: Partial<Parameters<typeof listEvents>[1]> = {}) => listEvents(db, { repo: [], by: [], ...q })
+
+  test("newest first across items, with the item's title and repo", () => {
+    const a = createTodo(db, as("me"), { repo, title: "First" })
+    createTodo(db, as("claude-code"), { repo: { id: "github.com-me-web", name: "web" }, title: "Second" })
+    updateTodo(db, as("opencode"), a.id, { priority: "P1" })
+    expect(events().map((e) => [e.action, e.title, e.repo_name, e.author])).toEqual([
+      ["update", "First", "app", "opencode"],
+      ["create", "Second", "web", "claude-code"],
+      ["create", "First", "app", "me"],
+    ])
+    expect(events()[0]!.data).toMatchObject({ priority: [null, "P1"] })
+  })
+
+  test("filters by repo and by who made the change, and pages with before", () => {
+    const a = createTodo(db, as("me"), { repo, title: "Mine" })
+    createTodo(db, as("claude-code"), { repo: { id: "github.com-me-web", name: "web" }, title: "Web" })
+    updateTodo(db, as("claude-code"), a.id, { title: "Mine, edited" })
+    expect(events({ repo: ["web"] }).map((e) => e.title)).toEqual(["Web"])
+    expect(events({ by: ["agent"] }).map((e) => e.action)).toEqual(["update", "create"])
+    expect(events({ by: ["me"] }).map((e) => e.action)).toEqual(["create"])
+    const [newest, ...rest] = events()
+    expect(events({ before: String(newest!.id) })).toEqual(rest)
+    expect(events({ limit: "1" })).toHaveLength(1)
+  })
+
+  test("limit is 1 to 500", () => {
+    expect(fails(() => events({ limit: "0" }))).toBe("400 bad_limit")
+    expect(fails(() => events({ limit: "501" }))).toBe("400 bad_limit")
+    expect(fails(() => events({ before: "x" }))).toBe("400 bad_id")
   })
 })
