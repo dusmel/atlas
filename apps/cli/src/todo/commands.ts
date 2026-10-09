@@ -4,8 +4,8 @@
 
 import { isatty } from "node:tty";
 import { STATUSES, type Status } from "@atlas/todos";
-import { err, out } from "../util.ts";
-import { itemId, parseArgs, textFlag, type FlagSpec } from "./args.ts";
+import { err, out, page } from "../util.ts";
+import { itemId, itemIds, parseArgs, textFlag, type FlagSpec } from "./args.ts";
 import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
 import { itemLines, showLines, type Item } from "./format.ts";
@@ -19,7 +19,7 @@ const SCOPE: FlagSpec = { repo: "string", all: "boolean", personal: "boolean", j
 export const TODO_COMMANDS: Record<string, { about: string; flags: FlagSpec }> = {
   list: { about: "List todos", flags: { ...SCOPE, plain: "boolean", status: "string", priority: "string", group: "string", by: "string", archived: "boolean" } },
   add: { about: "Add a todo", flags: { ...SCOPE, body: "string", priority: "string", group: "string", parent: "string", status: "string" } },
-  show: { about: "Show one todo", flags: { ...SCOPE, plain: "boolean" } },
+  show: { about: "Show one or more todos", flags: { ...SCOPE, plain: "boolean" } },
   set: { about: "Change a todo", flags: { ...SCOPE, title: "string", body: "string", priority: "string", group: "string", parent: "string", section: "string" } },
   move: { about: "Move a todo", flags: { ...SCOPE, before: "string", after: "string", top: "boolean", bottom: "boolean", priority: "string", status: "string" } },
   start: { about: "Set status to doing", flags: SCOPE },
@@ -35,7 +35,7 @@ export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the rep
 
   atlas todo list    [--status todo,doing,done|all] [--priority P0|inbox] [--group NAME] [--by me|agent|NAME] [--archived] [--all] [--plain] [--json]
   atlas todo add     "title" [--body TEXT|-] [--priority P1] [--group NAME] [--parent 12] [--status doing]
-  atlas todo show    42 [--plain]
+  atlas todo show    42 [43 44 | 42,43,44] [--plain]
   atlas todo set     42 [--title T] [--body TEXT|-] [--priority P2|inbox] [--group NAME|none] [--parent 12|none]
   atlas todo move    42 (--before 17 | --after 17 | --top | --bottom) [--priority P0] [--status doing]
   atlas todo start   42        status doing
@@ -51,7 +51,8 @@ Every command takes --repo NAME, --personal or --all (list only), and --json.
 --by filters on who made the item: me, agent (any agent), an agent's name, script or unknown.
 Each change records who made it: ATLAS_AUTHOR if set, else the agent (Claude Code and opencode are detected),
 else me at a terminal, else script.
-At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.`;
+At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.
+show with several ids opens the readable layout in $PAGER, less by default; PAGER=cat prints it directly.`;
 
 /** The readable layout only for a person: never for --json, --plain or a pipe, which is how agents call it. */
 function pretty(flags: Record<string, string | boolean>): Style | null {
@@ -158,10 +159,12 @@ async function run(args: string[]): Promise<number> {
     }
     case "show": {
       const { flags, rest: words } = parseArgs(rest, flagsOf("show"));
-      const data = await api<Parameters<typeof showLines>[0]>(cfg, "GET", `/todos/${itemId(words, "show")}`);
+      const ids = itemIds(words, "show");
+      const all = await Promise.all(ids.map((id) => api<Parameters<typeof showLines>[0]>(cfg, "GET", `/todos/${id}`)));
       const style = pretty(flags);
-      if (style) await out(showView(data, style).join("\n"));
-      else await print(!!flags.json, data, () => showLines(data));
+      // One id prints one item, as before; several go through the pager, or print as a JSON array.
+      if (style) await (ids.length > 1 ? page : out)(all.map((d) => showView(d, style).join("\n")).join("\n\n"));
+      else await print(!!flags.json, ids.length === 1 ? all[0] : all, () => all.flatMap((d, n) => [...(n ? [""] : []), ...showLines(d)]));
       return 0;
     }
     case "set": {

@@ -10,7 +10,13 @@ import { PASSWORD, SEED } from "./seed"
 const dir = mkdtempSync(join(tmpdir(), "atlas-e2e-"))
 const db = freshDb(join(dir, "atlas.db"))
 for (const group of SEED.groups) createGroup(db, group)
-for (const { by = "me", ...item } of SEED.items) createTodo(db, { actor: "cli:seed", author: by }, item)
+for (const { by = "me", days, ...item } of SEED.items) {
+  const { id } = createTodo(db, { actor: "cli:seed", author: by }, item)
+  if (days) {
+    const at = new Date(Date.now() - days * 864e5).toISOString()
+    db.run("UPDATE items SET created_at = ?, updated_at = ?, done_at = CASE WHEN done_at IS NULL THEN NULL ELSE ? END WHERE id = ?", [at, at, at, id])
+  }
+}
 db.close()
 
 process.env.ATLAS_DATA_DIR = dir

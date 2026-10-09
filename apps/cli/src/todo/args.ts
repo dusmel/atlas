@@ -36,6 +36,13 @@ export function itemId(rest: string[], command: string): number {
   return Number(raw);
 }
 
+/** Every id in `atlas todo show 4 5 6`, `4,5,6` or `#4 #5`, in order, once each. */
+export function itemIds(rest: string[], command: string): number[] {
+  const raw = rest.flatMap((w) => w.split(",")).map((w) => w.trim().replace(/^#/, "")).filter(Boolean);
+  if (!raw.length || raw.some((w) => !/^\d+$/.test(w))) throw new CliError(2, `Usage: atlas todo ${command} <id> [<id>...]`);
+  return [...new Set(raw.map(Number))];
+}
+
 /** `--body -` reads stdin, so agents can pass long markdown safely. */
 export async function textFlag(value: string | boolean | undefined): Promise<string | undefined> {
   if (typeof value !== "string") return undefined;

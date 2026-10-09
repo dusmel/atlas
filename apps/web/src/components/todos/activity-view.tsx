@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { describe, exact } from "@/lib/format"
-import { useEvents, type FeedEvent } from "@/lib/todos"
+import { sinceMs, useEvents, type FeedEvent } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
+import { CopyId } from "./copy-id"
 import { plainTitle, RichTitle } from "./rich-title"
 
 const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -20,20 +21,26 @@ function dayLabel(at: string, now = new Date()): string {
   return (d.getFullYear() === now.getFullYear() ? weekday : full).format(d)
 }
 
-type Props = { repo?: string[]; by?: string[]; otherFilters: boolean; onOpen: (id: number) => void }
+type Props = { repo?: string[]; by?: string[]; since?: string; otherFilters: boolean; onOpen: (id: number) => void }
 
 /** Recent changes across every item, newest first. Only the repo and author filters apply here. */
-export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
+export function ActivityView({ repo, by, since, otherFilters, onOpen }: Props) {
   const q = useEvents(repo, by)
+  const window = sinceMs(since)
+  const cutoff = window ? new Date(Date.now() - window).toISOString() : ""
+  const loaded = useMemo(() => q.data?.pages.flat() ?? [], [q.data])
+  // Events come newest first, so once the oldest loaded one is past the window there is nothing more to page.
+  const more = q.hasNextPage && !(cutoff && (loaded.at(-1)?.at ?? "") < cutoff)
   const days = useMemo(() => {
     const out: { day: string; events: FeedEvent[] }[] = []
-    for (const e of q.data?.pages.flat() ?? []) {
+    for (const e of loaded) {
+      if (e.at < cutoff) break
       const day = dayLabel(e.at)
       if (out.at(-1)?.day !== day) out.push({ day, events: [] })
       out.at(-1)!.events.push(e)
     }
     return out
-  }, [q.data])
+  }, [loaded, cutoff])
 
   if (q.isPending)
     return (
@@ -58,7 +65,7 @@ export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-4 sm:px-6">
-      {otherFilters && <p className="text-sm text-muted-foreground">Activity uses the repo and author filters. The others apply to the item views.</p>}
+      {otherFilters && <p className="text-sm text-muted-foreground">Activity uses the repo, author and changed filters. The others apply to the item views.</p>}
       {days.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">No changes yet.</p>}
       {days.map((d) => (
         <section key={d.day} aria-labelledby={`day-${d.day}`} className="flex flex-col gap-1">
@@ -75,21 +82,23 @@ export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
                     <p className="text-sm">
                       <span className="font-medium">{who}</span> <span className="text-muted-foreground">{describe(e)}</span>
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => onOpen(e.item_id)}
-                      aria-label={`Open #${e.item_id} ${plainTitle(e.title)}`}
-                      className="flex max-w-full min-w-0 items-center gap-2 self-start rounded text-left text-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    >
-                      <span className="font-mono text-xs text-muted-foreground tabular-nums">#{e.item_id}</span>
-                      <span className="min-w-0 truncate">
-                        <RichTitle text={e.title} />
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden">
-                        <BoxIcon className="size-3" aria-hidden />
-                        {e.repo_name}
-                      </span>
-                    </button>
+                    <div className="flex max-w-full min-w-0 items-center gap-1 self-start">
+                      <CopyId id={e.item_id} className="-ml-1 text-xs text-muted-foreground" />
+                      <button
+                        type="button"
+                        onClick={() => onOpen(e.item_id)}
+                        aria-label={`Open #${e.item_id} ${plainTitle(e.title)}`}
+                        className="flex min-w-0 items-center gap-2 rounded text-left text-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      >
+                        <span className="min-w-0 truncate">
+                          <RichTitle text={e.title} />
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden">
+                          <BoxIcon className="size-3" aria-hidden />
+                          {e.repo_name}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                   <time dateTime={e.at} title={exact(e.at)} className="shrink-0 text-xs text-muted-foreground tabular-nums">
                     {time.format(new Date(e.at))}
@@ -100,7 +109,7 @@ export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
           </ol>
         </section>
       ))}
-      {q.hasNextPage && (
+      {more && (
         <Button variant="outline" className="self-center" disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>
           {q.isFetchingNextPage ? "Loading…" : "Show older changes"}
         </Button>

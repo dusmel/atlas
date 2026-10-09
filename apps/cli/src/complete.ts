@@ -119,7 +119,8 @@ export async function complete(words: string[]): Promise<string[]> {
   const args = sub === "group" ? more.slice(1) : more;
   const prev = args.at(-1);
   if (prev?.startsWith("--") && spec[prev.slice(2)] === "string") return values(prev.slice(2), sub, args.slice(0, -1), spec);
-  if (!current.startsWith("-") && NEEDS_ID.has(sub) && !positionals(args, spec).length) return ids(args, spec);
+  // show takes several ids; the others take one.
+  if (!current.startsWith("-") && NEEDS_ID.has(sub) && (sub === "show" || !positionals(args, spec).length)) return ids(args, spec);
   return flagLines(spec, args);
 }
 

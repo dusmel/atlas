@@ -9,6 +9,7 @@ import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
 import { ago, exact } from "@/lib/format"
 import { authorOf, PRIORITIES, PRIORITY_NAME, useActions, type Group, type Item, type Priority } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
+import { CopyId } from "./copy-id"
 import { GroupDot } from "./filters"
 import { groupColor } from "./group-color"
 import { PriorityIcon } from "./icons"
@@ -110,7 +111,7 @@ export function TriageView({ inbox, all, groups, onOpen, onCurrent, keys }: Prop
 
       <article data-triage={item.id} aria-labelledby="triage-title" className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs sm:p-5">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-mono tabular-nums">#{item.id}</span>
+          <CopyId id={item.id} link className="-ml-1" />
           <span className={chip}>
             <BoxIcon className="size-3" aria-hidden />
             {item.repo_name}

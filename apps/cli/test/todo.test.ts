@@ -104,6 +104,19 @@ describe("atlas todo", () => {
     expect(r.out).toMatch(/cli:\S+|token:test-mac/);
   });
 
+  test("show takes several ids, with or without # and commas", async () => {
+    const a = await json(["add", "First of two", "--repo", "app"]);
+    const b = await json(["add", "Second of two", "--repo", "app"]);
+    for (const args of [[`${a.id}`, `${b.id}`], [`${a.id},${b.id}`], [`#${a.id}`, `#${b.id}`]]) {
+      const r = await cli(["show", ...args, "--plain"]);
+      expect(r.code).toBe(0);
+      expect(r.out.match(/^#\d+ /gm)).toEqual([`#${a.id} `, `#${b.id} `]);
+    }
+    expect((await json(["show", `${a.id}`, `${b.id}`])).map((d: { item: { id: number } }) => d.item.id)).toEqual([a.id, b.id]);
+    expect((await json(["show", `${a.id}`])).item.id).toBe(a.id);
+    expect((await cli(["show", `${a.id}`, "x"])).code).toBe(2);
+  });
+
   test("groups, move, start, done and archive", async () => {
     await json(["group", "add", "Launch", "--repo", "app", "--doc", "plan.html"]);
     const a = await json(["add", "A", "--repo", "app", "--priority", "P0", "--group", "Launch"]);

@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ago, describe, exact } from "@/lib/format"
 import { authorOf, isAgent, STATUS_LABEL, useActions, useGroups, useItemDetail, type Item } from "@/lib/todos"
+import { CopyId } from "./copy-id"
 import { PriorityToggle, StatusToggle } from "./dialogs"
 import { StatusIcon } from "./icons"
 import { plainTitle, RichTitle } from "./rich-title"
@@ -31,15 +32,17 @@ export function ItemPanel({ item, desktop, onClose, ...rest }: PanelProps) {
     flush.current()
     onClose()
   }
+  const [width, setWidth] = usePanelWidth()
   const body = item ? <Details key={item.id} item={item} flush={flush} {...rest} /> : null
   const title = item ? plainTitle(item.title) : "Item"
   if (desktop)
     return (
       <Sheet open={!!item} onOpenChange={close}>
-        <SheetContent className="w-full gap-0 overflow-y-auto overscroll-contain p-0 sm:max-w-xl" onOpenAutoFocus={focusPanel} onEscapeKeyDown={keepOpen}>
+        <SheetContent className="gap-0 p-0" style={{ width, maxWidth: "none" }} onOpenAutoFocus={focusPanel} onEscapeKeyDown={keepOpen}>
           <SheetTitle className="sr-only">{title}</SheetTitle>
           <SheetDescription className="sr-only">Edit the item, or press Escape to close.</SheetDescription>
-          {body}
+          <ResizeHandle width={width} onWidth={setWidth} />
+          <div className="h-full overflow-y-auto overscroll-contain">{body}</div>
         </SheetContent>
       </Sheet>
     )
@@ -51,6 +54,60 @@ export function ItemPanel({ item, desktop, onClose, ...rest }: PanelProps) {
         <div className="overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">{body}</div>
       </DrawerContent>
     </Drawer>
+  )
+}
+
+const WIDTH_KEY = "atlas.panel-width"
+const DEFAULT_WIDTH = 576
+const MIN_WIDTH = 400
+// Leave some of the page showing, so the panel can still be closed by clicking outside it.
+const clampWidth = (w: number) => Math.round(Math.max(MIN_WIDTH, Math.min(w, window.innerWidth - 80)))
+
+/** The panel's width on desktop, kept on this browser. */
+function usePanelWidth() {
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(WIDTH_KEY))
+      if (saved) setWidth(clampWidth(saved))
+    } catch {}
+  }, [])
+  const save = (w: number) => {
+    const next = clampWidth(w)
+    setWidth(next)
+    try {
+      localStorage.setItem(WIDTH_KEY, String(next))
+    } catch {}
+  }
+  return [width, save] as const
+}
+
+/** The panel's left edge: drag it, or focus it and use the arrow keys. A double click resets the width. */
+function ResizeHandle({ width, onWidth }: { width: number; onWidth: (w: number) => void }) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the panel"
+      aria-valuenow={width}
+      aria-valuemin={MIN_WIDTH}
+      tabIndex={0}
+      title="Drag to resize. Double click to reset."
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && onWidth(window.innerWidth - e.clientX)}
+      onDoubleClick={() => onWidth(DEFAULT_WIDTH)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 96 : 32
+        if (e.key === "ArrowLeft") onWidth(width + step)
+        else if (e.key === "ArrowRight") onWidth(width - step)
+        else return
+        e.preventDefault()
+      }}
+      className="absolute inset-y-0 left-0 z-10 w-2 -translate-x-1/2 cursor-col-resize touch-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-ring focus-visible:after:bg-ring"
+    />
   )
 }
 
@@ -113,9 +170,7 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
     <div className="flex flex-col gap-5 p-5 sm:p-6">
       <div className="flex flex-col gap-2 pr-8">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-mono tabular-nums" translate="no">
-            #{item.id}
-          </span>
+          <CopyId id={item.id} link className="-ml-1" />
           <Badge variant="outline" className="font-normal" translate="no">
             {item.repo_name}
           </Badge>
@@ -249,19 +304,18 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
         <section className="flex flex-col gap-1.5">
           <h3 className="text-sm font-medium">Children</h3>
           {children.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onOpen(c.id)}
-              className="flex items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <StatusIcon status={c.status} className="self-center" />
+            <div key={c.id} className="flex items-center gap-1 rounded-md px-2 hover:bg-accent">
+              <StatusIcon status={c.status} />
               <span className="sr-only">{STATUS_LABEL[c.status]}</span>
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">#{c.id}</span>
-              <span className={cn("min-w-0 flex-1 truncate", c.status === "done" && "text-muted-foreground line-through")}>
+              <CopyId id={c.id} className="text-xs text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => onOpen(c.id)}
+                className={cn("min-w-0 flex-1 truncate rounded py-1.5 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", c.status === "done" && "text-muted-foreground line-through")}
+              >
                 <RichTitle text={c.title} />
-              </span>
-            </button>
+              </button>
+            </div>
           ))}
         </section>
       )}

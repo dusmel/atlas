@@ -3,7 +3,8 @@ import { BoxIcon } from "lucide-react"
 import { useMemo } from "react"
 import { cn } from "cn"
 import { ago, exact } from "@/lib/format"
-import { DONE_DAYS, rowKey, type Item } from "@/lib/todos"
+import { DONE_DAYS, rowKey, sinceLabel, sinceMs, type Item } from "@/lib/todos"
+import { CopyId } from "./copy-id"
 import { GroupDot } from "./filters"
 import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
@@ -23,7 +24,7 @@ function groupBy<K>(items: Item[], key: (i: Item) => K): [K, Item[]][] {
   return [...m]
 }
 
-const recent = (i: Item, now: number) => i.status === "done" && !!i.done_at && now - Date.parse(i.done_at) <= DONE_DAYS * 864e5
+const recent = (i: Item, now: number, window: number) => i.status === "done" && !!i.done_at && now - Date.parse(i.done_at) <= window
 const SHOWN = 5
 const card = "rounded-xl border bg-card transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 const link = "rounded underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -55,8 +56,11 @@ function Numbers({ c }: { c: Counts }) {
 }
 
 /** Where each repo and group stands: counts by status, what is in progress, and what finished lately. */
-export function OverviewView({ items, onOpen }: { items: Item[]; onOpen: (id: number) => void }) {
+export function OverviewView({ items, since, onOpen }: { items: Item[]; since?: string; onOpen: (id: number) => void }) {
   const now = Date.now()
+  // "Finished lately" follows the Changed filter when it is set, else the Done lane's 14 days.
+  const window = sinceMs(since) ?? DONE_DAYS * 864e5
+  const lately = since && sinceMs(since) ? `the last ${sinceLabel(since)}` : `the last ${DONE_DAYS} days`
   const repos = useMemo(() => {
     const now = Date.now()
     return groupBy(items, (i) => i.repo_name)
@@ -64,20 +68,20 @@ export function OverviewView({ items, onOpen }: { items: Item[]; onOpen: (id: nu
         const groups = groupBy(list, (i) => i.group_id)
           .map(([id, gi]) => ({ id, group: gi[0]!.group_name, c: count(gi) }))
           .sort((a, b) => (a.group === null ? 1 : 0) - (b.group === null ? 1 : 0) || b.c.todo + b.c.doing - (a.c.todo + a.c.doing))
-        return { name, c: count(list), groups, doing: list.filter((i) => i.status === "doing"), finished: list.filter((i) => recent(i, now)).sort((a, b) => b.done_at!.localeCompare(a.done_at!)) }
+        return { name, c: count(list), groups, doing: list.filter((i) => i.status === "doing"), finished: list.filter((i) => recent(i, now, window)).sort((a, b) => b.done_at!.localeCompare(a.done_at!)) }
       })
       .sort((a, b) => b.c.todo + b.c.doing - (a.c.todo + a.c.doing))
-  }, [items])
+  }, [items, window])
 
   const total = count(items)
   const inbox = items.filter((i) => i.priority === null && i.status !== "done").length
-  const finished = items.filter((i) => recent(i, now)).length
+  const finished = items.filter((i) => recent(i, now, window)).length
   // Each number opens the items behind it, keeping the filters already set.
   const stats = [
     { label: "Open", value: total.todo + total.doing, view: "list" as const, status: "todo,doing" },
     { label: "Doing", value: total.doing, view: "list" as const, status: "doing" },
     { label: "In Inbox", value: inbox, view: "triage" as const, status: undefined },
-    { label: `Done in ${DONE_DAYS} days`, value: finished, view: "list" as const, status: "done" },
+    { label: `Done in ${lately}`, value: finished, view: "list" as const, status: "done" },
   ]
 
   return (
@@ -127,7 +131,7 @@ export function OverviewView({ items, onOpen }: { items: Item[]; onOpen: (id: nu
             </ul>
 
             <ItemList title="In progress" items={r.doing} repo={r.name} status="doing" onOpen={onOpen} when={(i) => ago(i.updated_at)} />
-            <ItemList title={`Finished in the last ${DONE_DAYS} days`} items={r.finished} repo={r.name} status="done" onOpen={onOpen} when={(i) => ago(i.done_at!)} />
+            <ItemList title={`Finished in ${lately}`} items={r.finished} repo={r.name} status="done" onOpen={onOpen} when={(i) => ago(i.done_at!)} />
           </section>
         ))}
       </div>
@@ -144,10 +148,10 @@ function ItemList({ title, items, repo, status, onOpen, when }: { title: string;
       </h3>
       <ul className="flex flex-col">
         {items.slice(0, SHOWN).map((i) => (
-          <li key={i.id}>
-            <button type="button" onClick={() => onOpen(i.id)} className="flex w-full min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-              <PriorityIcon row={rowKey(i.priority)} />
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">#{i.id}</span>
+          <li key={i.id} className="flex min-w-0 items-center gap-1 rounded-md px-1 hover:bg-accent/50">
+            <PriorityIcon row={rowKey(i.priority)} />
+            <CopyId id={i.id} className="text-xs text-muted-foreground" />
+            <button type="button" onClick={() => onOpen(i.id)} className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
               <span className="min-w-0 flex-1 truncate">
                 <RichTitle text={i.title} />
               </span>

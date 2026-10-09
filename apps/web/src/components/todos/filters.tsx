@@ -1,14 +1,15 @@
-import { BoxIcon, CheckIcon, ChevronDownIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react"
-import { useMemo, useRef } from "react"
+import { BoxIcon, CheckIcon, ChevronDownIcon, ClockIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react"
+import { useMemo, useRef, useState } from "react"
 import { cn } from "cn"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
+import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Kbd } from "@/components/ui/kbd"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { activeCount, facetCounts, FACETS, isAgent, rowLabel, STATUS_LABEL, type Facet, type Filters, type Group, type Item, type Repo } from "@/lib/todos"
+import { activeCount, facetCounts, FACETS, isAgent, rowLabel, sinceLabel, sinceMs, STATUS_LABEL, type Facet, type Filters, type Group, type Item, type Repo } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
 import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
@@ -130,6 +131,7 @@ type BarProps = {
 
 export function FilterBar({ filters, options, onChange, desktop, searchRef, shown }: BarProps) {
   const active = activeCount(filters)
+  const hasSince = !!sinceMs(filters.since)
   const tags = FACETS.flatMap((facet) => selected(filters, facet).map((value) => ({ facet, value })))
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSearch = (q: string) => {
@@ -162,7 +164,12 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
           )}
         </InputGroup>
         {desktop ? (
-          FACETS.map((facet) => <FacetPopover key={facet} facet={facet} options={options} filters={filters} onChange={onChange} />)
+          <>
+            {FACETS.map((facet) => (
+              <FacetPopover key={facet} facet={facet} options={options} filters={filters} onChange={onChange} />
+            ))}
+            <SincePopover filters={filters} onChange={onChange} />
+          </>
         ) : (
           <Drawer>
             <DrawerTrigger asChild>
@@ -181,7 +188,13 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
                   </Button>
                 )}
               </DrawerHeader>
-              <div className="px-2 pb-4">
+              <div className="flex flex-col gap-3 px-2 pb-4">
+                <section aria-labelledby="since-heading" className="flex flex-col gap-1 px-2">
+                  <h3 id="since-heading" className="text-xs font-medium text-muted-foreground">
+                    Changed in the last
+                  </h3>
+                  <SinceControl value={filters.since} onChange={(since) => onChange({ ...filters, since })} />
+                </section>
                 <FacetCommand facets={FACETS} options={options} filters={filters} onChange={onChange} />
               </div>
             </DrawerContent>
@@ -193,7 +206,7 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
           </span>
         )}
       </div>
-      {tags.length > 0 && (
+      {(tags.length > 0 || hasSince) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {tags.map(({ facet, value }) => (
             <Badge key={`${facet}:${value}`} variant="secondary" className="h-7 max-w-full gap-1 pr-1 font-normal" title={badgeLabel(facet, value, options)}>
@@ -210,12 +223,89 @@ export function FilterBar({ filters, options, onChange, desktop, searchRef, show
               </button>
             </Badge>
           ))}
+          {hasSince && (
+            <Badge variant="secondary" className="h-7 gap-1 pr-1 font-normal">
+              <span className="text-muted-foreground">Changed</span>
+              <ClockIcon className="size-3.5" />
+              in the last {sinceLabel(filters.since!)}
+              <button
+                type="button"
+                className="shrink-0 rounded-sm p-0.5 hover:bg-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                aria-label="Remove Changed filter"
+                onClick={() => onChange({ ...filters, since: undefined })}
+              >
+                <XIcon className="size-3.5" />
+              </button>
+            </Badge>
+          )}
           <Button variant="ghost" size="sm" className="h-7 text-muted-foreground" onClick={() => onChange({ done: filters.done, q: filters.q })}>
             Clear filters
           </Button>
         </div>
       )}
     </div>
+  )
+}
+
+const PRESETS = [
+  ["30m", "30 min"],
+  ["1h", "Hour"],
+  ["1d", "Day"],
+  ["1w", "Week"],
+] as const
+
+/** Items changed in the last 30m, 1h, 2d or 1w: a preset, or typed in the same format. */
+function SinceControl({ value, onChange }: { value?: string; onChange: (since?: string) => void }) {
+  const [text, setText] = useState(value && !PRESETS.some(([v]) => v === value) ? value : "")
+  const valid = !!sinceMs(text)
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-4 gap-1">
+        {PRESETS.map(([v, label]) => (
+          <Button key={v} type="button" size="sm" variant={value === v ? "default" : "outline"} aria-pressed={value === v} onClick={() => onChange(value === v ? undefined : v)}>
+            {label}
+          </Button>
+        ))}
+      </div>
+      <form
+        className="flex gap-1"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (valid) onChange(text.trim().toLowerCase().replace(/\s+/g, ""))
+        }}
+      >
+        <Input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Or type 45m, 3h, 2d, 2w"
+          aria-label="Changed in the last, as 45m, 3h, 2d or 2w"
+          aria-invalid={text !== "" && !valid}
+          className="h-8"
+        />
+        <Button type="submit" size="sm" className="h-8" disabled={!valid}>
+          Apply
+        </Button>
+      </form>
+    </div>
+  )
+}
+
+function SincePopover({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
+  const on = !!sinceMs(filters.since)
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={cn("h-9", on && "border-primary/40")}>
+          Changed
+          {on && <Badge className="h-5 px-1 tabular-nums">{filters.since}</Badge>}
+          <ChevronDownIcon data-icon="inline-end" className="text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="start">
+        <p className="mb-2 text-xs text-muted-foreground">Items created, edited, moved or finished in the last…</p>
+        <SinceControl value={filters.since} onChange={(since) => onChange({ ...filters, since })} />
+      </PopoverContent>
+    </Popover>
   )
 }
 

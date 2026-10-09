@@ -4,7 +4,7 @@ import { complete, ZSH_SCRIPT } from "../src/complete.ts";
 describe("complete", () => {
   test("commands, then todo subcommands, with descriptions", async () => {
     expect(await complete([""])).toContain("todo:Todos on the Atlas server");
-    expect(await complete(["todo", ""])).toContain("show:Show one todo");
+    expect(await complete(["todo", ""])).toContain("show:Show one or more todos");
     expect(await complete(["todo", "group", ""])).toEqual(["add:Add a group"]);
   });
 

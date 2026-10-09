@@ -7,6 +7,7 @@ import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
 import { ago, exact } from "@/lib/format"
 import { authorOf, byRank, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, useActions, type Group, type Item, type Row, type Status } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
+import { CopyId } from "./copy-id"
 import { GroupDot } from "./filters"
 import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
@@ -163,7 +164,7 @@ export function ListView({ items, groups, showRepo, sort, onSort, cursor, onCurs
               />
             </th>
             {header("priority", "Pri", "w-12")}
-            {header("id", "#", "hidden w-16 md:table-cell")}
+            {header("id", "#", "hidden w-24 md:table-cell")}
             {header("title", "Title")}
             {showRepo && header("repo", "Repo", "hidden w-28 md:table-cell")}
             {header("group", "Group", "hidden w-48 lg:table-cell")}
@@ -183,7 +184,7 @@ export function ListView({ items, groups, showRepo, sort, onSort, cursor, onCurs
                 onOpen(i.id)
               }}
               className={cn(
-                "cursor-pointer outline-none [&>td]:border-b [&>td]:py-2 hover:bg-accent/40 focus-visible:bg-accent/60",
+                "group/item cursor-pointer outline-none [&>td]:border-b [&>td]:py-2 hover:bg-accent/40 focus-visible:bg-accent/60",
                 picked.has(i.id) && "bg-primary/8",
                 cursor === i.id && "[&>td:first-child]:shadow-[inset_2px_0_0_var(--ring)]",
               )}
@@ -202,7 +203,9 @@ export function ListView({ items, groups, showRepo, sort, onSort, cursor, onCurs
                 <PriorityIcon row={rowKey(i.priority)} />
                 <span className="sr-only">{rowLabel(i.priority)}</span>
               </td>
-              <td className="hidden px-2 font-mono text-xs text-muted-foreground tabular-nums md:table-cell">#{i.id}</td>
+              <td className="hidden px-1 text-xs text-muted-foreground md:table-cell">
+                <CopyId id={i.id} link="hover" />
+              </td>
               <td className="px-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <StatusIcon status={i.status} />
@@ -212,7 +215,7 @@ export function ListView({ items, groups, showRepo, sort, onSort, cursor, onCurs
                   </span>
                 </div>
                 <div className="mt-0.5 flex min-w-0 gap-1.5 pl-5.5 text-xs text-muted-foreground md:hidden">
-                  <span className="font-mono tabular-nums">#{i.id}</span>
+                  <CopyId id={i.id} className="-my-0.5 -ml-1" />
                   <span>·</span>
                   <span className="truncate">{[i.repo_name, i.group_name && plainTitle(i.group_name)].filter(Boolean).join(" · ")}</span>
                 </div>

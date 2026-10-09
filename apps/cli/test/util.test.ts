@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { normalizeName, normalizeRemote, shortHash, atomicWrite } from "../src/util.ts";
+import { normalizeName, normalizeRemote, shortHash, atomicWrite, page } from "../src/util.ts";
 import { readFile, access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -157,5 +157,24 @@ describe("atomicWrite", () => {
     await atomicWrite(path, "nested content");
     const content = await readFile(path, "utf8");
     expect(content).toBe("nested content");
+  });
+});
+
+describe("page", () => {
+  const saved = process.env.PAGER;
+  afterEach(() => (saved === undefined ? delete process.env.PAGER : (process.env.PAGER = saved)));
+
+  test("sends the text to $PAGER and adds -FRX to $LESS", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "atlas-page-"));
+    process.env.PAGER = `cat > ${dir}/out; echo "$LESS" > ${dir}/less`;
+    await page("one\ntwo");
+    expect(await readFile(join(dir, "out"), "utf8")).toBe("one\ntwo\n");
+    expect((await readFile(join(dir, "less"), "utf8")).trim()).toBe(`${process.env.LESS ?? ""} -FRX`.trim());
+    rmSync(dir, { recursive: true });
+  });
+
+  test("survives a pager that quits before reading everything", async () => {
+    process.env.PAGER = "head -c 10 > /dev/null";
+    await page("x".repeat(500_000));
   });
 });

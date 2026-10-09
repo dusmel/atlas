@@ -20,10 +20,10 @@ import { VIEWS, ViewTabs, type View } from "@/components/todos/view-tabs"
 import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
 import { useIsDesktop } from "@/hooks/use-media-query"
 import { layout, step } from "@/lib/board"
-import { matches, STATUSES, useActions, useGroups, useItemDetail, useItems, useRepos, type Filters, type Row, type Status } from "@/lib/todos"
+import { matches, sinceMs, STATUSES, useActions, useGroups, useItemDetail, useItems, useRepos, type Filters, type Row, type Status } from "@/lib/todos"
 
 // Filters live in the URL as comma lists, so a bookmark is a saved view: /todos?view=list&repo=sem&priority=P0,P1
-type Search = { view?: Exclude<View, "board">; sort?: string; repo?: string; group?: string; priority?: string; status?: string; by?: string; q?: string; done?: "all"; item?: number; lane?: Status }
+type Search = { view?: Exclude<View, "board">; sort?: string; since?: string; repo?: string; group?: string; priority?: string; status?: string; by?: string; q?: string; done?: "all"; item?: number; lane?: Status }
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/todos")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     view: VIEWS.some((v) => v.id === s.view && v.id !== "board") ? (s.view as Search["view"]) : undefined,
     sort: text(s.sort),
+    since: sinceMs(text(s.since)) ? text(s.since) : undefined,
     repo: text(s.repo),
     group: text(s.group),
     priority: text(s.priority),
@@ -56,6 +57,7 @@ function toFilters(s: Search): Filters {
     by: list(s.by),
     q: s.q,
     done: s.done,
+    since: s.since,
   }
 }
 
@@ -68,6 +70,7 @@ const fromFilters = (f: Filters): Partial<Search> => ({
   by: join(f.by),
   q: f.q || undefined,
   done: f.done,
+  since: f.since,
 })
 
 /** Rows you folded stay folded on this browser. Inbox starts folded: it holds about 90 untriaged items. */
@@ -250,7 +253,7 @@ function TodosPage() {
           shown={view === "board" || view === "list" ? visible.length : view === "triage" ? inbox.length : view === "overview" ? overviewItems.length : undefined}
         />
         {view === "activity" ? (
-          <ActivityView repo={filters.repo} by={filters.by} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
+          <ActivityView repo={filters.repo} by={filters.by} since={filters.since} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
         ) : itemsQuery.isPending ? (
           <BoardSkeleton />
         ) : itemsQuery.isError ? (
@@ -266,7 +269,7 @@ function TodosPage() {
         ) : view === "triage" ? (
           <TriageView inbox={inbox} all={all} groups={groups} onOpen={open} onCurrent={setSelectedId} keys={keys} />
         ) : view === "overview" ? (
-          <OverviewView items={overviewItems} onOpen={open} />
+          <OverviewView items={overviewItems} since={filters.since} onOpen={open} />
         ) : visible.length === 0 ? (
           <Empty className="mx-4 my-10 border sm:mx-6">
             <EmptyHeader>
