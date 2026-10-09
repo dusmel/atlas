@@ -185,7 +185,7 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
               title="Copy the id"
               aria-label={`Copy #${item.id}`}
               onClick={() => copy(`#${item.id}`, `Copied #${item.id}`)}
-              className="rounded px-1 py-0.5 font-mono tabular-nums hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="cursor-pointer rounded px-1 py-0.5 font-mono tabular-nums underline underline-offset-2 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               translate="no"
             >
               #{item.id}
@@ -195,7 +195,7 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
               title="Copy a link to this item"
               aria-label={`Copy a link to #${item.id}`}
               onClick={() => copy(`${window.location.origin}/todos?item=${item.id}`, "Copied the link")}
-              className="rounded p-1 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="cursor-pointer rounded p-1 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               <LinkIcon className="size-3.5" />
             </button>
