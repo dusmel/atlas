@@ -4,7 +4,7 @@
 
 import { isatty } from "node:tty";
 import { STATUSES, type Status } from "@atlas/todos";
-import { err, out } from "../util.ts";
+import { err, out, page } from "../util.ts";
 import { itemId, itemIds, parseArgs, textFlag, type FlagSpec } from "./args.ts";
 import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
@@ -51,7 +51,8 @@ Every command takes --repo NAME, --personal or --all (list only), and --json.
 --by filters on who made the item: me, agent (any agent), an agent's name, script or unknown.
 Each change records who made it: ATLAS_AUTHOR if set, else the agent (Claude Code and opencode are detected),
 else me at a terminal, else script.
-At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.`;
+At a terminal, list and show print a readable layout; --plain, or a pipe, gives one line per item.
+show with several ids opens the readable layout in $PAGER, less by default; PAGER=cat prints it directly.`;
 
 /** The readable layout only for a person: never for --json, --plain or a pipe, which is how agents call it. */
 function pretty(flags: Record<string, string | boolean>): Style | null {
@@ -161,8 +162,8 @@ async function run(args: string[]): Promise<number> {
       const ids = itemIds(words, "show");
       const all = await Promise.all(ids.map((id) => api<Parameters<typeof showLines>[0]>(cfg, "GET", `/todos/${id}`)));
       const style = pretty(flags);
-      // One id prints one item, as before; several print one after another, or a JSON array.
-      if (style) await out(all.map((d) => showView(d, style).join("\n")).join("\n\n"));
+      // One id prints one item, as before; several go through the pager, or print as a JSON array.
+      if (style) await (ids.length > 1 ? page : out)(all.map((d) => showView(d, style).join("\n")).join("\n\n"));
       else await print(!!flags.json, ids.length === 1 ? all[0] : all, () => all.flatMap((d, n) => [...(n ? [""] : []), ...showLines(d)]));
       return 0;
     }

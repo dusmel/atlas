@@ -35,6 +35,27 @@ export function out(text: string): Promise<void> {
   return new Promise((resolve) => process.stdout.write(`${text}\n`, () => resolve()));
 }
 
+/**
+ * Print through $PAGER, `less` by default. -FRX is added to $LESS, not swapped for it, so less
+ * exits at once when the text fits the screen. PAGER=cat, or an empty PAGER, prints directly.
+ */
+export async function page(text: string): Promise<void> {
+  const pager = process.env.PAGER ?? "less";
+  if (!pager || pager === "cat") return out(text);
+  const proc = Bun.spawn(["sh", "-c", pager], { stdin: "pipe", stdout: "inherit", stderr: "inherit", env: { ...process.env, LESS: `${process.env.LESS ?? ""} -FRX`.trim() } });
+  // less handles Ctrl-C itself. Exiting here would leave it running on the terminal.
+  const ignore = () => {};
+  process.on("SIGINT", ignore);
+  try {
+    proc.stdin.write(`${text}\n`);
+    await proc.stdin.end();
+  } catch {
+    // Quitting less before the end closes the pipe.
+  }
+  await proc.exited;
+  process.off("SIGINT", ignore);
+}
+
 /** Print an error message to stderr. */
 export function err(msg: string): void {
   console.error(msg);
