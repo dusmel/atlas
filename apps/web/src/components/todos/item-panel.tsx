@@ -1,7 +1,6 @@
-import { ArchiveIcon, ChevronsUpDownIcon, FileTextIcon, LinkIcon } from "lucide-react"
+import { ArchiveIcon, ChevronsUpDownIcon, FileTextIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
-import { toast } from "sonner"
 import { cn } from "cn"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { ago, describe, exact } from "@/lib/format"
 import { authorOf, isAgent, STATUS_LABEL, useActions, useGroups, useItemDetail, type Item } from "@/lib/todos"
+import { CopyId } from "./copy-id"
 import { PriorityToggle, StatusToggle } from "./dialogs"
 import { StatusIcon } from "./icons"
 import { plainTitle, RichTitle } from "./rich-title"
@@ -111,15 +111,6 @@ function ResizeHandle({ width, onWidth }: { width: number; onWidth: (w: number) 
   )
 }
 
-const copy = async (text: string, message: string) => {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success(message)
-  } catch {
-    toast.error("The browser didn't allow copying")
-  }
-}
-
 // Focus the panel itself, not its first field, so opening it doesn't start an edit.
 const focusPanel = (e: Event) => {
   e.preventDefault()
@@ -179,27 +170,7 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
     <div className="flex flex-col gap-5 p-5 sm:p-6">
       <div className="flex flex-col gap-2 pr-8">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="-ml-1 flex items-center">
-            <button
-              type="button"
-              title="Copy the id"
-              aria-label={`Copy #${item.id}`}
-              onClick={() => copy(`#${item.id}`, `Copied #${item.id}`)}
-              className="cursor-pointer rounded px-1 py-0.5 font-mono tabular-nums underline underline-offset-2 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              translate="no"
-            >
-              #{item.id}
-            </button>
-            <button
-              type="button"
-              title="Copy a link to this item"
-              aria-label={`Copy a link to #${item.id}`}
-              onClick={() => copy(`${window.location.origin}/todos?item=${item.id}`, "Copied the link")}
-              className="cursor-pointer rounded p-1 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <LinkIcon className="size-3.5" />
-            </button>
-          </span>
+          <CopyId id={item.id} link className="-ml-1" />
           <Badge variant="outline" className="font-normal" translate="no">
             {item.repo_name}
           </Badge>
@@ -333,19 +304,18 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
         <section className="flex flex-col gap-1.5">
           <h3 className="text-sm font-medium">Children</h3>
           {children.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => onOpen(c.id)}
-              className="flex items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <StatusIcon status={c.status} className="self-center" />
+            <div key={c.id} className="flex items-center gap-1 rounded-md px-2 hover:bg-accent">
+              <StatusIcon status={c.status} />
               <span className="sr-only">{STATUS_LABEL[c.status]}</span>
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">#{c.id}</span>
-              <span className={cn("min-w-0 flex-1 truncate", c.status === "done" && "text-muted-foreground line-through")}>
+              <CopyId id={c.id} className="text-xs text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => onOpen(c.id)}
+                className={cn("min-w-0 flex-1 truncate rounded py-1.5 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", c.status === "done" && "text-muted-foreground line-through")}
+              >
                 <RichTitle text={c.title} />
-              </span>
-            </button>
+              </button>
+            </div>
           ))}
         </section>
       )}

@@ -5,6 +5,7 @@ import { cn } from "cn"
 import { exact, shortDate } from "@/lib/format"
 import { authorOf, PRIORITY_NAME, rowKey, rowLabel, type Item } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
+import { CopyId } from "./copy-id"
 import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { plainTitle, RichTitle } from "./rich-title"
@@ -28,7 +29,7 @@ export function ItemCard({ item, showRepo, children, selected, dragging, overlay
       data-item={item.id}
       aria-label={`#${item.id} ${plainTitle(item.title)}`}
       className={cn(
-        "group/card relative flex cursor-pointer flex-col gap-2 rounded-lg border bg-card p-3 text-left text-sm shadow-xs outline-none select-none",
+        "group/item relative flex cursor-pointer flex-col gap-2 rounded-lg border bg-card p-3 text-left text-sm shadow-xs outline-none select-none",
         "transition-[box-shadow,background-color] hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring",
         selected && "ring-2 ring-ring",
         dragging && "opacity-40",
@@ -38,7 +39,7 @@ export function ItemCard({ item, showRepo, children, selected, dragging, overlay
       {...props}
     >
       <div className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
-        <span translate="no">#{item.id}</span>
+        <CopyId id={item.id} link="hover" className="-my-1 -ml-1" />
         {children > 0 && (
           <span className="flex items-center gap-0.5" title={`${children} child items`}>
             <ListTreeIcon aria-hidden className="size-3.5" />

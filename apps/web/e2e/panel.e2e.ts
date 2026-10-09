@@ -49,6 +49,30 @@ test("the panel copies the item's id and a link to it", async ({ page, context }
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${new URL(page.url()).origin}/todos?item=${item.id}`)
 })
 
+test("a card's #id copies without opening the card, and its link button shows on hover", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  const item = await itemByTitle(page, "Press one on me")
+  await openBoard(page)
+  const c = card(page, item.id)
+  const link = c.getByRole("button", { name: `Copy a link to #${item.id}` })
+  await expect(link).toHaveCSS("opacity", "0")
+  await c.hover()
+  await expect(link).toHaveCSS("opacity", "1")
+  await c.getByRole("button", { name: `Copy #${item.id}` }).click()
+  await expect(page.getByText(`Copied #${item.id}`)).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`#${item.id}`)
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(page).not.toHaveURL(/item=/)
+
+  await page.goto("/todos?view=list")
+  const row = page.locator(`tr[data-row="${item.id}"]`)
+  await row.getByRole("button", { name: `Copy #${item.id}` }).click()
+  await expect(page).not.toHaveURL(/item=/)
+  await row.hover()
+  await row.getByRole("button", { name: `Copy a link to #${item.id}` }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${new URL(page.url()).origin}/todos?item=${item.id}`)
+})
+
 test("the Changed filter keeps items changed in the window, from a preset or typed", async ({ page }) => {
   await page.goto("/todos?view=list&q=three%20days")
   const old = page.getByText("Finished three days ago")

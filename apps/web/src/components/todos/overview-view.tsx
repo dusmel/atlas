@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { cn } from "cn"
 import { ago, exact } from "@/lib/format"
 import { DONE_DAYS, rowKey, sinceLabel, sinceMs, type Item } from "@/lib/todos"
+import { CopyId } from "./copy-id"
 import { GroupDot } from "./filters"
 import { groupColor } from "./group-color"
 import { PriorityIcon, StatusIcon } from "./icons"
@@ -147,10 +148,10 @@ function ItemList({ title, items, repo, status, onOpen, when }: { title: string;
       </h3>
       <ul className="flex flex-col">
         {items.slice(0, SHOWN).map((i) => (
-          <li key={i.id}>
-            <button type="button" onClick={() => onOpen(i.id)} className="flex w-full min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-              <PriorityIcon row={rowKey(i.priority)} />
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">#{i.id}</span>
+          <li key={i.id} className="flex min-w-0 items-center gap-1 rounded-md px-1 hover:bg-accent/50">
+            <PriorityIcon row={rowKey(i.priority)} />
+            <CopyId id={i.id} className="text-xs text-muted-foreground" />
+            <button type="button" onClick={() => onOpen(i.id)} className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left text-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
               <span className="min-w-0 flex-1 truncate">
                 <RichTitle text={i.title} />
               </span>

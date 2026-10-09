@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { describe, exact } from "@/lib/format"
 import { sinceMs, useEvents, type FeedEvent } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
+import { CopyId } from "./copy-id"
 import { plainTitle, RichTitle } from "./rich-title"
 
 const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -81,21 +82,23 @@ export function ActivityView({ repo, by, since, otherFilters, onOpen }: Props) {
                     <p className="text-sm">
                       <span className="font-medium">{who}</span> <span className="text-muted-foreground">{describe(e)}</span>
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => onOpen(e.item_id)}
-                      aria-label={`Open #${e.item_id} ${plainTitle(e.title)}`}
-                      className="flex max-w-full min-w-0 items-center gap-2 self-start rounded text-left text-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                    >
-                      <span className="font-mono text-xs text-muted-foreground tabular-nums">#{e.item_id}</span>
-                      <span className="min-w-0 truncate">
-                        <RichTitle text={e.title} />
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden">
-                        <BoxIcon className="size-3" aria-hidden />
-                        {e.repo_name}
-                      </span>
-                    </button>
+                    <div className="flex max-w-full min-w-0 items-center gap-1 self-start">
+                      <CopyId id={e.item_id} className="-ml-1 text-xs text-muted-foreground" />
+                      <button
+                        type="button"
+                        onClick={() => onOpen(e.item_id)}
+                        aria-label={`Open #${e.item_id} ${plainTitle(e.title)}`}
+                        className="flex min-w-0 items-center gap-2 rounded text-left text-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      >
+                        <span className="min-w-0 truncate">
+                          <RichTitle text={e.title} />
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden">
+                          <BoxIcon className="size-3" aria-hidden />
+                          {e.repo_name}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                   <time dateTime={e.at} title={exact(e.at)} className="shrink-0 text-xs text-muted-foreground tabular-nums">
                     {time.format(new Date(e.at))}
