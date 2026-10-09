@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { describe, exact } from "@/lib/format"
-import { useEvents, type FeedEvent } from "@/lib/todos"
+import { sinceMs, useEvents, type FeedEvent } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
 import { plainTitle, RichTitle } from "./rich-title"
 
@@ -20,20 +20,26 @@ function dayLabel(at: string, now = new Date()): string {
   return (d.getFullYear() === now.getFullYear() ? weekday : full).format(d)
 }
 
-type Props = { repo?: string[]; by?: string[]; otherFilters: boolean; onOpen: (id: number) => void }
+type Props = { repo?: string[]; by?: string[]; since?: string; otherFilters: boolean; onOpen: (id: number) => void }
 
 /** Recent changes across every item, newest first. Only the repo and author filters apply here. */
-export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
+export function ActivityView({ repo, by, since, otherFilters, onOpen }: Props) {
   const q = useEvents(repo, by)
+  const window = sinceMs(since)
+  const cutoff = window ? new Date(Date.now() - window).toISOString() : ""
+  const loaded = useMemo(() => q.data?.pages.flat() ?? [], [q.data])
+  // Events come newest first, so once the oldest loaded one is past the window there is nothing more to page.
+  const more = q.hasNextPage && !(cutoff && (loaded.at(-1)?.at ?? "") < cutoff)
   const days = useMemo(() => {
     const out: { day: string; events: FeedEvent[] }[] = []
-    for (const e of q.data?.pages.flat() ?? []) {
+    for (const e of loaded) {
+      if (e.at < cutoff) break
       const day = dayLabel(e.at)
       if (out.at(-1)?.day !== day) out.push({ day, events: [] })
       out.at(-1)!.events.push(e)
     }
     return out
-  }, [q.data])
+  }, [loaded, cutoff])
 
   if (q.isPending)
     return (
@@ -58,7 +64,7 @@ export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-4 sm:px-6">
-      {otherFilters && <p className="text-sm text-muted-foreground">Activity uses the repo and author filters. The others apply to the item views.</p>}
+      {otherFilters && <p className="text-sm text-muted-foreground">Activity uses the repo, author and changed filters. The others apply to the item views.</p>}
       {days.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">No changes yet.</p>}
       {days.map((d) => (
         <section key={d.day} aria-labelledby={`day-${d.day}`} className="flex flex-col gap-1">
@@ -100,7 +106,7 @@ export function ActivityView({ repo, by, otherFilters, onOpen }: Props) {
           </ol>
         </section>
       ))}
-      {q.hasNextPage && (
+      {more && (
         <Button variant="outline" className="self-center" disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>
           {q.isFetchingNextPage ? "Loading…" : "Show older changes"}
         </Button>

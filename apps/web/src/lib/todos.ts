@@ -56,7 +56,26 @@ export const laneOf = (items: Item[], priority: Row, status: Status, except?: nu
 
 // ── filters ──────────────────────────────────────────────────────────────────
 
-export type Filters = { repo?: string[]; group?: (number | "none")[]; priority?: string[]; status?: string[]; by?: string[]; q?: string; done?: "all" }
+export type Filters = { repo?: string[]; group?: (number | "none")[]; priority?: string[]; status?: string[]; by?: string[]; q?: string; done?: "all"; since?: string }
+
+// ── time window ──────────────────────────────────────────────────────────────
+
+const UNIT_MS = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 } as const
+const UNIT_NAME = { m: "minute", h: "hour", d: "day", w: "week" } as const
+const SINCE = /^(\d{1,4})\s*([mhdw])$/
+
+/** "30m", "1h", "2d" or "1w" as milliseconds, or null when it isn't one. */
+export function sinceMs(since?: string): number | null {
+  const m = since?.trim().toLowerCase().match(SINCE)
+  return m && Number(m[1]) > 0 ? Number(m[1]) * UNIT_MS[m[2] as keyof typeof UNIT_MS] : null
+}
+
+/** "2d" as "2 days", "1h" as "hour". */
+export function sinceLabel(since: string): string {
+  const [, n, u] = since.trim().toLowerCase().match(SINCE)!
+  const name = UNIT_NAME[u as keyof typeof UNIT_NAME]
+  return n === "1" ? name : `${n} ${name}s`
+}
 export type Facet = "repo" | "group" | "priority" | "status" | "by"
 export const FACETS: Facet[] = ["repo", "group", "priority", "status", "by"]
 
@@ -91,6 +110,9 @@ export function matches(i: Item, f: Filters, skip?: Facet, now = Date.now()): bo
     if (id ? i.id !== Number(id) : !(i.title.toLowerCase().includes(q) || i.body.toLowerCase().includes(q))) return false
   }
   if (f.done !== "all" && i.status === "done" && i.done_at && now - Date.parse(i.done_at) > DONE_DAYS * 864e5) return false
+  // Every change, from creation to done, moves updated_at.
+  const window = sinceMs(f.since)
+  if (window && now - Date.parse(i.updated_at) > window) return false
   return true
 }
 
@@ -106,7 +128,7 @@ export function facetCounts(items: Item[], f: Filters, facet: Facet): Map<string
   return counts
 }
 
-export const activeCount = (f: Filters) => FACETS.reduce((n, k) => n + (f[k]?.length ?? 0), 0) + (f.q ? 1 : 0)
+export const activeCount = (f: Filters) => FACETS.reduce((n, k) => n + (f[k]?.length ?? 0), 0) + (f.q ? 1 : 0) + (sinceMs(f.since) ? 1 : 0)
 
 // ── changes ──────────────────────────────────────────────────────────────────
 

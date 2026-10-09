@@ -1,6 +1,7 @@
-import { ArchiveIcon, ChevronsUpDownIcon, FileTextIcon } from "lucide-react"
+import { ArchiveIcon, ChevronsUpDownIcon, FileTextIcon, LinkIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
+import { toast } from "sonner"
 import { cn } from "cn"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,15 +32,17 @@ export function ItemPanel({ item, desktop, onClose, ...rest }: PanelProps) {
     flush.current()
     onClose()
   }
+  const [width, setWidth] = usePanelWidth()
   const body = item ? <Details key={item.id} item={item} flush={flush} {...rest} /> : null
   const title = item ? plainTitle(item.title) : "Item"
   if (desktop)
     return (
       <Sheet open={!!item} onOpenChange={close}>
-        <SheetContent className="w-full gap-0 overflow-y-auto overscroll-contain p-0 sm:max-w-xl" onOpenAutoFocus={focusPanel} onEscapeKeyDown={keepOpen}>
+        <SheetContent className="gap-0 p-0" style={{ width, maxWidth: "none" }} onOpenAutoFocus={focusPanel} onEscapeKeyDown={keepOpen}>
           <SheetTitle className="sr-only">{title}</SheetTitle>
           <SheetDescription className="sr-only">Edit the item, or press Escape to close.</SheetDescription>
-          {body}
+          <ResizeHandle width={width} onWidth={setWidth} />
+          <div className="h-full overflow-y-auto overscroll-contain">{body}</div>
         </SheetContent>
       </Sheet>
     )
@@ -52,6 +55,69 @@ export function ItemPanel({ item, desktop, onClose, ...rest }: PanelProps) {
       </DrawerContent>
     </Drawer>
   )
+}
+
+const WIDTH_KEY = "atlas.panel-width"
+const DEFAULT_WIDTH = 576
+const MIN_WIDTH = 400
+// Leave some of the page showing, so the panel can still be closed by clicking outside it.
+const clampWidth = (w: number) => Math.round(Math.max(MIN_WIDTH, Math.min(w, window.innerWidth - 80)))
+
+/** The panel's width on desktop, kept on this browser. */
+function usePanelWidth() {
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(WIDTH_KEY))
+      if (saved) setWidth(clampWidth(saved))
+    } catch {}
+  }, [])
+  const save = (w: number) => {
+    const next = clampWidth(w)
+    setWidth(next)
+    try {
+      localStorage.setItem(WIDTH_KEY, String(next))
+    } catch {}
+  }
+  return [width, save] as const
+}
+
+/** The panel's left edge: drag it, or focus it and use the arrow keys. A double click resets the width. */
+function ResizeHandle({ width, onWidth }: { width: number; onWidth: (w: number) => void }) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the panel"
+      aria-valuenow={width}
+      aria-valuemin={MIN_WIDTH}
+      tabIndex={0}
+      title="Drag to resize. Double click to reset."
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && onWidth(window.innerWidth - e.clientX)}
+      onDoubleClick={() => onWidth(DEFAULT_WIDTH)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 96 : 32
+        if (e.key === "ArrowLeft") onWidth(width + step)
+        else if (e.key === "ArrowRight") onWidth(width - step)
+        else return
+        e.preventDefault()
+      }}
+      className="absolute inset-y-0 left-0 z-10 w-2 -translate-x-1/2 cursor-col-resize touch-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-ring focus-visible:after:bg-ring"
+    />
+  )
+}
+
+const copy = async (text: string, message: string) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success(message)
+  } catch {
+    toast.error("The browser didn't allow copying")
+  }
 }
 
 // Focus the panel itself, not its first field, so opening it doesn't start an edit.
@@ -113,8 +179,26 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
     <div className="flex flex-col gap-5 p-5 sm:p-6">
       <div className="flex flex-col gap-2 pr-8">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-mono tabular-nums" translate="no">
-            #{item.id}
+          <span className="-ml-1 flex items-center">
+            <button
+              type="button"
+              title="Copy the id"
+              aria-label={`Copy #${item.id}`}
+              onClick={() => copy(`#${item.id}`, `Copied #${item.id}`)}
+              className="rounded px-1 py-0.5 font-mono tabular-nums hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              translate="no"
+            >
+              #{item.id}
+            </button>
+            <button
+              type="button"
+              title="Copy a link to this item"
+              aria-label={`Copy a link to #${item.id}`}
+              onClick={() => copy(`${window.location.origin}/todos?item=${item.id}`, "Copied the link")}
+              className="rounded p-1 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <LinkIcon className="size-3.5" />
+            </button>
           </span>
           <Badge variant="outline" className="font-normal" translate="no">
             {item.repo_name}

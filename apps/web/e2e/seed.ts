@@ -4,8 +4,8 @@ export const PASSWORD = "e2e-only-password"
 const api = { id: "github.com-demo-api", name: "demo-api" }
 const web = { id: "github.com-demo-web", name: "demo-web" }
 
-// `by` is the author; every other field goes to createTodo.
-const item = (repo: typeof api, title: string, priority: string | null, status = "todo", extra: { by?: string; group?: string } = {}) => ({ repo, title, priority, status, ...extra })
+// `by` is the author and `days` how long ago it last changed; every other field goes to createTodo.
+const item = (repo: typeof api, title: string, priority: string | null, status = "todo", extra: { by?: string; group?: string; days?: number } = {}) => ({ repo, title, priority, status, ...extra })
 
 export const SEED = {
   groups: [
@@ -35,6 +35,7 @@ export const SEED = {
     item(api, "Bulk two", "P3"),
     item(web, "Keys tick me", "P3"),
     item(web, "Keys tick me too", "P3"),
+    item(api, "Finished three days ago", "P3", "done", { days: 3 }),
     item(web, "In the long-named group", "P3", "todo", { group: "A group name long enough to push a filter badge past the edge of a phone" }),
   ],
 }
