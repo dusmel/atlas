@@ -7,10 +7,11 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 
 const NAV = [
   { to: "/todos", label: "Todos" },
+  { to: "/search", label: "Search" },
   { to: "/settings", label: "Settings" },
 ] as const
 
-/** The header on every page. Search, Shared and the docs pill join it in the phases that build them. */
+/** The header on every page. Shared and the docs pill join it in the phases that build them. */
 export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; onShortcuts?: () => void }) {
   const { theme, setTheme } = useTheme()
   return (

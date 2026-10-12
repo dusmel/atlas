@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createGroup, createTodo } from "../src/server/todos"
 import { freshDb } from "../test/helpers"
-import { PASSWORD, SEED } from "./seed"
+import { DOCS, PASSWORD, SEED } from "./seed"
 
 const dir = mkdtempSync(join(tmpdir(), "atlas-e2e-"))
 const db = freshDb(join(dir, "atlas.db"))
@@ -18,6 +18,7 @@ for (const { by = "me", days, ...item } of SEED.items) {
   }
 }
 db.close()
+for (const [path, text] of Object.entries(DOCS)) await Bun.write(join(dir, "docs", path), text)
 
 process.env.ATLAS_DATA_DIR = dir
 process.env.ATLAS_PASSWORD_HASH_B64 = Buffer.from(await Bun.password.hash(PASSWORD)).toString("base64")
