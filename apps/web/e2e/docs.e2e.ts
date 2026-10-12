@@ -100,7 +100,9 @@ test("j and k select a result, Enter copies its path, and a linked group's open 
   await context.grantPermissions(["clipboard-read", "clipboard-write"])
   await page.goto("/docs?q=lamp")
   await expect(results(page)).toHaveCount(2)
+  // Escape leaves the box and keeps the query, which Chrome would otherwise clear.
   await page.getByRole("searchbox", { name: "Search the docs" }).press("Escape")
+  await expect(page.getByRole("searchbox", { name: "Search the docs" })).toHaveValue("lamp")
   await page.keyboard.press("j")
   await expect(results(page).first()).toHaveAttribute("data-selected", "true")
   await page.keyboard.press("j")

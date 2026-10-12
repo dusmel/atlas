@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router"
 import { BoxIcon, ClockIcon, FolderIcon, ListFilterIcon, SearchIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { cn } from "cn"
@@ -48,6 +48,7 @@ function DocsPage() {
   const repos = list(search.repo)
   const folders = list(search.folder)
   const navigate = useNavigate({ from: "/docs" })
+  const router = useRouter()
   const [typed, setTyped] = useState(search.q ?? "")
   const [palette, setPalette] = useState(false)
   const [selected, setSelected] = useState<string | undefined>(search.doc)
@@ -57,9 +58,13 @@ function DocsPage() {
   // The URL follows the box after a short pause, so a search can be linked and the back button works.
   useEffect(() => {
     if (typed === (search.q ?? "")) return
-    const t = setTimeout(() => void navigate({ search: (s) => ({ ...s, q: typed || undefined, doc: undefined }), replace: true }), 200)
+    const t = setTimeout(() => {
+      // The page stays mounted while the next route loads, so a late timer would pull the user back to Docs.
+      if (router.state.location.pathname !== "/docs") return
+      void navigate({ search: (s) => ({ ...s, q: typed || undefined, doc: undefined }), replace: true })
+    }, 200)
     return () => clearTimeout(t)
-  }, [typed, search.q, navigate])
+  }, [typed, search.q, navigate, router])
 
   const summary = useQuery({ queryKey: ["docs"], queryFn: () => api<Summary>("/docs"), staleTime: 60_000 })
   const filters = new URLSearchParams({ ...(search.repo ? { repo: search.repo } : {}), ...(search.folder ? { folder: search.folder } : {}), ...(since ? { since } : {}) })
@@ -144,7 +149,8 @@ function DocsPage() {
                     // The arrows and Enter work from the box too, so a search never needs the mouse.
                     if (e.key === "ArrowDown" || e.key === "ArrowUp") (e.preventDefault(), move(e.key === "ArrowDown" ? 1 : -1))
                     else if (e.key === "Enter" && current) copyPath(current)
-                    else if (e.key === "Escape") input.current?.blur()
+                    // Chrome also empties a search box on Escape; here it only leaves the box.
+                    else if (e.key === "Escape") (e.preventDefault(), input.current?.blur())
                   }}
                 />
                 <InputGroupAddon align="inline-end" className="max-md:hidden">
