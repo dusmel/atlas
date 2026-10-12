@@ -16,16 +16,16 @@ type Summary = { docs: number; md: number; html: number; repos: { name: string; 
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
-export const Route = createFileRoute("/search")({
+export const Route = createFileRoute("/docs")({
   validateSearch: (s: Record<string, unknown>): Search => ({ q: text(s.q), repo: text(s.repo) }),
-  component: SearchPage,
+  component: DocsPage,
 })
 
 const ALL = "all"
 
-function SearchPage() {
+function DocsPage() {
   const { q = "", repo } = Route.useSearch()
-  const navigate = useNavigate({ from: "/search" })
+  const navigate = useNavigate({ from: "/docs" })
   const [typed, setTyped] = useState(q)
 
   // The URL follows the box after a short pause, so a search can be linked and the back button works.

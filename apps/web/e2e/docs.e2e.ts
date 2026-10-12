@@ -5,16 +5,16 @@ test.beforeEach(async ({ page }) => login(page))
 
 const results = (page: import("@playwright/test").Page) => page.getByRole("list", { name: "Results" }).locator("[data-result]")
 
-test("the header links to Search, which counts the docs and skips backups", async ({ page }) => {
+test("the header links to Docs, which counts the docs and skips backups", async ({ page }) => {
   await page.goto("/todos")
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Search" }).click()
-  await expect(page).toHaveURL(/\/search$/)
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Docs" }).click()
+  await expect(page).toHaveURL(/\/docs$/)
   await expect(page.getByTestId("docs-summary")).toHaveText("4 docs (2 markdown, 2 html) in 2 repos.")
   await expect(page.getByRole("searchbox", { name: "Search the docs" })).toBeFocused()
 })
 
 test("a phrase finds its doc once, with the matches marked, and the URL keeps the query", async ({ page }) => {
-  await page.goto("/search")
+  await page.goto("/docs")
   await page.getByRole("searchbox", { name: "Search the docs" }).fill("lights the lamp")
   await expect(results(page)).toHaveCount(1)
   await expect(results(page).first().getByRole("heading")).toHaveText("Lighthouse plan")
@@ -25,7 +25,7 @@ test("a phrase finds its doc once, with the matches marked, and the URL keeps th
 })
 
 test("the repo filter narrows the results", async ({ page }) => {
-  await page.goto("/search?q=lamp")
+  await page.goto("/docs?q=lamp")
   await expect(results(page)).toHaveCount(2)
   await page.getByRole("combobox", { name: "Repo" }).click()
   await page.getByRole("option", { name: /^api/ }).click()
@@ -34,17 +34,17 @@ test("the repo filter narrows the results", async ({ page }) => {
 })
 
 test("html is indexed without its scripts, and its text shows as text", async ({ page }) => {
-  await page.goto("/search?q=hidden")
+  await page.goto("/docs?q=hidden")
   await expect(page.getByText("No doc matches “hidden”")).toBeVisible()
-  await page.goto("/search?q=fuel")
+  await page.goto("/docs?q=fuel")
   await expect(results(page).first().getByRole("heading")).toHaveText("Ferry runbook")
   await expect(results(page).first()).toContainText("<fuel>")
 })
 
 test("search syntax in the box is just text", async ({ page }) => {
-  await page.goto(`/search?q=${encodeURIComponent('"lamp" (*:')}`)
+  await page.goto(`/docs?q=${encodeURIComponent('"lamp" (*:')}`)
   await expect(results(page)).toHaveCount(2)
-  await page.goto(`/search?q=${encodeURIComponent("* : -")}`)
+  await page.goto(`/docs?q=${encodeURIComponent("* : -")}`)
   await expect(page.getByText(/No doc matches/)).toBeVisible()
 })
 
@@ -57,9 +57,9 @@ test("the API checks limit, reindexes, and health counts the docs", async ({ pag
   expect((await (await page.request.get("/api/health")).json()).docs).toEqual({ count: 4 })
 })
 
-test("search fits a phone screen", async ({ page }) => {
+test("docs fit a phone screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto("/search?q=lamp")
+  await page.goto("/docs?q=lamp")
   await expect(results(page)).toHaveCount(2)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })

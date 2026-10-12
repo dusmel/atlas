@@ -7,7 +7,7 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 
 const NAV = [
   { to: "/todos", label: "Todos" },
-  { to: "/search", label: "Search" },
+  { to: "/docs", label: "Docs" },
   { to: "/settings", label: "Settings" },
 ] as const
 
