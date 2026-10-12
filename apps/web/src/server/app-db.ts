@@ -2,11 +2,12 @@ import type { Database } from "bun:sqlite"
 import { existsSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import { backupTo, nightlyIfDue, predeployName, prune, PREDEPLOY } from "./backup"
+import { dataDir } from "./data-dir"
 import { migrate, openDb, parseMigrations } from "./db"
 
 const files = import.meta.glob<string>("../../migrations/*.sql", { query: "?raw", import: "default", eager: true })
 
-export const dataDir = () => process.env.ATLAS_DATA_DIR ?? "/data"
+export { dataDir }
 
 let db: Database | undefined
 

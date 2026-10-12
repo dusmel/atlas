@@ -61,7 +61,7 @@ export class DocIndex {
   /** Called after every sync that finished, with the index already updated. */
   onSync?: (result: SyncResult) => void
 
-  constructor(readonly root: string) {
+  constructor(public root: string) {
     this.db.exec(SCHEMA)
   }
 
@@ -77,6 +77,19 @@ export class DocIndex {
     const run = this.queue.then(() => {
       this.db.run("DELETE FROM docs_fts")
       this.db.run("DELETE FROM docs")
+      return this.diff()
+    })
+    this.queue = run.catch(() => {})
+    return run
+  }
+
+  /**
+   * Indexes another folder in place: files with the same mtime and size are kept, so search keeps
+   * working through the switch and an rsync'd copy (which keeps mtimes) re-reads nothing.
+   */
+  moveTo(root: string): Promise<SyncResult> {
+    const run = this.queue.then(() => {
+      this.root = root
       return this.diff()
     })
     this.queue = run.catch(() => {})

@@ -9,4 +9,5 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 # The session and sync settings live in $HOME/.megaCmd, a bind mount on the box.
 ENV HOME=/config
-CMD ["mega-cmd-server"]
+COPY start.sh /usr/local/bin/atlas-megacmd
+CMD ["atlas-megacmd"]

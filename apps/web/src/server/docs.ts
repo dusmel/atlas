@@ -1,18 +1,20 @@
 import { DocIndex, watchDocs, type SearchHit } from "@atlas/indexer"
-import { readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join, posix } from "node:path"
-import { dataDir, getDb } from "./app-db"
+import { getDb } from "./app-db"
 import { sinceMs } from "@/lib/since"
 import { listDocEvents, recordDocChanges } from "./doc-activity"
+import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
 import { HttpError } from "./http"
 
 let index: DocIndex | undefined
 let ready: Promise<unknown> = Promise.resolve()
+let unwatch = () => {}
 
 /** Built on first use, then kept current by the watcher. The container's health check calls this every 30 s, so it starts at boot. */
 export function getIndex(): DocIndex {
   if (index) return index
-  const docs = new DocIndex(join(dataDir(), "docs"))
+  const docs = new DocIndex(sourceRoot(readSource().source))
   docs.onSync = (r) => {
     if (!r.added && !r.changed && !r.removed) return
     try {
@@ -25,9 +27,32 @@ export function getIndex(): DocIndex {
     (r) => console.log(`atlas: indexed ${r.docs} docs (${r.md} md, ${r.html} html) in ${r.ms} ms`),
     (err) => console.error("atlas: first docs index failed", err),
   )
-  watchDocs(docs)
+  unwatch = watchDocs(docs)
   index = docs
   return docs
+}
+
+/**
+ * Serves and indexes the `atlas push` copy (`manual`) or MEGA's (`mega`). Holding again, as every
+ * push does, only re-dates the switch. The index moves in place, so search keeps working.
+ */
+export async function holdDocs(source: Source) {
+  const root = sourceRoot(source)
+  if (!existsSync(root)) throw new HttpError(409, "no_manual_copy", `${root} is missing: create it on the box first (runbook R9)`)
+  writeSource(source)
+  const docs = getIndex()
+  await ready
+  if (docs.root !== root) {
+    unwatch()
+    const { docs: count, md, html } = await docs.moveTo(root)
+    unwatch = watchDocs(docs)
+    console.log(`atlas: docs source is now ${source}, ${count} docs (${md} md, ${html} html)`)
+  }
+  return docsStatus()
+}
+
+export function docsStatus() {
+  return { ...readSource(), count: getIndex().counts().docs, mega: readMega() }
 }
 
 const filtersOf = (input: { repo: string[]; folder: string[]; since?: string }) => {
@@ -66,7 +91,7 @@ export function docsActivity(input: { repo: string[]; folder: string[]; since?: 
 
 // A group's doc_path is relative to its repo's folder under docs/, whose meta.json holds the todo repo id.
 function repoFolders(): Map<string, string> {
-  const root = join(dataDir(), "docs")
+  const root = getIndex().root
   const out = new Map<string, string>()
   let dirs: string[] = []
   try {

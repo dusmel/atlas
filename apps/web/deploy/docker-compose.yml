@@ -16,6 +16,8 @@ services:
     volumes:
       - /srv/atlas/data:/data
       - /srv/atlas/data/docs:/data/docs:ro
+      # Written only by `atlas push`. Create it, owned by atlas, before deploying (runbook R9).
+      - /srv/atlas/data/docs-manual:/data/docs-manual:ro
     expose:
       - "3000"
     healthcheck:
@@ -28,6 +30,7 @@ services:
 
   # Two-way MEGA sync of repos into docs, and of backups up to MEGA. Nothing else may write to
   # either folder, or it gets uploaded: web mounts docs read-only. Login and sync pairs: runbook R5.
+  # start.sh reports the pairs' status to web through state/.
   megacmd:
     build:
       context: apps/web/deploy/megacmd
@@ -39,4 +42,5 @@ services:
       - /etc/machine-id:/etc/machine-id:ro
       - /srv/atlas/data/docs:/data/docs
       - /srv/atlas/data/backups:/data/backups
+      - /srv/atlas/data/state:/data/state
     restart: unless-stopped
