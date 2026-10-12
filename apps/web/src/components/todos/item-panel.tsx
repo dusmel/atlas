@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { docLinks } from "@/lib/docs"
 import { ago, describe, exact } from "@/lib/format"
 import { authorOf, isAgent, STATUS_LABEL, useActions, useGroups, useItemDetail, type Item } from "@/lib/todos"
 import { CopyId } from "./copy-id"
@@ -249,13 +250,25 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
             <FieldLabel>Parent</FieldLabel>
             <ParentPicker repoId={item.repo_id} exclude={item.id} value={item.parent_id} items={items} hasChildren={children.length > 0} onPick={(parent) => set({ parent })} label={parent ? `#${parent.id} ${plainTitle(parent.title)}` : "None"} />
           </Field>
-        {item.group_doc && (
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <FileTextIcon aria-hidden className="size-4 shrink-0" />
-            <span className="truncate font-mono text-xs" translate="no" title="Opens here once docs are on the server (Phase 5)">
-              {item.group_doc}
-            </span>
-          </p>
+        {!!detail.data?.group?.docs.length && (
+          <ul aria-label="Group docs" className="flex flex-col gap-1.5 text-sm">
+            {detail.data.group.docs.map((d) => (
+              <li key={d.label} data-doc={d.label} className="flex min-w-0 items-center gap-2">
+                <FileTextIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="w-20 shrink-0 truncate text-xs text-muted-foreground">{d.label}</span>
+                {d.href ? (
+                  // A plain link: html docs are served raw, outside the app's router.
+                  <a href={d.href} className="min-w-0 truncate font-mono text-xs underline-offset-3 hover:underline" translate="no">
+                    {d.path}
+                  </a>
+                ) : (
+                  <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" translate="no" title="The server's copy of the docs does not have this file yet">
+                    {d.path} · not synced yet
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </FieldGroup>
 
@@ -292,7 +305,7 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
         <TabsContent value="preview">
           {body ? (
             <div className="markdown rounded-md border px-4 py-3 text-sm leading-relaxed break-words">
-              <ReactMarkdown>{dedent(body)}</ReactMarkdown>
+              <ReactMarkdown urlTransform={docLinks(detail.data?.docs_folder ?? null)}>{dedent(body)}</ReactMarkdown>
             </div>
           ) : (
             <p className="rounded-md border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">No notes yet. Switch to Write to add some.</p>

@@ -20,7 +20,7 @@ import { Kbd } from "@/components/ui/kbd"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
-import { DOC_VIEWS, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
+import { DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
 type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; since?: string; doc?: string }
@@ -97,6 +97,7 @@ function DocsPage() {
     "/": () => (set({ view: undefined }), requestAnimationFrame(() => input.current?.focus())),
     j: () => move(1, true),
     k: () => move(-1, true),
+    o: () => current && window.location.assign(docHref(current)),
   })
 
   return (
@@ -274,6 +275,7 @@ function DocsPage() {
           },
           view: (v) => set({ view: v === "search" ? undefined : v }),
           copy: () => current && copyPath(current),
+          open: () => current && window.location.assign(docHref(current)),
           clear,
           go: (to) => void navigate({ to }),
         }}

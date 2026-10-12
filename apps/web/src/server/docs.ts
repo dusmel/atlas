@@ -1,11 +1,14 @@
 import { DocIndex, watchDocs, type SearchHit } from "@atlas/indexer"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join, posix } from "node:path"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { basename, join, posix } from "node:path"
 import { getDb } from "./app-db"
+import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
 import { listDocEvents, recordDocChanges } from "./doc-activity"
+import { docFile, renderMarkdown } from "./doc-files"
 import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
 import { HttpError } from "./http"
+import { createShare, listShares, type Share } from "./shares"
 
 let index: DocIndex | undefined
 let ready: Promise<unknown> = Promise.resolve()
@@ -75,7 +78,7 @@ export async function searchDocs(input: { q: string; repo: string[]; folder: str
 export async function docsSummary() {
   const docs = getIndex()
   await ready
-  return { ...docs.counts(), repos: docs.repos() }
+  return { ...docs.counts(), repos: docs.repos(), folders: Object.fromEntries(repoFolders()) }
 }
 
 export async function docsOverview() {
@@ -112,8 +115,8 @@ function repoFolders(): Map<string, string> {
 
 const twin = (path: string) => path.replace(/\.(md|html)$/, "")
 
-/** Adds the open todos in groups that link to each doc, as a count and the group ids to filter Todos by. */
-function withTodos(hits: SearchHit[]) {
+/** Open todos per doc (md and html as one), from the groups that link the doc under any label. */
+function linkedTodos(): Map<string, { open: number; groups: number[] }> {
   const groups = getDb()
     .query<{ id: number; repo_id: string; path: string; open: number }, []>(
       `SELECT g.id, g.repo_id, d.path,
@@ -122,9 +125,9 @@ function withTodos(hits: SearchHit[]) {
     )
     .all()
     .filter((g) => g.open > 0)
-  if (!groups.length) return hits
-  const folders = repoFolders()
   const linked = new Map<string, { open: number; groups: number[] }>()
+  if (!groups.length) return linked
+  const folders = repoFolders()
   for (const g of groups) {
     const folder = folders.get(g.repo_id)
     if (!folder) continue
@@ -135,8 +138,61 @@ function withTodos(hits: SearchHit[]) {
     entry.groups.push(g.id)
     linked.set(key, entry)
   }
+  return linked
+}
+
+/** Adds the open todos in groups that link to each doc, as a count and the group ids to filter Todos by. */
+function withTodos(hits: SearchHit[]) {
+  const linked = linkedTodos()
+  if (!linked.size) return hits
   return hits.map((h) => {
     const todos = linked.get(twin(`${h.repo}/${h.path}`))
     return todos ? { ...h, todos } : h
   })
+}
+
+/**
+ * Adds where a todo's group docs open in `/r/`, null for one the served copy lacks, and the
+ * docs folder of the todo's repo, which relative links in its body resolve against.
+ */
+export function withDocLinks<T extends { item: { repo_id: string }; group: { docs: { label: string; path: string }[] } | null }>(detail: T) {
+  const folder = repoFolders().get(detail.item.repo_id) ?? null
+  const href = (path: string) => {
+    const rel = posix.normalize(path.replace(/^\.\//, ""))
+    return folder && docFile(getIndex().root, folder, rel) ? docHref({ repo: folder, path: rel }) : null
+  }
+  return {
+    ...detail,
+    docs_folder: folder,
+    group: detail.group && { ...detail.group, docs: detail.group.docs.map((d) => ({ ...d, href: href(d.path) })) },
+  }
+}
+
+/** A doc's file in the copy being served, or a 404. */
+export function findDoc(repo: string, path: string) {
+  const file = docFile(getIndex().root, repo, path)
+  if (!file) throw new HttpError(404, "not_found", `No doc ${repo}/${path}`)
+  return file
+}
+
+/** A markdown doc for `/r/<repo>/<path>`: rendered and cleaned, with its open todos and live share. */
+export async function viewDoc(repo: string, path: string) {
+  if (!path.endsWith(".md")) throw new HttpError(400, "not_markdown", "Only markdown docs render here; html is served as is")
+  const file = findDoc(repo, path)
+  const { title, html } = renderMarkdown(await Bun.file(file).text(), basename(path))
+  const share = listShares(getDb()).find((s) => s.repo_id === repo && s.path === path) ?? null
+  return { repo, path, title, html, mtime: statSync(file).mtime.toISOString(), todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null, share }
+}
+
+export function shareDoc(repo: string, path: string): Share {
+  findDoc(repo, path)
+  return createShare(getDb(), repo, path)
+}
+
+/** Live shares with each doc's title, or null when the doc is gone from the served copy. */
+export async function sharesWithTitles() {
+  const docs = getIndex()
+  await ready
+  const titles = new Map(docs.files().map((f) => [`${f.repo}/${f.path}`, f.title]))
+  return { shares: listShares(getDb()).map((s) => ({ ...s, title: titles.get(`${s.repo_id}/${s.path}`) ?? null })) }
 }

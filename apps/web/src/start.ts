@@ -7,7 +7,8 @@ const PUBLIC = new Set(["/login", "/api/health"])
 
 // One gate for pages, API routes and server functions (spec section 8).
 const gate = createMiddleware().server(async ({ request, pathname, next }) => {
-  if (PUBLIC.has(pathname)) return next()
+  // A share link is its own access (Phase 5).
+  if (PUBLIC.has(pathname) || pathname.startsWith("/s/")) return next()
   const api = pathname.startsWith("/api/")
   let auth: ReturnType<typeof authenticate>
   try {

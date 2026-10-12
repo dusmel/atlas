@@ -11,7 +11,7 @@ export const SEED = {
   groups: [
     { repo: api, name: "Search quality" },
     { repo: api, name: "Release prep" },
-    { repo: web, name: "Onboarding", doc_path: "plans/lighthouse.html" },
+    { repo: web, name: "Onboarding", docs: [{ label: "plan", path: "plans/lighthouse.html" }, { label: "overview", path: "notes/harbour.md" }] },
     { repo: web, name: "A group name long enough to push a filter badge past the edge of a phone" },
   ],
   items: [
@@ -40,11 +40,27 @@ export const SEED = {
   ],
 }
 
+// The shape of an html-docs page: the same copy and theme scripts, made-up words.
+const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title></head><body>
+<button id="theme">Theme</button> <button id="copy-md">Copy as Markdown</button>
+<script type="text/plain" id="md-source"># Lighthouse plan</script>
+<p>The keeper lights the lamp at dusk and logs every passing ship.</p>
+<p><a href="../notes/harbour.md">Harbour notes</a></p>
+<script>
+document.getElementById('theme').addEventListener('click', function () { document.body.classList.toggle('dark'); });
+document.getElementById('copy-md').addEventListener('click', async function () {
+  const text = document.getElementById('md-source').textContent.trim() + '\\n';
+  const btn = this;
+  try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+  catch (e) { btn.textContent = 'Copy failed'; }
+});
+</script></body></html>`
+
 /** Made-up docs under data/docs/<repo>/, as MEGA would leave them. */
 export const DOCS: Record<string, string> = {
   "web/plans/lighthouse.md": "---\ntitle: Lighthouse plan\ntags: plans\n---\n\n# Lighthouse plan\n\nThe keeper lights the lamp at dusk and logs every passing ship.",
-  "web/plans/lighthouse.html": "<title>Lighthouse plan</title><p>The keeper lights the lamp at dusk and logs every passing ship.</p>",
-  "web/notes/harbour.md": "# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.",
+  "web/plans/lighthouse.html": HTML_DOC,
+  "web/notes/harbour.md": "# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.\n\nRead [the keeper's plan](../plans/lighthouse.html).\n\n| tide | wait |\n|---|---|\n| low | two hours |",
   "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
   "api/backups/old.md": "# Skipped\n\nThe lamp in a backup is never indexed.",
   // Ties the folder to its todo repo, so docs linked from a group show their open todos.

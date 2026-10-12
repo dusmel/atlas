@@ -1,18 +1,21 @@
 import { Link } from "@tanstack/react-router"
-import { KeyboardIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react"
+import { GlobeIcon, KeyboardIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { DocsSourcePill } from "@/components/docs/source-pill"
+import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 
+// `wide` items move into the account menu on a phone, so the header fits 390 px.
 const NAV = [
-  { to: "/todos", label: "Todos" },
-  { to: "/docs", label: "Docs" },
-  { to: "/settings", label: "Settings" },
+  { to: "/todos", label: "Todos", wide: false },
+  { to: "/docs", label: "Docs", wide: false },
+  { to: "/shared", label: "Shared", wide: true },
+  { to: "/settings", label: "Settings", wide: true },
 ] as const
 
-/** The header on every page. Shared joins it in Phase 5. */
+/** The header on every page. */
 export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; onShortcuts?: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
@@ -27,7 +30,7 @@ export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; 
           <Link
             key={n.to}
             to={n.to}
-            className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className={cn("rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", n.wide && "max-sm:hidden")}
             activeProps={{ className: "bg-accent text-foreground font-medium" }}
           >
             {n.label}
@@ -53,7 +56,7 @@ export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; 
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-9" aria-label="Theme and account">
+            <Button variant="ghost" size="icon" className="size-9" aria-label="Menu: theme, pages and log out">
               <SunIcon className="dark:hidden" />
               <MoonIcon className="hidden dark:block" />
             </Button>
@@ -77,6 +80,21 @@ export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; 
               </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <DropdownMenuGroup className="sm:hidden">
+              <DropdownMenuItem asChild>
+                <Link to="/shared">
+                  <GlobeIcon />
+                  Shared
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings">
+                  <SettingsIcon />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </DropdownMenuGroup>
             <DropdownMenuGroup>
               <form method="post" action="/logout">
                 <DropdownMenuItem asChild>

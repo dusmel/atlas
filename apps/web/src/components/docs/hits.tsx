@@ -3,7 +3,7 @@ import { BoxIcon, CopyIcon, ListTodoIcon } from "lucide-react"
 import { Fragment } from "react"
 import { cn } from "cn"
 import { copy } from "@/components/todos/copy-id"
-import { docKey, docPath, type Hit } from "@/lib/docs"
+import { docHref, docKey, docPath, type Hit } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
 export const copyPath = (d: { path: string }) => copy(docPath(d), `Copied ${docPath(d)}`)
@@ -31,7 +31,12 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
             )}
           >
             <div className="flex min-w-0 items-start gap-3">
-              <h3 className="min-w-0 flex-1 font-medium text-pretty">{h.title}</h3>
+              <h3 className="min-w-0 flex-1 font-medium text-pretty">
+                {/* A plain link: html docs are served raw, outside the app's router. */}
+                <a href={docHref(h)} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="underline-offset-3 hover:underline">
+                  {h.title}
+                </a>
+              </h3>
               {h.todos && <TodosLink todos={h.todos} />}
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -73,7 +78,7 @@ export function CopyPath({ doc }: { doc: { path: string } }) {
   )
 }
 
-function TodosLink({ todos }: { todos: NonNullable<Hit["todos"]> }) {
+export function TodosLink({ todos }: { todos: NonNullable<Hit["todos"]> }) {
   return (
     <Link
       to="/todos"
