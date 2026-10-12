@@ -11,6 +11,10 @@ export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; tit
 export type DocFilters = { repo?: string[]; folder?: string[]; after?: number }
 /** Matching docs per repo and per folder, each counted with the other filters applied. Twins count once. */
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number> }
+/** One row of the index, without its text. */
+export type DocMeta = { repo: string; path: string; kind: DocFile["kind"]; title: string; mtime: number; size: number }
+/** Per repo: docs (twins once), files by kind, docs changed in the last week, docs untouched for 60 days, and the biggest folders. */
+export type RepoOverview = { repo: string; docs: number; md: number; html: number; week: number; stale: number; last: string; folders: { folder: string; docs: number }[] }
 
 /** Snippets wrap each match in these, so a client can mark them up without trusting the doc's text as HTML. */
 export const MATCH_START = "\u0002"
@@ -54,6 +58,8 @@ type Read = { file: DocFile; id?: number; mtime: number; size: number; text: Doc
 export class DocIndex {
   readonly db = new Database(":memory:")
   private queue: Promise<unknown> = Promise.resolve()
+  /** Called after every sync that finished, with the index already updated. */
+  onSync?: (result: SyncResult) => void
 
   constructor(readonly root: string) {
     this.db.exec(SCHEMA)
@@ -125,7 +131,28 @@ export class DocIndex {
       }
     })()
     const changed = reads.filter((r) => r.id !== undefined).length
-    return { ...this.counts(), added: reads.length - changed, changed, removed: removed.length, ms: Math.round(performance.now() - started) }
+    const result = { ...this.counts(), added: reads.length - changed, changed, removed: removed.length, ms: Math.round(performance.now() - started) }
+    this.onSync?.(result)
+    return result
+  }
+
+  files(): DocMeta[] {
+    return this.db.query<DocMeta, []>("SELECT repo, path, kind, title, mtime, size FROM docs").all()
+  }
+
+  overview(now = Date.now()): RepoOverview[] {
+    const week = now - 7 * 864e5
+    const stale = now - 60 * 864e5
+    const rows = this.db
+      .query<Omit<RepoOverview, "folders" | "last"> & { last: number }, [number, number]>(
+        `SELECT d.repo, ${TWINS} AS docs, sum(d.kind = 'md') AS md, sum(d.kind = 'html') AS html,
+                count(DISTINCT CASE WHEN d.mtime >= ? THEN ${TWIN} END) AS week,
+                count(DISTINCT CASE WHEN d.mtime < ? THEN ${TWIN} END) AS stale, max(d.mtime) AS last
+           FROM docs d GROUP BY d.repo ORDER BY d.repo`,
+      )
+      .all(week, stale)
+    const folders = this.db.query<{ repo: string; folder: string; docs: number }, []>(`SELECT d.repo, d.folder, ${TWINS} AS docs FROM docs d GROUP BY d.repo, d.folder ORDER BY docs DESC, d.folder`).all()
+    return rows.map((r) => ({ ...r, last: new Date(r.last).toISOString(), folders: folders.filter((f) => f.repo === r.repo).map(({ folder, docs }) => ({ folder, docs })) }))
   }
 
   counts(): Counts {
@@ -209,7 +236,8 @@ function hits(rows: (Omit<SearchHit, "mtime"> & { mtime: number })[], limit: num
 export const folderOf = (path: string) => (path.includes("/") ? path.slice(0, path.indexOf("/")) : ".")
 
 // x.md and x.html are one doc for counting: the path without its extension, which is the kind.
-const TWINS = "count(DISTINCT d.repo || '/' || substr(d.path, 1, length(d.path) - length(d.kind) - 1))"
+const TWIN = "d.repo || '/' || substr(d.path, 1, length(d.path) - length(d.kind) - 1)"
+const TWINS = `count(DISTINCT ${TWIN})`
 
 function where(f: DocFilters, skip?: keyof DocFilters): { sql: string; params: (string | number)[] } {
   const parts: string[] = []

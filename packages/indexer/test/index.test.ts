@@ -148,6 +148,22 @@ describe("DocIndex", () => {
     expect(index.facets("- *")).toEqual({ total: 0, repo: {}, folder: {} })
   })
 
+  test("overview counts per repo, twins once, and calls onSync after each sync", async () => {
+    const synced: number[] = []
+    index.onSync = (r) => synced.push(r.added)
+    await write("alpha/plans/a.md", "# A")
+    await write("alpha/plans/a.html", "<title>A</title>")
+    await write("alpha/plans/b.md", "# B")
+    await write("alpha/top.md", "# Top")
+    const old = new Date(Date.now() - 90 * 86_400_000)
+    await utimes(join(root, "alpha/top.md"), old, old)
+    await index.sync()
+    expect(synced).toEqual([4])
+    expect(index.files()).toHaveLength(4)
+    const [alpha] = index.overview()
+    expect(alpha).toMatchObject({ repo: "alpha", docs: 3, md: 3, html: 1, week: 2, stale: 1, folders: [{ folder: "plans", docs: 2 }, { folder: ".", docs: 1 }] })
+  })
+
   test("the watcher picks up a new file", async () => {
     await index.sync()
     const stop = watchDocs(index, { debounceMs: 50 })

@@ -25,6 +25,8 @@ import { Route as ApiReposRouteImport } from './routes/api/repos'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiTodosRouteImport } from './routes/api/todos'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
+import { Route as ApiDocsActivityRouteImport } from './routes/api/docs.activity'
+import { Route as ApiDocsOverviewRouteImport } from './routes/api/docs.overview'
 import { Route as ApiDocsReindexRouteImport } from './routes/api/docs.reindex'
 import { Route as ApiGroupsIdRouteImport } from './routes/api/groups.$id'
 import { Route as ApiImportsIdRouteImport } from './routes/api/imports.$id'
@@ -114,6 +116,16 @@ const ApiTokensRoute = ApiTokensRouteImport.update({
   path: '/api/tokens',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDocsActivityRoute = ApiDocsActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
+const ApiDocsOverviewRoute = ApiDocsOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
 const ApiDocsReindexRoute = ApiDocsReindexRouteImport.update({
   id: '/reindex',
   path: '/reindex',
@@ -172,6 +184,8 @@ export interface FileRoutesByFullPath {
   '/api/search': typeof ApiSearchRoute
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/api/docs/overview': typeof ApiDocsOverviewRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
@@ -198,6 +212,8 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/api/docs/overview': typeof ApiDocsOverviewRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
@@ -225,6 +241,8 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/api/docs/overview': typeof ApiDocsOverviewRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
@@ -253,6 +271,8 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/docs/activity'
+    | '/api/docs/overview'
     | '/api/docs/reindex'
     | '/api/groups/$id'
     | '/api/imports/$id'
@@ -279,6 +299,8 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/docs/activity'
+    | '/api/docs/overview'
     | '/api/docs/reindex'
     | '/api/groups/$id'
     | '/api/imports/$id'
@@ -305,6 +327,8 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/docs/activity'
+    | '/api/docs/overview'
     | '/api/docs/reindex'
     | '/api/groups/$id'
     | '/api/imports/$id'
@@ -448,6 +472,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTokensRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/docs/activity': {
+      id: '/api/docs/activity'
+      path: '/activity'
+      fullPath: '/api/docs/activity'
+      preLoaderRoute: typeof ApiDocsActivityRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
+    '/api/docs/overview': {
+      id: '/api/docs/overview'
+      path: '/overview'
+      fullPath: '/api/docs/overview'
+      preLoaderRoute: typeof ApiDocsOverviewRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
     '/api/docs/reindex': {
       id: '/api/docs/reindex'
       path: '/reindex'
@@ -508,10 +546,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface ApiDocsRouteChildren {
+  ApiDocsActivityRoute: typeof ApiDocsActivityRoute
+  ApiDocsOverviewRoute: typeof ApiDocsOverviewRoute
   ApiDocsReindexRoute: typeof ApiDocsReindexRoute
 }
 
 const ApiDocsRouteChildren: ApiDocsRouteChildren = {
+  ApiDocsActivityRoute: ApiDocsActivityRoute,
+  ApiDocsOverviewRoute: ApiDocsOverviewRoute,
   ApiDocsReindexRoute: ApiDocsReindexRoute,
 }
 
