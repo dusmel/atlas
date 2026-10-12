@@ -27,3 +27,8 @@ process.env.ATLAS_DATA_DIR = dir
 process.env.ATLAS_PASSWORD_HASH_B64 = Buffer.from(await Bun.password.hash(PASSWORD)).toString("base64")
 console.log(`e2e data in ${dir}`)
 await import("../server")
+
+// Edit one doc after the first index, so Activity has a change to show. The first index only records what is there.
+const health = `http://localhost:${process.env.PORT ?? 3000}/api/health`
+while ((await (await fetch(health)).json()).docs?.count !== 4) await Bun.sleep(100)
+await Bun.write(join(dir, "docs", "api/runbook.html"), DOCS["api/runbook.html"] + "\n")

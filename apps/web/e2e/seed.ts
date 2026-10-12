@@ -11,7 +11,7 @@ export const SEED = {
   groups: [
     { repo: api, name: "Search quality" },
     { repo: api, name: "Release prep" },
-    { repo: web, name: "Onboarding" },
+    { repo: web, name: "Onboarding", doc_path: "plans/lighthouse.html" },
     { repo: web, name: "A group name long enough to push a filter badge past the edge of a phone" },
   ],
   items: [
@@ -47,4 +47,6 @@ export const DOCS: Record<string, string> = {
   "web/notes/harbour.md": "# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.",
   "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
   "api/backups/old.md": "# Skipped\n\nThe lamp in a backup is never indexed.",
+  // Ties the folder to its todo repo, so docs linked from a group show their open todos.
+  "web/meta.json": JSON.stringify({ id: web.id }),
 }

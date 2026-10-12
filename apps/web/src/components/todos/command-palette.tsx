@@ -13,7 +13,9 @@ import {
   XIcon,
 } from "lucide-react"
 import { useState } from "react"
+import { DocCommandGroup } from "@/components/docs/doc-command-group"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
+import { docKey } from "@/lib/docs"
 import { activeCount, FACETS, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, type Facet, type Filters, type Item, type Row, type Status } from "@/lib/todos"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { FacetCommand, type Option } from "./filters"
@@ -31,6 +33,7 @@ export type PaletteActions = {
   view: (v: View) => void
   shortcuts: () => void
   settings: () => void
+  openDoc: (doc: string, q: string) => void
   theme: (t: "light" | "dark" | "system") => void
 }
 
@@ -48,7 +51,7 @@ type Props = {
   run: PaletteActions
 }
 
-/** ⌘K: jump to any item by number or title, filter, and act on the selected card. */
+/** ⌘K: jump to any item by number or title, find a doc, filter, and act on the selected card. */
 export function CommandPalette(props: Props) {
   return (
     <CommandDialog
@@ -128,6 +131,7 @@ function Palette({ page: startPage, view, items, selected, filters, doneAll, opt
             ))}
           </CommandGroup>
         )}
+        <DocCommandGroup query={search} onPick={(h) => close(() => run.openDoc(docKey(h), search.trim()))()} />
         {selected && (
           <CommandGroup heading={`#${selected.id} ${plainTitle(selected.title).slice(0, 60)}`}>
             <CommandItem onSelect={close(() => run.openItem(selected.id))}>
