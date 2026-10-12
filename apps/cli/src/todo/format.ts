@@ -3,6 +3,20 @@
  */
 
 import type { Report } from "@atlas/todos";
+import { CliError } from "./client.ts";
+
+export type GroupDoc = { label: string; path: string };
+
+/** `plan: plan.html · overview: overview.html`, for one line. */
+export const docList = (docs: GroupDoc[]) => docs.map((d) => `${d.label}: ${d.path}`).join(" · ");
+
+/** `--doc overview=overview.html`; a bare path is the plan. */
+export function docFlag(value: string): GroupDoc {
+  const m = /^([A-Za-z0-9_-]+)=(.+)$/.exec(value);
+  const doc = m ? { label: m[1]!.toLowerCase(), path: m[2]!.trim() } : { label: "plan", path: value.trim() };
+  if (!doc.path) throw new CliError(2, `--doc ${value} needs a path`);
+  return doc;
+}
 
 export type Item = {
   id: number;
@@ -32,14 +46,14 @@ export function itemLines(items: Item[], withRepo: boolean): string[] {
   });
 }
 
-export function showLines(data: { item: Item; children: Item[]; group: { name: string; doc_path: string | null } | null; events: { at: string; actor: string; action: string }[] }): string[] {
+export function showLines(data: { item: Item; children: Item[]; group: { name: string; docs: GroupDoc[] } | null; events: { at: string; actor: string; action: string }[] }): string[] {
   const { item, children, group, events } = data;
   const out = [
     `#${item.id}  ${item.title}`,
     `  ${item.priority ?? "Inbox"} · ${item.status} · ${item.repo_name}${group ? ` · ${group.name}` : ""}${item.section ? ` · ${item.section}` : ""}${item.archived_at ? " · archived" : ""}`,
   ];
   if (item.parent_id) out.push(`  child of #${item.parent_id}`);
-  if (group?.doc_path) out.push(`  plan: ${group.doc_path}`);
+  for (const d of group?.docs ?? []) out.push(`  ${d.label}: ${d.path}`);
   if (item.body) out.push("", ...item.body.split("\n").map((l) => `  ${l}`));
   if (children.length) out.push("", "  children:", ...itemLines(children, false).map((l) => `    ${l}`));
   if (events.length) out.push("", "  history:", ...events.map((e) => `    ${e.at.slice(0, 16).replace("T", " ")}  ${e.actor}  ${e.action}`));

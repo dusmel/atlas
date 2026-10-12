@@ -118,7 +118,7 @@ describe("atlas todo", () => {
   });
 
   test("groups, move, start, done and archive", async () => {
-    await json(["group", "add", "Launch", "--repo", "app", "--doc", "plan.html"]);
+    await json(["group", "add", "Launch", "--repo", "app", "--doc", "plan.html", "--doc", "overview=notes/overview.md"]);
     const a = await json(["add", "A", "--repo", "app", "--priority", "P0", "--group", "Launch"]);
     const b = await json(["add", "B", "--repo", "app", "--priority", "P0"]);
     await json(["move", String(b.id), "--before", String(a.id)]);
@@ -130,7 +130,10 @@ describe("atlas todo", () => {
     await json(["archive", String(b.id)]);
     expect(await lane()).toEqual([]);
     const groups = await cli(["groups", "--repo", "app"]);
-    expect(groups.out).toContain("Launch  → plan.html");
+    expect(groups.out).toContain("Launch  → plan: plan.html · overview: notes/overview.md");
+    const shown = await cli(["show", String(a.id), "--plain"]);
+    expect(shown.out).toContain("  plan: plan.html\n  overview: notes/overview.md");
+    expect((await cli(["group", "add", "Twice", "--repo", "app", "--doc", "a=x.md", "--doc", "a=y.md"])).code).not.toBe(0);
   });
 
   test("--status all and --archived", async () => {

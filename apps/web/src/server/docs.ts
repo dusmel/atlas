@@ -89,7 +89,7 @@ export function docsActivity(input: { repo: string[]; folder: string[]; since?: 
   return { events: listDocEvents(getDb(), { ...filters, after: after === undefined ? undefined : new Date(after).toISOString() }) }
 }
 
-// A group's doc_path is relative to its repo's folder under docs/, whose meta.json holds the todo repo id.
+// A group's doc paths are relative to its repo's folder under docs/, whose meta.json holds the todo repo id.
 function repoFolders(): Map<string, string> {
   const root = getIndex().root
   const out = new Map<string, string>()
@@ -115,10 +115,10 @@ const twin = (path: string) => path.replace(/\.(md|html)$/, "")
 /** Adds the open todos in groups that link to each doc, as a count and the group ids to filter Todos by. */
 function withTodos(hits: SearchHit[]) {
   const groups = getDb()
-    .query<{ id: number; repo_id: string; doc_path: string; open: number }, []>(
-      `SELECT g.id, g.repo_id, g.doc_path,
+    .query<{ id: number; repo_id: string; path: string; open: number }, []>(
+      `SELECT g.id, g.repo_id, d.path,
               (SELECT count(*) FROM items i WHERE i.group_id = g.id AND i.status != 'done' AND i.archived_at IS NULL) AS open
-         FROM groups g WHERE g.doc_path IS NOT NULL`,
+         FROM groups g JOIN group_docs d ON d.group_id = g.id`,
     )
     .all()
     .filter((g) => g.open > 0)
@@ -128,8 +128,9 @@ function withTodos(hits: SearchHit[]) {
   for (const g of groups) {
     const folder = folders.get(g.repo_id)
     if (!folder) continue
-    const key = twin(posix.normalize(`${folder}/${g.doc_path}`))
+    const key = twin(posix.normalize(`${folder}/${g.path}`))
     const entry = linked.get(key) ?? { open: 0, groups: [] }
+    if (entry.groups.includes(g.id)) continue
     entry.open += g.open
     entry.groups.push(g.id)
     linked.set(key, entry)

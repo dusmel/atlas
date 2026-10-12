@@ -115,7 +115,7 @@ describe("showView", () => {
   const data = {
     item: item({ id: 65, title: "Phase 2: Todo store, merged with the importer and the `atlas todo` client", status: "done", body: "Shipped.\n- A bullet long enough to wrap onto a second line in a narrow terminal" }),
     children: [item({ id: 66, parent_id: 65, title: "Child" })],
-    group: { name: "Web v1", doc_path: "spec.html" },
+    group: { name: "Web v1", docs: [{ label: "plan", path: "spec.html" }, { label: "overview", path: "overview.html" }] },
     events: [
       { at: "2026-10-05T10:00:00Z", actor: "cli:irembo-mac", author: "claude-code", action: "update", data: { status: ["doing", "done"], rank: ["a0", "az"], done_at: [null, "x"] } },
       { at: "2026-08-01T16:00:00Z", actor: "import", action: "import", data: { import_id: 1 } },
@@ -129,7 +129,7 @@ describe("showView", () => {
     expect(out[2]).toBe(`│ ${"and the atlas todo client".padEnd(46)} │`);
     expect(out[3]).toBe(`╰${"─".repeat(48)}╯`);
     expect(out[4]).toBe("   P1  · ● done · atlas · Web v1 · by me");
-    expect(out[5]).toBe("  plan  spec.html");
+    expect(out.slice(5, 7)).toEqual(["  plan      spec.html", "  overview  overview.html"]);
     expect(out).toContain("  - A bullet long enough to wrap onto a second");
     expect(out).toContain("    line in a narrow terminal");
     expect(out).toContain("  Children (1)");
@@ -149,7 +149,7 @@ describe("narrow terminals and long names", () => {
   const show = {
     item: item({ id: 1, title: long, status: "doing", section: long, archived_at: "x", body: `${" ".repeat(60)}- deep\n${long}` }),
     children: [item({ id: 2, parent_id: 1, title: long })],
-    group: { name: long, doc_path: "a-very-long-plan-document-name-that-keeps-going-and-going.html" },
+    group: { name: long, docs: [{ label: "plan", path: "a-very-long-plan-document-name-that-keeps-going-and-going.html" }] },
     events: [{ at: "2026-10-01T00:00:00Z", actor: `token:${"a".repeat(60)}`, action: "update", data: { status: ["todo", "doing"], priority: [null, "P1"], title: ["a", "b"], body: ["a", "b"], group_id: [1, 2], parent_id: [null, 3] } }],
   };
 

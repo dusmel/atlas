@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { asRenderInput, checkFile, checkStored, report, roundTrip } from "../src/index.ts"
+import { noteDocs } from "../src/import/parse.ts"
 
 const fixture = (name: string) => readFileSync(join(import.meta.dir, "fixtures", name), "utf8")
 const { parsed, failures } = checkFile(fixture("every-rule.md"))
@@ -33,11 +34,29 @@ describe("parsing every rule", () => {
     expect(parsed.merged.map((m) => m.text)).toEqual(["## P0 - Launch"])
   })
 
-  test("### sets the section, and the quote under ## is the note with its first relative link", () => {
+  test("### sets the section, and the quote under ## is the note with its relative links", () => {
     expect(item("Order chairs").section).toBe("Logistics")
     expect(item("Pick a date").section).toBeNull()
-    expect(group("Launch").doc_path).toBe("plans/launch.html")
+    expect(group("Launch").docs).toEqual([{ label: "plan", path: "plans/launch.html" }])
     expect(group("Launch").note).toStartWith("> Plan: [launch plan]")
+  })
+
+  test("each link in the note's quote gets the label before it, or its text, or its file name", () => {
+    const quote = [
+      "> Overview: [the overview](overview.html) · spec: [x](spec.html) · your steps: [r](run.html)",
+      "> Measured: [a](a.html) · [Load story](b.html). Detail per phase:",
+      "> [c](sub/c-plan.html) · [](d-notes.md) · [same](overview.html) · [web](https://x.dev) · [top](#top)",
+    ]
+    expect(noteDocs(quote)).toEqual([
+      { label: "overview", path: "overview.html" },
+      { label: "spec", path: "spec.html" },
+      { label: "your-steps", path: "run.html" },
+      { label: "measured", path: "a.html" },
+      { label: "load-story", path: "b.html" },
+      { label: "detail-per-phase", path: "sub/c-plan.html" },
+      { label: "d-notes", path: "d-notes.md" },
+    ])
+    expect(noteDocs(["> Plan: [a](a.html) · plan: [b](b.html)"]).map((d) => d.label)).toEqual(["plan", "plan-2"])
   })
 
   test("marks give the status, [X] included", () => {

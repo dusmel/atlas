@@ -65,7 +65,8 @@ export function headingOf(text: string): { label: string; priority: Priority | n
 export type Line = { line: number; text: string } // line is 1-based
 export type Failure = { check: string; line?: number; text?: string; message: string }
 
-export type ParsedGroup = { key: number; name: string; note: string; doc_path: string | null; headings: Line[] }
+export type GroupDoc = { label: string; path: string }
+export type ParsedGroup = { key: number; name: string; note: string; docs: GroupDoc[]; headings: Line[] }
 export type ParsedItem = {
   key: number
   group: number | null
@@ -101,15 +102,38 @@ type GroupState = ParsedGroup & { entries: Entry[] }
 const indentOf = (s: string) => s.length - s.trimStart().length
 const dedent = (s: string, n: number) => s.slice(Math.min(n, indentOf(s)))
 
-// The first relative markdown link in the quote under a heading.
-function docPath(lines: string[]): string | null {
-  for (const l of lines) {
-    if (!l.trimStart().startsWith(">")) continue
-    for (const m of l.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-      if (!/^([a-z]+:|#|\/)/i.test(m[1]!)) return m[1]!
-    }
+const slug = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "")
+
+/**
+ * Every relative markdown link in the quote under a heading, labelled by the words before it:
+ * `> Plan: [launch plan](plans/launch.html) · spec: [spec](spec.html)` gives plan and spec. A link
+ * with no label takes its text, or else its file name.
+ */
+export function noteDocs(lines: string[]): GroupDoc[] {
+  const quote = lines
+    .filter((l) => l.trimStart().startsWith(">"))
+    .map((l) => l.trimStart().replace(/^>\s?/, ""))
+    .join(" ")
+  const docs: GroupDoc[] = []
+  let from = 0
+  for (const m of quote.matchAll(/\[([^\]]*)\]\(([^)\s]+)\)/g)) {
+    const before = quote.slice(from, m.index)
+    from = m.index + m[0].length
+    const path = m[2]!
+    if (/^([a-z]+:|#|\/)/i.test(path) || docs.some((d) => d.path === path)) continue
+    const said = /([A-Za-z][\w '-]{0,40}):\s*$/.exec(before.split(/[·.;()]/).at(-1)!)?.[1]
+    const base = slug(said ?? "") || slug(m[1]!) || slug(path.split("/").at(-1)!.replace(/\.\w+$/, "")) || "doc"
+    let label = base
+    for (let n = 2; docs.some((d) => d.label === label); n++) label = `${base.slice(0, 37)}-${n}`
+    docs.push({ label, path })
   }
-  return null
+  return docs
 }
 
 export function parseFile(src: string): Parsed {
@@ -146,7 +170,7 @@ export function parseFile(src: string): Parsed {
         let g = byName.get(h.label)
         if (g) out.merged.push(at(b.line))
         else {
-          g = { key: states.length, name: h.label, note: "", doc_path: null, headings: [], entries: [] }
+          g = { key: states.length, name: h.label, note: "", docs: [], headings: [], entries: [] }
           byName.set(h.label, g)
           states.push(g)
         }
@@ -204,7 +228,7 @@ export function parseFile(src: string): Parsed {
       } else kept.push({ kind: "text", line: i, raw })
     })
     if (group && kept.some((e) => e.kind === "text" && e.raw.trim())) {
-      if (afterHeading && group.doc_path === null) group.doc_path = docPath(kept.map((e) => (e.kind === "text" ? e.raw : "")))
+      if (afterHeading && !group.docs.length) group.docs = noteDocs(kept.map((e) => (e.kind === "text" ? e.raw : "")))
       group.entries.push({ kind: "gap" }, ...kept)
     }
     afterHeading = false

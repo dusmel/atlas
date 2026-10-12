@@ -3,7 +3,7 @@
  * Pipes and --plain keep the one-line format from format.ts, which agents read.
  */
 
-import type { Item } from "./format.ts";
+import type { GroupDoc, Item } from "./format.ts";
 
 export type Style = { width: number; color: boolean };
 
@@ -13,7 +13,7 @@ export const MIN_WIDTH = 40;
 type ShowData = {
   item: Item;
   children: Item[];
-  group: { name: string; doc_path: string | null } | null;
+  group: { name: string; docs: GroupDoc[] } | null;
   events: { at: string; actor: string; author?: string | null; action: string; data?: unknown }[];
 };
 
@@ -356,7 +356,9 @@ export function showView(data: ShowData, st: Style, now = Date.now()): string[] 
     used += (used > 2 ? 3 : 0) + w;
   }
   out.push(`  ${row}`);
-  if (group?.doc_path) out.push(`  ${paint("plan", "dim")}  ${render(fit(cells(group.doc_path), width - 8), paint)}`);
+  // Labels line up, so a plan and an overview read as one list.
+  const labelWidth = Math.max(0, ...(group?.docs ?? []).map((d) => d.label.length));
+  for (const d of group?.docs ?? []) out.push(`  ${paint(d.label.padEnd(labelWidth), "dim")}  ${render(fit(cells(d.path), width - labelWidth - 4), paint)}`);
   if (item.parent_id) out.push(`  ${paint("child of", "dim")}  #${item.parent_id}`);
 
   if (item.body) {
