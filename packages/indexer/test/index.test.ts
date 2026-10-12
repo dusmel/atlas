@@ -112,6 +112,23 @@ describe("DocIndex", () => {
     expect(index.search("heron")).toHaveLength(1)
   })
 
+  test("recent lists the newest docs first, filters by repo and shows twins once", async () => {
+    await write("alpha/old.md", "# Old")
+    await write("alpha/new.md", "# New")
+    await write("alpha/new.html", "<title>New</title>")
+    await write("beta/mid.md", "# Mid")
+    const at = (s: number) => new Date(Date.now() - s * 1000)
+    await utimes(join(root, "alpha/old.md"), at(300), at(300))
+    await utimes(join(root, "beta/mid.md"), at(200), at(200))
+    // Same time for both twins, so the tie falls to path order and html is kept.
+    await utimes(join(root, "alpha/new.md"), at(100), at(100))
+    await utimes(join(root, "alpha/new.html"), at(100), at(100))
+    await index.sync()
+    expect(index.recent().map((h) => `${h.repo}/${h.path}`)).toEqual(["alpha/new.html", "beta/mid.md", "alpha/old.md"])
+    expect(index.recent({ repo: ["alpha"], limit: 1 }).map((h) => h.title)).toEqual(["New"])
+    expect(index.recent()[0]!.snippet).toBe("")
+  })
+
   test("the watcher picks up a new file", async () => {
     await index.sync()
     const stop = watchDocs(index, { debounceMs: 50 })

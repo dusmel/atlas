@@ -13,6 +13,16 @@ test("the header links to Docs, which counts the docs and skips backups", async 
   await expect(page.getByRole("searchbox", { name: "Search the docs" })).toBeFocused()
 })
 
+test("before anything is typed, the page lists the recently changed docs", async ({ page }) => {
+  await page.goto("/docs")
+  const recent = page.getByRole("list", { name: "Recently changed docs" }).locator("[data-result]")
+  await expect(recent).toHaveCount(3)
+  await page.getByRole("combobox", { name: "Repo" }).click()
+  await page.getByRole("option", { name: /^api/ }).click()
+  await expect(recent).toHaveCount(1)
+  await expect(recent.first().getByRole("heading")).toHaveText("Ferry runbook")
+})
+
 test("a phrase finds its doc once, with the matches marked, and the URL keeps the query", async ({ page }) => {
   await page.goto("/docs")
   await page.getByRole("searchbox", { name: "Search the docs" }).fill("lights the lamp")

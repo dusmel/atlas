@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { BoxIcon, SearchIcon } from "lucide-react"
 import { Fragment, useEffect, useState } from "react"
@@ -40,8 +40,8 @@ function DocsPage() {
   const results = useQuery({
     queryKey: ["search", q, repo],
     queryFn: () => api<{ results: Hit[] }>(`/search?${params}`),
-    enabled: q.trim() !== "",
-    placeholderData: keepPreviousData,
+    // Keep the last results on screen while typing, but never show them under Recently changed.
+    placeholderData: (prev, prevQuery) => (q.trim() && String(prevQuery?.queryKey[1] ?? "").trim() ? prev : undefined),
   })
 
   return (
@@ -81,17 +81,25 @@ function DocsPage() {
           </Select>
         </form>
 
-        {!q.trim() ? (
+        {!q.trim() && (
           <p className="text-sm text-muted-foreground" data-testid="docs-summary">
             {summary.data ? `${summary.data.docs} docs (${summary.data.md} markdown, ${summary.data.html} html) in ${summary.data.repos.length} repos.` : "Loading the docs…"}
           </p>
-        ) : results.isPending ? (
+        )}
+        {results.isPending ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-16" />
             <Skeleton className="h-16" />
           </div>
         ) : results.isError ? (
           <p className="text-sm text-destructive">{results.error.message}</p>
+        ) : !q.trim() ? (
+          <section aria-labelledby="recent" className="flex flex-col">
+            <h2 id="recent" className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Recently changed
+            </h2>
+            <Hits hits={results.data.results} label="Recently changed docs" />
+          </section>
         ) : results.data.results.length === 0 ? (
           <Empty>
             <EmptyHeader>
@@ -100,31 +108,39 @@ function DocsPage() {
             </EmptyHeader>
           </Empty>
         ) : (
-          <ol aria-label="Results" className="flex flex-col divide-y">
-            {results.data.results.map((h) => (
-              <li key={`${h.repo}/${h.path}`} data-result={`${h.repo}/${h.path}`} className="flex min-w-0 flex-col gap-1 py-3">
-                <h2 className="font-medium text-pretty">{h.title}</h2>
-                <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1" translate="no">
-                    <BoxIcon aria-hidden className="size-3" />
-                    {h.repo}
-                  </span>
-                  <span className="min-w-0 truncate font-mono" translate="no">
-                    {h.path}
-                  </span>
-                  <time dateTime={h.mtime} title={exact(h.mtime)}>
-                    {ago(h.mtime)}
-                  </time>
-                </p>
-                <p className="line-clamp-3 text-sm break-words text-muted-foreground">
-                  <Snippet text={h.snippet} />
-                </p>
-              </li>
-            ))}
-          </ol>
+          <Hits hits={results.data.results} label="Results" />
         )}
       </main>
     </>
+  )
+}
+
+function Hits({ hits, label }: { hits: Hit[]; label: string }) {
+  return (
+    <ol aria-label={label} className="flex flex-col divide-y">
+      {hits.map((h) => (
+        <li key={`${h.repo}/${h.path}`} data-result={`${h.repo}/${h.path}`} className="flex min-w-0 flex-col gap-1 py-3">
+          <h3 className="font-medium text-pretty">{h.title}</h3>
+          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1" translate="no">
+              <BoxIcon aria-hidden className="size-3" />
+              {h.repo}
+            </span>
+            <span className="min-w-0 truncate font-mono" translate="no">
+              {h.path}
+            </span>
+            <time dateTime={h.mtime} title={exact(h.mtime)}>
+              {ago(h.mtime)}
+            </time>
+          </p>
+          {h.snippet && (
+            <p className="line-clamp-3 text-sm break-words text-muted-foreground">
+              <Snippet text={h.snippet} />
+            </p>
+          )}
+        </li>
+      ))}
+    </ol>
   )
 }
 

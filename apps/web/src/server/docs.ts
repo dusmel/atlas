@@ -24,7 +24,9 @@ export async function searchDocs(input: { q: string; repo: string[]; limit?: str
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new HttpError(400, "bad_limit", "limit is a whole number from 1 to 100")
   const docs = getIndex()
   await ready
-  return { q: input.q, results: docs.search(input.q, { repo: input.repo, limit }) }
+  // An empty query lists the most recently changed docs, for the page before anything is typed.
+  const results = input.q.trim() ? docs.search(input.q, { repo: input.repo, limit }) : docs.recent({ repo: input.repo, limit })
+  return { q: input.q, results }
 }
 
 export async function docsSummary() {

@@ -141,16 +141,22 @@ export class DocIndex {
     const limit = opts.limit ?? 20
     const repos = opts.repo?.length ? opts.repo : null
     const phrase = ftsPhrase(q)
-    const rows = [...(phrase ? this.query(phrase, repos, limit * 2) : []), ...this.query(match, repos, limit * 2)]
-    const seen = new Set<string>()
-    const hits: SearchHit[] = []
-    for (const r of rows) {
-      const twin = `${r.repo}/${r.path.replace(/\.(md|html)$/, "")}`
-      if (seen.has(twin)) continue
-      seen.add(twin)
-      hits.push({ ...r, mtime: new Date(r.mtime).toISOString() })
-    }
-    return hits.slice(0, limit)
+    return hits([...(phrase ? this.query(phrase, repos, limit * 2) : []), ...this.query(match, repos, limit * 2)], limit)
+  }
+
+  /** The most recently changed docs, newest first, with no snippet. Twins show once, as in search. */
+  recent(opts: { repo?: string[]; limit?: number } = {}): SearchHit[] {
+    const limit = opts.limit ?? 20
+    const repos = opts.repo?.length ? opts.repo : null
+    const rows = this.db
+      .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
+        `SELECT repo, path, kind, title, mtime, tags, '' AS snippet FROM docs
+          ${repos ? `WHERE repo IN (${repos.map(() => "?").join(", ")})` : ""}
+          ORDER BY mtime DESC, repo, path
+          LIMIT ?`,
+      )
+      .all(...(repos ?? []), limit * 2)
+    return hits(rows, limit)
   }
 
   private query(match: string, repos: string[] | null, limit: number) {
@@ -165,4 +171,17 @@ export class DocIndex {
       )
       .all(match, ...(repos ?? []), limit)
   }
+}
+
+// Keeps the first of x.md and x.html, so a doc kept as both shows once.
+function hits(rows: (Omit<SearchHit, "mtime"> & { mtime: number })[], limit: number): SearchHit[] {
+  const seen = new Set<string>()
+  const out: SearchHit[] = []
+  for (const r of rows) {
+    const twin = `${r.repo}/${r.path.replace(/\.(md|html)$/, "")}`
+    if (seen.has(twin)) continue
+    seen.add(twin)
+    out.push({ ...r, mtime: new Date(r.mtime).toISOString() })
+  }
+  return out.slice(0, limit)
 }
