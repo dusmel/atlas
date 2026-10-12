@@ -1,6 +1,6 @@
 // Starts the production server on a throwaway database of made-up items, for the Playwright tests.
 // The repo is public: never seed real todos here.
-import { mkdtempSync } from "node:fs"
+import { mkdtempSync, utimesSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createGroup, createTodo } from "../src/server/todos"
@@ -19,6 +19,9 @@ for (const { by = "me", days, ...item } of SEED.items) {
 }
 db.close()
 for (const [path, text] of Object.entries(DOCS)) await Bun.write(join(dir, "docs", path), text)
+// One doc from three days ago, for the Changed filter.
+const old = new Date(Date.now() - 3 * 864e5)
+utimesSync(join(dir, "docs", "web/notes/harbour.md"), old, old)
 
 process.env.ATLAS_DATA_DIR = dir
 process.env.ATLAS_PASSWORD_HASH_B64 = Buffer.from(await Bun.password.hash(PASSWORD)).toString("base64")

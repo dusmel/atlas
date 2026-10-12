@@ -255,7 +255,7 @@ const PRESETS = [
 ] as const
 
 /** Items changed in the last 30m, 1h, 2d or 1w: a preset, or typed in the same format. */
-function SinceControl({ value, onChange }: { value?: string; onChange: (since?: string) => void }) {
+export function SinceControl({ value, onChange }: { value?: string; onChange: (since?: string) => void }) {
   const [text, setText] = useState(value && !PRESETS.some(([v]) => v === value) ? value : "")
   const valid = !!sinceMs(text)
   return (
