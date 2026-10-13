@@ -45,6 +45,7 @@ Uses </b> & <i> as written
   test("reads the older markdown block ids, and atlas-md wins over them", () => {
     for (const id of ["md-source", "md", "source-md", "mdSource"]) expect(htmlText(`<script type="text/plain" id="${id}"># Old</script>`, "x.html").contract.md).toBe("# Old")
     expect(htmlText(`<script id="md-source"># Old</script><script type="text/markdown" id="atlas-md"># New</script>`, "x.html").contract.md).toBe("# New")
+    expect(htmlText(`<script type="text/markdown" id="atlas-md">Use <\\/script> to end it</script>`, "x.html").contract.md).toBe("Use </script> to end it")
     expect(htmlText(`<script id="other"># Not it</script><p>Page</p>`, "x.html")).toMatchObject({ body: "Page", contract: { md: null } })
   })
 

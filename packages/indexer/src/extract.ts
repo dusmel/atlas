@@ -120,7 +120,8 @@ export function htmlText(html: string, fallbackTitle: string): DocText {
     })
     .onDocument({ text: (t) => void (!skip && !inTitle && parts.push(t.text)) })
     .transform(html)
-  const md = MD_IDS.map((id) => blocks.get(id)?.trim()).find(Boolean) ?? null
+  // A block can't hold `</script`, so writers put `<\/script` and readers turn it back.
+  const md = MD_IDS.map((id) => blocks.get(id)?.trim()).find(Boolean)?.replace(/<\\\/script/gi, "</script") ?? null
   return {
     title: squash(decode(title)) || fallbackTitle,
     body: md ?? squash(decode(parts.join(""))),
