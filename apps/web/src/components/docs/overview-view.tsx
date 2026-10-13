@@ -20,8 +20,10 @@ const HATCH = "repeating-linear-gradient(135deg, currentColor 0 1.5px, transpare
 const CAP = 12
 
 /** One number for the week, a dot per doc changed, how fresh the docs are, and each repo's share. */
-export function DocOverview({ repos }: { repos: string[] }) {
-  const q = useQuery({ queryKey: ["doc-overview"], queryFn: () => api<{ repos: RepoOverview[]; attention: Attention }>("/docs/overview") })
+/** `params` carries the type and tag filters; repos are filtered here. */
+export function DocOverview({ repos, params }: { repos: string[]; params: URLSearchParams }) {
+  const typeTag = new URLSearchParams([...params].filter(([k]) => k === "type" || k === "tag"))
+  const q = useQuery({ queryKey: ["doc-overview", typeTag.toString()], queryFn: () => api<{ repos: RepoOverview[]; attention: Attention }>(`/docs/overview?${typeTag}`) })
   const design = useSearch({ from: "/docs", select: (s) => s.design })
   if (q.isPending)
     return (

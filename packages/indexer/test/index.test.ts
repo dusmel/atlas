@@ -11,18 +11,23 @@ describe("htmlText", () => {
        <body><script>var hidden = 1</script><svg><text>chart label</text></svg><p>First</p><p>second&nbsp;line &lt;ok&gt; &#x2192; done</p></body></html>`,
       "plan.html",
     )
-    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", body: "First second line <ok> → done" })
+    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", type: "", body: "First second line <ok> → done" })
   })
 
   test("falls back to the file name for a title", () => {
     expect(htmlText("<p>hi</p>", "page.html").title).toBe("page.html")
+  })
+
+  test("reads the doc type from its meta tag, lower-cased", () => {
+    expect(htmlText('<head><meta name="doc-type" content="Plan"></head><p>hi</p>', "page.html").type).toBe("plan")
   })
 })
 
 describe("mdText", () => {
   test("reads the title and tags from frontmatter and leaves it out of the body", () => {
     const doc = mdText("---\ntitle: The runbook\ntags: atlas, deploy\n---\n\n# Heading\n\nBody text", "runbook.md")
-    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", body: "# Heading\n\nBody text" })
+    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", type: "", body: "# Heading\n\nBody text" })
+    expect(mdText("---\ndoc-type: reference\n---\n\n# R", "r.md").type).toBe("reference")
   })
 
   test("uses the first heading, then the file name", () => {
@@ -171,15 +176,37 @@ describe("DocIndex", () => {
     const old = new Date(Date.now() - 3 * 86_400_000)
     await utimes(join(root, "beta/notes/old.md"), old, old)
     await index.sync()
-    expect(index.facets("ibis")).toEqual({ total: 3, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1, notes: 1 } })
+    expect(index.facets("ibis")).toMatchObject({ total: 3, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1, notes: 1 } })
     // Each facet is counted with the other filters, so a picked repo still shows the other repo's count.
-    expect(index.facets("ibis", { repo: ["alpha"] })).toEqual({ total: 2, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1 } })
+    expect(index.facets("ibis", { repo: ["alpha"] })).toMatchObject({ total: 2, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1 } })
     expect(index.search("ibis", { folder: ["."] }).map((h) => h.path)).toEqual(["top.md"])
     const day = Date.now() - 86_400_000
     expect(index.search("ibis", { after: day }).map((h) => h.repo)).toEqual(["alpha", "alpha"])
     expect(index.recent({ folder: ["notes"] }).map((h) => h.path)).toEqual(["notes/old.md"])
     expect(index.facets("", { after: day }).total).toBe(2)
-    expect(index.facets("- *")).toEqual({ total: 0, repo: {}, folder: {} })
+    expect(index.facets("- *")).toEqual({ total: 0, repo: {}, folder: {}, type: {}, tag: {} })
+  })
+
+  test("filters by type and tag, counts both, and keeps tags current when a doc changes", async () => {
+    await write("alpha/plan.md", "---\ndoc-type: plan\ntags: Atlas, search\n---\n\n# Plan\n\nthe ibis")
+    await write("alpha/plan.html", '<title>Plan</title><meta name="doc-type" content="plan"><meta name="tags" content="atlas, search"><p>the ibis</p>')
+    await write("alpha/ref.html", '<title>Ref</title><meta name="doc-type" content="reference"><meta name="tags" content="atlas"><p>the ibis</p>')
+    await write("beta/note.md", "# Note\n\nthe ibis")
+    await index.sync()
+    // Twins count once; a doc without a doc-type counts under "none"; tags are lower-cased.
+    expect(index.facets("ibis")).toMatchObject({ total: 3, type: { plan: 1, reference: 1, none: 1 }, tag: { atlas: 2, search: 1 } })
+    expect(index.search("ibis", { type: ["reference", "none"] }).map((h) => h.path).sort()).toEqual(["note.md", "ref.html"])
+    expect(index.recent({ tag: ["search"] }).map((h) => h.path)).toEqual(["plan.html"])
+    // Type and tag together must both match.
+    expect(index.recent({ type: ["plan"], tag: ["atlas"] }).map((h) => h.path)).toEqual(["plan.html"])
+    expect(index.facets("", { tag: ["atlas"] })).toMatchObject({ total: 2, type: { plan: 1, reference: 1 }, tag: { atlas: 2, search: 1 } })
+    expect(index.list({ type: ["plan"] }).map((d) => `${d.path} ${d.type} ${d.tags}`).sort()).toEqual(["plan.html plan atlas, search", "plan.md plan Atlas, search"])
+    expect(index.overview(Date.now(), { type: ["reference"] })).toMatchObject([{ repo: "alpha", docs: 1 }])
+
+    await write("alpha/ref.html", '<title>Ref</title><meta name="doc-type" content="reference"><meta name="tags" content="ops"><p>the ibis</p>')
+    await utimes(join(root, "alpha/ref.html"), new Date(), new Date(Date.now() + 5000))
+    await index.sync()
+    expect(index.facets("").tag).toEqual({ atlas: 1, search: 1, ops: 1 })
   })
 
   test("overview counts per repo, twins once, and calls onSync after each sync", async () => {

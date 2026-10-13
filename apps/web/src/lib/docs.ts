@@ -4,9 +4,9 @@ import { ActivityIcon, ChartColumnIcon, GlobeIcon, SearchIcon } from "lucide-rea
 export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
 /** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. */
 export const tagList = (tags: string) => tags.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim()).filter(Boolean)
-export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number> }
-/** `folders` maps a todo repo id to its docs folder, from the folder's meta.json. */
-export type Summary = { docs: number; md: number; html: number; repos: { name: string; docs: number }[]; folders: Record<string, string> }
+export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number>; type: Record<string, number>; tag: Record<string, number> }
+/** `folders` maps a todo repo id to its docs folder, from the folder's meta.json. `types` and `tags` count every doc. */
+export type Summary = { docs: number; md: number; html: number; repos: { name: string; docs: number }[]; types: Record<string, number>; tags: Record<string, number>; folders: Record<string, string> }
 export type DocEvent = { id: number; at: string; change: "added" | "changed" | "removed"; repo: string; path: string; kind: string; kinds: string[]; title: string }
 export type DocRef = { repo: string; path: string; title: string; mtime: string }
 export type LinkedDoc = DocRef & { open: number; groups: number[] }
@@ -53,6 +53,9 @@ export const list = (v?: string) => (v ? v.split(",").filter(Boolean) : [])
 export const joined = (values: string[]) => (values.length ? values.join(",") : undefined)
 export const flip = (values: string[], v: string) => (values.includes(v) ? values.filter((x) => x !== v) : [...values, v])
 export const folderLabel = (f: string) => (f === "." ? "Top level" : f)
+/** The `type` filter value for docs with no `doc-type`, as the server counts them. */
+export const NO_TYPE = "none"
+export const typeLabel = (t: string) => (t === NO_TYPE ? "No type" : t)
 
 /** What Enter and the copy button copy: the path from the repo's root, where atlas/ holds the docs. */
 export const docPath = (d: { path: string }) => `atlas/${d.path}`

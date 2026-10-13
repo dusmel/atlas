@@ -1,18 +1,23 @@
 import { Database } from "bun:sqlite"
 import { stat } from "node:fs/promises"
 import { basename, join } from "node:path"
-import { htmlText, mdText, type DocText } from "./extract.ts"
+import { htmlText, mdText, tagList, type DocText } from "./extract.ts"
 import { scanDocs, type DocFile } from "./scan.ts"
 
 export type Counts = { docs: number; md: number; html: number }
 export type SyncResult = Counts & { added: number; changed: number; removed: number; ms: number }
 export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; title: string; snippet: string; mtime: string; tags: string }
-/** `folder` is the first folder inside the repo, "." for a doc at its top. `after` is a time in ms: only docs changed since. */
-export type DocFilters = { repo?: string[]; folder?: string[]; after?: number }
-/** Matching docs per repo and per folder, each counted with the other filters applied. Twins count once. */
-export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number> }
+/**
+ * `folder` is the first folder inside the repo, "." for a doc at its top. `after` is a time in ms: only docs changed since.
+ * `type` holds doc types, with `none` for a doc without one. Several values in one filter match any of them.
+ */
+export type DocFilters = { repo?: string[]; folder?: string[]; after?: number; type?: string[]; tag?: string[] }
+/** Matching docs per repo, folder, type and tag, each counted with the other filters applied. Twins count once. */
+export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number>; type: Record<string, number>; tag: Record<string, number> }
 /** One row of the index, without its text. */
 export type DocMeta = { repo: string; path: string; kind: DocFile["kind"]; title: string; mtime: number; size: number }
+/** A row with its type ("" for none) and tags as written. */
+export type DocRow = DocMeta & { type: string; tags: string }
 /** Per repo: docs (twins once), files by kind, docs changed in the last week, docs untouched for 60 days, and the biggest folders. */
 export type RepoOverview = { repo: string; docs: number; md: number; html: number; week: number; stale: number; last: string; folders: { folder: string; docs: number }[] }
 
@@ -23,9 +28,10 @@ export const MATCH_END = "\u0003"
 const SCHEMA = `
   CREATE TABLE docs (
     id INTEGER PRIMARY KEY, repo TEXT NOT NULL, path TEXT NOT NULL, folder TEXT NOT NULL, kind TEXT NOT NULL,
-    title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL, low INTEGER NOT NULL,
+    title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL, low INTEGER NOT NULL, type TEXT NOT NULL,
     UNIQUE (repo, path)
   );
+  CREATE TABLE doc_tags (doc_id INTEGER NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (tag, doc_id)) WITHOUT ROWID;
   CREATE VIRTUAL TABLE docs_fts USING fts5(title, path, body, tokenize = 'porter unicode61');
 `
 
@@ -80,6 +86,7 @@ export class DocIndex {
   rebuild(): Promise<SyncResult> {
     const run = this.queue.then(() => {
       this.db.run("DELETE FROM docs_fts")
+      this.db.run("DELETE FROM doc_tags")
       this.db.run("DELETE FROM docs")
       return this.diff()
     })
@@ -131,19 +138,22 @@ export class DocIndex {
     this.db.transaction(() => {
       for (const { id } of removed) {
         this.db.run("DELETE FROM docs_fts WHERE rowid = ?", [id])
+        this.db.run("DELETE FROM doc_tags WHERE doc_id = ?", [id])
         this.db.run("DELETE FROM docs WHERE id = ?", [id])
       }
       for (const { file, id, mtime, size, text } of reads) {
-        const values = [file.kind, text.title, mtime, size, text.tags]
+        const values = [file.kind, text.title, mtime, size, text.tags, text.type]
         let rowid = id
         if (rowid === undefined) {
           rowid = this.db
-            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
+            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
             .get(file.repo, file.path, folderOf(file.path), Number(lowWeight(file.path)), ...values)!.id
         } else {
-          this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ? WHERE id = ?", [...values, rowid])
+          this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ?, type = ? WHERE id = ?", [...values, rowid])
           this.db.run("DELETE FROM docs_fts WHERE rowid = ?", [rowid])
+          this.db.run("DELETE FROM doc_tags WHERE doc_id = ?", [rowid])
         }
+        for (const tag of tagList(text.tags)) this.db.run("INSERT INTO doc_tags (doc_id, tag) VALUES (?, ?)", [rowid, tag])
         // The tokenizer splits the path on / - _ and ., so atlas-web-v1-spec.html reads as its words.
         this.db.run("INSERT INTO docs_fts (rowid, title, path, body) VALUES (?, ?, ?, ?)", [rowid, text.title, file.path, text.body])
       }
@@ -158,18 +168,27 @@ export class DocIndex {
     return this.db.query<DocMeta, []>("SELECT repo, path, kind, title, mtime, size FROM docs").all()
   }
 
-  overview(now = Date.now()): RepoOverview[] {
+  /** Every doc that passes the filters, both twins included. */
+  list(opts: DocFilters = {}): DocRow[] {
+    const w = where(opts)
+    return this.db.query<DocRow, (string | number)[]>(`SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.size, d.type, d.tags FROM docs d WHERE 1 = 1 ${w.sql}`).all(...w.params)
+  }
+
+  overview(now = Date.now(), opts: DocFilters = {}): RepoOverview[] {
     const week = now - 7 * 864e5
     const stale = now - 60 * 864e5
+    const w = where(opts)
     const rows = this.db
-      .query<Omit<RepoOverview, "folders" | "last"> & { last: number }, [number, number]>(
+      .query<Omit<RepoOverview, "folders" | "last"> & { last: number }, (string | number)[]>(
         `SELECT d.repo, ${TWINS} AS docs, sum(d.kind = 'md') AS md, sum(d.kind = 'html') AS html,
                 count(DISTINCT CASE WHEN d.mtime >= ? THEN ${TWIN} END) AS week,
                 count(DISTINCT CASE WHEN d.mtime < ? THEN ${TWIN} END) AS stale, max(d.mtime) AS last
-           FROM docs d GROUP BY d.repo ORDER BY d.repo`,
+           FROM docs d WHERE 1 = 1 ${w.sql} GROUP BY d.repo ORDER BY d.repo`,
       )
-      .all(week, stale)
-    const folders = this.db.query<{ repo: string; folder: string; docs: number }, []>(`SELECT d.repo, d.folder, ${TWINS} AS docs FROM docs d GROUP BY d.repo, d.folder ORDER BY docs DESC, d.folder`).all()
+      .all(week, stale, ...w.params)
+    const folders = this.db
+      .query<{ repo: string; folder: string; docs: number }, (string | number)[]>(`SELECT d.repo, d.folder, ${TWINS} AS docs FROM docs d WHERE 1 = 1 ${w.sql} GROUP BY d.repo, d.folder ORDER BY docs DESC, d.folder`)
+      .all(...w.params)
     return rows.map((r) => ({ ...r, last: new Date(r.last).toISOString(), folders: folders.filter((f) => f.repo === r.repo).map(({ folder, docs }) => ({ folder, docs })) }))
   }
 
@@ -212,17 +231,23 @@ export class DocIndex {
   /** Counts for the filters: every doc matching `q` (or every doc, when it is empty), not only the first page. */
   facets(q: string, opts: DocFilters = {}): Facets {
     const match = q.trim() ? ftsQuery(q) : null
-    if (q.trim() && !match) return { total: 0, repo: {}, folder: {} }
+    if (q.trim() && !match) return { total: 0, repo: {}, folder: {}, type: {}, tag: {} }
     // Phrase hits are a subset of all-words hits, so counting the all-words query covers both.
-    const from = match ? "FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid WHERE docs_fts MATCH ?" : "FROM docs d WHERE 1 = 1"
-    const count = (by: string | null, skip?: keyof DocFilters) => {
+    const from = (join = "") => (match ? `FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid ${join} WHERE docs_fts MATCH ?` : `FROM docs d ${join} WHERE 1 = 1`)
+    const count = (by: string | null, skip?: keyof DocFilters, join?: string) => {
       const w = where(opts, skip)
       return this.db
-        .query<{ v: string; n: number }, (string | number)[]>(`SELECT ${by ?? "''"} AS v, ${TWINS} AS n ${from} ${w.sql} ${by ? `GROUP BY ${by}` : ""}`)
+        .query<{ v: string; n: number }, (string | number)[]>(`SELECT ${by ?? "''"} AS v, ${TWINS} AS n ${from(join)} ${w.sql} ${by ? `GROUP BY ${by}` : ""}`)
         .all(...(match ? [match] : []), ...w.params)
     }
     const map = (rows: { v: string; n: number }[]) => Object.fromEntries(rows.map((r) => [r.v, r.n]))
-    return { total: count(null)[0]?.n ?? 0, repo: map(count("d.repo", "repo")), folder: map(count("d.folder", "folder")) }
+    return {
+      total: count(null)[0]?.n ?? 0,
+      repo: map(count("d.repo", "repo")),
+      folder: map(count("d.folder", "folder")),
+      type: map(count(`CASE d.type WHEN '' THEN '${NO_TYPE}' ELSE d.type END`, "type")),
+      tag: map(count("t.tag", "tag", "JOIN doc_tags t ON t.doc_id = d.id")),
+    }
   }
 
   private query(match: string, opts: DocFilters, limit: number) {
@@ -263,6 +288,9 @@ export class DocIndex {
   }
 }
 
+/** The `type` filter value for docs with no `doc-type`. */
+export const NO_TYPE = "none"
+
 export const folderOf = (path: string) => (path.includes("/") ? path.slice(0, path.indexOf("/")) : ".")
 
 // x.md and x.html are one doc for counting: the path without its extension, which is the kind.
@@ -277,6 +305,14 @@ function where(f: DocFilters, skip?: keyof DocFilters): { sql: string; params: (
     if (key === skip || !values?.length) continue
     parts.push(`AND d.${key} IN (${values.map(() => "?").join(", ")})`)
     params.push(...values)
+  }
+  if (f.type?.length && skip !== "type") {
+    parts.push(`AND d.type IN (${f.type.map(() => "?").join(", ")})`)
+    params.push(...f.type.map((t) => (t === NO_TYPE ? "" : t)))
+  }
+  if (f.tag?.length && skip !== "tag") {
+    parts.push(`AND d.id IN (SELECT doc_id FROM doc_tags WHERE tag IN (${f.tag.map(() => "?").join(", ")}))`)
+    params.push(...f.tag)
   }
   if (f.after !== undefined && skip !== "after") {
     parts.push("AND d.mtime >= ?")

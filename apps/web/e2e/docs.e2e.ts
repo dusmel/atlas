@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => login(page))
 
 const results = (page: import("@playwright/test").Page) => page.getByRole("list", { name: "Results" }).locator("[data-result]")
 const recent = (page: import("@playwright/test").Page) => page.getByRole("list", { name: "Recently changed docs" }).locator("[data-result]")
-const sidebar = (page: import("@playwright/test").Page) => page.getByRole("complementary", { name: "Repos" })
+const sidebar = (page: import("@playwright/test").Page) => page.getByRole("complementary", { name: "Filters" })
 const views = (page: import("@playwright/test").Page) => page.getByRole("navigation", { name: "Views" })
 
 test("the header links to Docs, which counts the docs and skips backups", async ({ page }) => {
@@ -91,7 +91,7 @@ test("the API checks limit, reindexes, and health counts the docs", async ({ pag
   expect(bad.status()).toBe(400)
   expect((await bad.json()).error.code).toBe("bad_limit")
   expect((await (await page.request.get("/api/search?q=lamp&since=soon")).json()).error.code).toBe("bad_since")
-  expect((await (await page.request.get("/api/search?q=lamp&folder=plans")).json()).facets).toEqual({ total: 1, repo: { web: 1 }, folder: { plans: 1, notes: 1 } })
+  expect((await (await page.request.get("/api/search?q=lamp&folder=plans")).json()).facets).toEqual({ total: 1, repo: { web: 1 }, folder: { plans: 1, notes: 1 }, type: { plan: 1 }, tag: { plans: 1, lamps: 1 } })
   const reindex = await page.request.post("/api/docs/reindex", { headers: { "x-atlas": "1" } })
   expect(await reindex.json()).toMatchObject({ docs: 4, md: 2, html: 2 })
   expect((await (await page.request.get("/api/health")).json()).docs).toEqual({ source: "mega", last_pull: expect.any(String), count: 4 })
@@ -166,6 +166,29 @@ test("Activity has a year grid and lists doc changes, and Overview has totals, a
   await expect(recent(page)).toHaveCount(2)
 })
 
+test("type and tag filters narrow Search and Overview, and stay in the URL", async ({ page }) => {
+  await page.goto("/docs")
+  const side = sidebar(page)
+  await expect(recent(page)).toHaveCount(3)
+  // The lighthouse plan is md and html, which count as one doc.
+  await expect(side.getByRole("checkbox", { name: "plan", exact: true }).locator("..")).toContainText("1")
+  await side.getByRole("checkbox", { name: "reference", exact: true }).check()
+  await expect(page).toHaveURL(/type=reference/)
+  await expect(recent(page)).toHaveCount(1)
+  await expect(recent(page).first().getByRole("heading")).toHaveText("Ferry runbook")
+  // Several types match any of them.
+  await side.getByRole("checkbox", { name: "No type" }).check()
+  await expect(recent(page)).toHaveCount(2)
+  // A tag must match as well.
+  await side.getByRole("checkbox", { name: "ops", exact: true }).check()
+  await expect(page).toHaveURL(/tag=ops/)
+  await expect(recent(page)).toHaveCount(1)
+  await expect(page.getByRole("button", { name: "Remove Type No type" })).toBeVisible()
+
+  await views(page).getByRole("link", { name: "Overview" }).click()
+  await expect(page.locator("dl[aria-label=Totals]")).toContainText("Docs1")
+})
+
 test("⌘K opens a doc it finds, from Todos and from Docs", async ({ page }) => {
   await openBoard(page, "/todos")
   await page.keyboard.press("ControlOrMeta+k")
@@ -192,7 +215,8 @@ test("docs fit a phone screen", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   await expect(sidebar(page)).toBeHidden()
   await page.getByRole("button", { name: "Filters" }).click()
-  await page.getByRole("dialog").getByRole("checkbox", { name: /^plans/ }).check()
+  // "plans" is a folder and a tag here; CheckList ids each box by its list.
+  await page.getByRole("dialog").locator("#folder-plans").check()
   // The open drawer hides the page from the accessibility tree, so check the results once it closes.
   await page.keyboard.press("Escape")
   await expect(results(page)).toHaveCount(1)

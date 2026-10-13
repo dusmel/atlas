@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
-import { BoxIcon, ClockIcon, FolderIcon, ListFilterIcon, SearchIcon } from "lucide-react"
+import { BoxIcon, ClockIcon, FolderIcon, ListFilterIcon, SearchIcon, ShapesIcon, TagIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { cn } from "cn"
 import { AppHeader } from "@/components/app-header"
 import { DocActivity } from "@/components/docs/activity-view"
 import { YearGrid } from "@/components/year-grid"
 import { DocsPalette } from "@/components/docs/docs-palette"
-import { ChangedPopover, CheckList, FilterBadge, FolderPopover } from "@/components/docs/filters"
+import { ChangedPopover, CheckList, FilterBadge, FolderPopover, TypeTagFilters } from "@/components/docs/filters"
 import { copyPath, Hits } from "@/components/docs/hits"
 import { DocOverview } from "@/components/docs/overview-view"
 import { DocsSidebar } from "@/components/docs/sidebar"
@@ -23,10 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
 import { useRepoColor } from "@/lib/doc-colors"
-import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
+import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, NO_TYPE, typeLabel, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
-type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; since?: string; doc?: string; design?: "report" | "trends" }
+type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; type?: string; tag?: string; since?: string; doc?: string; design?: "report" | "trends" }
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
@@ -36,6 +36,8 @@ export const Route = createFileRoute("/docs")({
     q: text(s.q),
     repo: text(s.repo),
     folder: text(s.folder),
+    type: text(s.type),
+    tag: text(s.tag),
     since: sinceMs(text(s.since)) ? text(s.since) : undefined,
     doc: text(s.doc),
     design: s.design === "report" || s.design === "trends" ? s.design : undefined,
@@ -51,7 +53,11 @@ function DocsPage() {
   // The query only applies to Search; Activity and Overview count every doc.
   const q = view === "search" ? (search.q ?? "") : ""
   const repos = list(search.repo)
-  const folders = list(search.folder)
+  const types = list(search.type)
+  const tags = list(search.tag)
+  // The folder and changed filters apply to Search and Activity; Overview takes repo, type and tag.
+  const scoped = view === "search" || view === "activity"
+  const folders = scoped ? list(search.folder) : []
   const navigate = useNavigate({ from: "/docs" })
   const router = useRouter()
   const [typed, setTyped] = useState(search.q ?? "")
@@ -72,9 +78,15 @@ function DocsPage() {
   }, [typed, search.q, navigate, router])
 
   const summary = useQuery({ queryKey: ["docs"], queryFn: () => api<Summary>("/docs"), staleTime: 60_000 })
-  const filters = new URLSearchParams({ ...(search.repo ? { repo: search.repo } : {}), ...(search.folder ? { folder: search.folder } : {}), ...(since ? { since } : {}) })
+  const filters = new URLSearchParams({
+    ...(search.repo ? { repo: search.repo } : {}),
+    ...(folders.length ? { folder: search.folder! } : {}),
+    ...(search.type ? { type: search.type } : {}),
+    ...(search.tag ? { tag: search.tag } : {}),
+    ...(scoped && since ? { since } : {}),
+  })
   const results = useQuery({
-    queryKey: ["search", q, search.repo, search.folder, since],
+    queryKey: ["search", q, filters.toString()],
     queryFn: () => api<{ results: Hit[]; facets: Facets }>(`/search?${new URLSearchParams({ q, ...Object.fromEntries(filters) })}`),
     // Keep the last results on screen while typing, but never show them under Recently changed.
     placeholderData: (prev, prevQuery) => (q.trim() && String(prevQuery?.queryKey[1] ?? "").trim() ? prev : undefined),
@@ -88,9 +100,17 @@ function DocsPage() {
   const folderOptions: Option[] = [...new Set([...Object.keys(facets?.folder ?? {}), ...folders])]
     .sort((a, b) => (a === "." ? -1 : b === "." ? 1 : a.localeCompare(b)))
     .map((f) => ({ value: f, label: folderLabel(f), count: facets?.folder[f] ?? 0 }))
-  const filtered = repos.length + folders.length + (since ? 1 : 0)
-  const clear = () => set({ repo: undefined, folder: undefined, since: undefined })
+  // Types and tags keep the order of their totals, most used first, so they don't move as filters change. No type comes last.
+  const byUse = (totals: Record<string, number> = {}, picked: string[]) =>
+    [...new Set([...Object.keys(totals), ...picked])].sort((a, b) => Number(a === NO_TYPE) - Number(b === NO_TYPE) || (totals[b] ?? 0) - (totals[a] ?? 0) || a.localeCompare(b))
+  const typeOptions: Option[] = byUse(summary.data?.types, types).map((t) => ({ value: t, label: typeLabel(t), count: facets?.type[t] ?? 0 }))
+  const tagOptions: Option[] = byUse(summary.data?.tags, tags).map((t) => ({ value: t, label: t, count: facets?.tag[t] ?? 0 }))
+  const filtered = repos.length + folders.length + types.length + tags.length + (scoped && since ? 1 : 0)
+  const clear = () => set({ repo: undefined, folder: undefined, type: undefined, tag: undefined, since: undefined })
   const toggleRepo = (v: string) => set({ repo: joined(flip(repos, v)) })
+  const toggleType = (v: string) => set({ type: joined(flip(types, v)) })
+  const toggleTag = (v: string) => set({ tag: joined(flip(tags, v)) })
+  const typeTags = (touch?: boolean) => <TypeTagFilters types={typeOptions} tags={tagOptions} pickedTypes={types} pickedTags={tags} onType={toggleType} onTag={toggleTag} touch={touch} />
 
   // j and k move the focus with the selection, so Enter on the row copies its path. The arrows in the box leave the focus there.
   const move = (step: 1 | -1, focus = false) => {
@@ -118,7 +138,9 @@ function DocsPage() {
         <ViewNav to="/docs" views={DOC_TABS} view={view} className="-mx-1" />
       </div>
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-5 sm:px-6 md:grid-cols-[15rem_minmax(0,1fr)]">
-        <DocsSidebar summary={summary.data} repoOptions={repoOptions} repos={repos} onToggle={toggleRepo} onAll={() => set({ repo: undefined })} />
+        <DocsSidebar summary={summary.data} repoOptions={repoOptions} repos={repos} onToggle={toggleRepo} onAll={() => set({ repo: undefined })}>
+          {typeTags()}
+        </DocsSidebar>
 
         <main className="flex min-w-0 flex-col gap-4">
           <h1 className="sr-only">Docs: {DOC_VIEWS.find((v) => v.id === view)!.label}</h1>
@@ -152,7 +174,7 @@ function DocsPage() {
                 </InputGroupAddon>
               </InputGroup>
             )}
-            {view !== "overview" && (
+            {scoped && (
               <div className={cn("hidden gap-2 md:flex", view !== "search" && "md:ml-auto")}>
                 <FolderPopover options={folderOptions} picked={folders} onToggle={(v) => set({ folder: joined(flip(folders, v)) })} />
                 <ChangedPopover since={since} onChange={(s) => set({ since: s })} />
@@ -176,7 +198,7 @@ function DocsPage() {
                   )}
                 </DrawerHeader>
                 <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto px-4 pb-4">
-                  {view !== "overview" && (
+                  {scoped && (
                     <section aria-labelledby="changed-heading" className="flex flex-col gap-1 px-2">
                       <h3 id="changed-heading" className="text-xs font-medium text-muted-foreground">
                         Changed in the last
@@ -185,7 +207,8 @@ function DocsPage() {
                     </section>
                   )}
                   <CheckList name="repo" legend="Repos" options={repoOptions} picked={repos} onToggle={toggleRepo} color={repoColor} touch />
-                  {view !== "overview" && <CheckList name="folder" legend="Folders" options={folderOptions} picked={folders} onToggle={(v) => set({ folder: joined(flip(folders, v)) })} touch />}
+                  {scoped && <CheckList name="folder" legend="Folders" options={folderOptions} picked={folders} onToggle={(v) => set({ folder: joined(flip(folders, v)) })} touch />}
+                  {typeTags(true)}
                   {summary.data && (
                     <p className="px-2 text-xs text-muted-foreground tabular-nums">
                       {summary.data.docs} docs in {summary.data.repos.length} repos: {summary.data.md} markdown, {summary.data.html} html.
@@ -202,8 +225,10 @@ function DocsPage() {
               {repos.map((r) => (
                 <FilterBadge key={`repo:${r}`} className="md:hidden" kind="Repo" icon={<BoxIcon />} label={r} onRemove={() => toggleRepo(r)} />
               ))}
-              {view !== "overview" && folders.map((f) => <FilterBadge key={`folder:${f}`} kind="Folder" icon={<FolderIcon />} label={folderLabel(f)} onRemove={() => set({ folder: joined(flip(folders, f)) })} />)}
-              {view !== "overview" && since && <FilterBadge kind="Changed" icon={<ClockIcon />} label={`in the last ${sinceLabel(since)}`} onRemove={() => set({ since: undefined })} />}
+              {folders.map((f) => <FilterBadge key={`folder:${f}`} kind="Folder" icon={<FolderIcon />} label={folderLabel(f)} onRemove={() => set({ folder: joined(flip(folders, f)) })} />)}
+              {types.map((t) => <FilterBadge key={`type:${t}`} kind="Type" icon={<ShapesIcon />} label={typeLabel(t)} onRemove={() => toggleType(t)} />)}
+              {tags.map((t) => <FilterBadge key={`tag:${t}`} kind="Tag" icon={<TagIcon />} label={t} onRemove={() => toggleTag(t)} />)}
+              {scoped && since && <FilterBadge kind="Changed" icon={<ClockIcon />} label={`in the last ${sinceLabel(since)}`} onRemove={() => set({ since: undefined })} />}
               <Button variant="ghost" size="sm" className="h-7 text-muted-foreground" onClick={clear}>
                 Clear filters
               </Button>
@@ -216,7 +241,7 @@ function DocsPage() {
               <DocActivity params={filters} />
             </div>
           ) : view === "overview" ? (
-            <DocOverview repos={repos} />
+            <DocOverview repos={repos} params={filters} />
           ) : results.isPending ? (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-16" />

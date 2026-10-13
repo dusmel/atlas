@@ -5,7 +5,7 @@ import { basename, join, posix } from "node:path"
 import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
-import { listDocEvents, recordDocChanges } from "./doc-activity"
+import { docEventDays, listDocEvents, recordDocChanges } from "./doc-activity"
 import { closestDocs } from "./closest-docs"
 import { repoExtras } from "./doc-overview"
 import { docFile } from "./doc-files"
@@ -61,13 +61,27 @@ export function docsStatus() {
   return { ...readSource(), count: getIndex().counts().docs, mega: readMega() }
 }
 
-const filtersOf = (input: { repo: string[]; folder: string[]; since?: string }) => {
+/** The filters every Docs view takes. Several values in one filter match any of them. */
+export type FilterInput = { repo: string[]; folder: string[]; type: string[]; tag: string[]; since?: string }
+
+const many = (url: URL, key: string) => url.searchParams.getAll(key).flatMap((v) => v.split(",")).filter(Boolean)
+
+/** The filters from a request's query string, as the Docs page sends them. */
+export const filterInput = (url: URL): FilterInput => ({
+  repo: many(url, "repo"),
+  folder: many(url, "folder"),
+  type: many(url, "type"),
+  tag: many(url, "tag"),
+  since: url.searchParams.get("since") ?? undefined,
+})
+
+const filtersOf = (input: FilterInput) => {
   const window = input.since === undefined ? undefined : sinceMs(input.since)
   if (window === null) throw new HttpError(400, "bad_since", "since is a number and a unit: 30m, 3h, 2d or 1w")
-  return { repo: input.repo, folder: input.folder, after: window === undefined ? undefined : Date.now() - window }
+  return { repo: input.repo, folder: input.folder, type: input.type, tag: input.tag.map((t) => t.toLowerCase()), after: window === undefined ? undefined : Date.now() - window }
 }
 
-export async function searchDocs(input: { q: string; repo: string[]; folder: string[]; since?: string; limit?: string }) {
+export async function searchDocs(input: FilterInput & { q: string; limit?: string }) {
   const limit = input.limit === undefined ? 20 : Number(input.limit)
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new HttpError(400, "bad_limit", "limit is a whole number from 1 to 100")
   const filters = filtersOf(input)
@@ -81,14 +95,17 @@ export async function searchDocs(input: { q: string; repo: string[]; folder: str
 export async function docsSummary() {
   const docs = getIndex()
   await ready
-  return { ...docs.counts(), repos: docs.repos(), folders: Object.fromEntries(repoFolders()) }
+  const all = docs.facets("")
+  return { ...docs.counts(), repos: docs.repos(), types: all.type, tags: all.tag, folders: Object.fromEntries(repoFolders()) }
 }
 
-export async function docsOverview() {
+/** Overview takes the type and tag filters; its repos are filtered on the page, and attention is about groups, not docs. */
+export async function docsOverview(input: Pick<FilterInput, "type" | "tag">) {
   const docs = getIndex()
   await ready
-  const extras = repoExtras(docs.files(), linkedTodos())
-  return { repos: docs.overview().map((r) => ({ ...r, ...extras.get(r.repo)! })), attention: attention() }
+  const filters = filtersOf({ repo: [], folder: [], ...input })
+  const extras = repoExtras(docs.list(filters), linkedTodos())
+  return { repos: docs.overview(Date.now(), filters).map((r) => ({ ...r, ...extras.get(r.repo)! })), attention: attention() }
 }
 
 /** Groups with open todos and no doc, and group docs whose file the served copy lacks. */
@@ -115,9 +132,26 @@ function attention() {
   return { no_doc: groups.filter((g) => g.open > 0 && g.docs === 0).map(({ docs, ...g }) => g), missing }
 }
 
-export function docsActivity(input: { repo: string[]; folder: string[]; since?: string }) {
-  const { after, ...filters } = filtersOf(input)
+/**
+ * The log keeps no type or tags, so those filters match the docs the index has now. A removed doc
+ * has neither, so it drops out while they are set.
+ */
+async function eventFilters(input: FilterInput) {
+  const { after, type, tag, ...filters } = filtersOf(input)
+  if (!type.length && !tag.length) return { ...filters, after }
+  const docs = getIndex()
+  await ready
+  return { ...filters, after, paths: docs.list({ type, tag }).map((d) => `${d.repo}/${d.path}`) }
+}
+
+export async function docsActivity(input: FilterInput) {
+  const { after, ...filters } = await eventFilters(input)
   return { events: listDocEvents(getDb(), { ...filters, after: after === undefined ? undefined : new Date(after).toISOString() }) }
+}
+
+export async function docsActivityDays(input: FilterInput, tz: string | null) {
+  const { after: _, ...filters } = await eventFilters(input)
+  return docEventDays(getDb(), { ...filters, tz })
 }
 
 // A group's doc paths are relative to its repo's folder under docs/, whose meta.json holds the todo repo id.

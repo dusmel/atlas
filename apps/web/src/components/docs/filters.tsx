@@ -1,4 +1,5 @@
 import { CheckIcon, ChevronDownIcon, FolderIcon, XIcon } from "lucide-react"
+import { useState } from "react"
 import { cn } from "cn"
 import { SinceControl } from "@/components/todos/filters"
 import { Badge } from "@/components/ui/badge"
@@ -6,15 +7,17 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { tagColor, typeColor } from "@/lib/doc-colors"
 import type { Option } from "@/lib/docs"
 
 /**
  * Checkboxes with a count each. A thin bar under every row shows its share of the largest count, so
  * the sidebar reads as a chart of where the matches are.
  */
-/** `color` gives each option its own colour, which fills its checkbox and its count bar. */
-export function CheckList({ name, legend, options, picked, onToggle, touch, action, color }: { name: string; legend: string; options: Option[]; picked: string[]; onToggle: (v: string) => void; touch?: boolean; action?: React.ReactNode; color?: (value: string) => string }) {
+/** `color` gives each option its own colour, which fills its checkbox and its count bar. `top` sits between the legend and the options. */
+export function CheckList({ name, legend, options, picked, onToggle, touch, action, color, top }: { name: string; legend: string; options: Option[]; picked: string[]; onToggle: (v: string) => void; touch?: boolean; action?: React.ReactNode; color?: (value: string) => string; top?: React.ReactNode }) {
   const max = Math.max(1, ...options.map((o) => o.count))
   return (
     <FieldSet className="gap-1">
@@ -24,6 +27,7 @@ export function CheckList({ name, legend, options, picked, onToggle, touch, acti
         </FieldLegend>
         {action}
       </div>
+      {top}
       <FieldGroup className="gap-0">
         {options.map((o) => {
           const on = picked.includes(o.value)
@@ -43,6 +47,43 @@ export function CheckList({ name, legend, options, picked, onToggle, touch, acti
         })}
       </FieldGroup>
     </FieldSet>
+  )
+}
+
+const TAGS_SHOWN = 8
+
+/** Type and Tags, under Repos in the sidebar and in the phone's Filters drawer. Options come most used first. */
+export function TypeTagFilters({ types, tags, pickedTypes, pickedTags, onType, onTag, touch }: { types: Option[]; tags: Option[]; pickedTypes: string[]; pickedTags: string[]; onType: (v: string) => void; onTag: (v: string) => void; touch?: boolean }) {
+  const [find, setFind] = useState("")
+  const [all, setAll] = useState(false)
+  const needle = find.trim().toLowerCase()
+  // The most used tags, and any picked one further down, until a search or "All" shows the rest.
+  const shown = needle ? tags.filter((t) => t.value.includes(needle)) : all ? tags : tags.filter((t, i) => i < TAGS_SHOWN || pickedTags.includes(t.value))
+  const more = (
+    <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs text-muted-foreground" onClick={() => setAll((a) => !a)}>
+      {all ? "Fewer" : `All ${tags.length}`}
+    </Button>
+  )
+  return (
+    <>
+      <CheckList name="type" legend="Type" options={types} picked={pickedTypes} onToggle={onType} color={typeColor} touch={touch} />
+      <CheckList
+        name="tag"
+        legend="Tags"
+        options={shown}
+        picked={pickedTags}
+        onToggle={onTag}
+        color={tagColor}
+        touch={touch}
+        action={!needle && tags.length > TAGS_SHOWN && more}
+        top={
+          tags.length > TAGS_SHOWN && (
+            <Input type="search" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find a tag…" aria-label="Find a tag" autoComplete="off" spellCheck={false} className={cn("mx-2 mb-1 w-auto", touch ? "h-11" : "h-8 text-sm")} />
+          )
+        }
+      />
+      {needle && !shown.length && <p className="-mt-2 px-2 text-xs text-muted-foreground">No tag matches “{find.trim()}”.</p>}
+    </>
   )
 }
 
