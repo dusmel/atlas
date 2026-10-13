@@ -2,7 +2,7 @@ import { realpathSync, statSync } from "node:fs"
 import { extname, join, sep } from "node:path"
 import { marked } from "marked"
 import sanitizeHtml from "sanitize-html"
-import { LOST_FOG_CSS, LOST_FOG_HTML, LOST_MAP_CSS, LOST_MAP_SVG } from "@/lib/lost-map"
+import { LOST_CHAIN_CSS, LOST_CHAIN_SVG, LOST_FOG_CSS, LOST_FOG_HTML, LOST_MAP_CSS, LOST_MAP_SVG } from "@/lib/lost-map"
 
 /** Logged in, an HTML doc runs its scripts in an opaque origin: no cookie, no API (spec section 8). Shares run none. */
 export const CSP_DOC = "sandbox allow-scripts allow-popups"
@@ -128,7 +128,7 @@ export async function shareView(res: Response): Promise<Response> {
   return new Response(html, { status: res.status, headers })
 }
 
-/** The share 404: the app's fogged map, which the reader wipes clear to find the X. No search, no doc names, no links. */
+/** The share 404: the app's 404, the fogged map clearing itself over the broken chain, with no links, no doc names and no script. */
 export function lostSharePage(): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -137,22 +137,17 @@ export function lostSharePage(): string {
 :root { color-scheme: light dark; --fg: #1c1c1e; --muted: #6b6b70; --line: #e4e4e7; --lost-fg: var(--fg); --lost-sea: color-mix(in oklab, #b4532f 9%, #fff); --lost-fog: #fff; --lost-dot: rgb(180 83 47 / .32); --lost-ink: #b4532f; }
 @media (prefers-color-scheme: dark) { :root { --fg: #ececee; --muted: #a1a1aa; --line: #2e2e33; --lost-sea: color-mix(in oklab, #e8906e 10%, #111113); --lost-fog: #131315; --lost-dot: rgb(232 144 110 / .38); --lost-ink: #e8906e; } body { background: #111113; } }
 body { margin: 0; color: var(--fg); font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; }
-h1 { font-size: 1.25rem; margin: 1.5rem 0 0.4rem; } p { margin: 0; color: var(--muted); font-size: 0.9rem; }
-.map { aspect-ratio: 2; border: 1px solid var(--line); border-radius: 16px; }
+main { min-height: 100svh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2rem; padding: 3rem 1rem; text-align: center; }
+.map { width: 100%; max-width: 36rem; aspect-ratio: 2; border: 1px solid var(--line); border-radius: 16px; }
+.chain { width: 100%; max-width: 20rem; }
+.big { margin: 0; font-size: clamp(6rem, 18vw, 8rem); line-height: 1; font-weight: 600; letter-spacing: -0.05em; }
+h1 { margin: 0.5rem 0 0.25rem; font-size: 1.875rem; letter-spacing: -0.02em; } p { margin: 0; color: var(--muted); }
 ${LOST_MAP_CSS}
 ${LOST_FOG_CSS}
-.hint { display: grid; margin-top: 1rem; font-size: 0.8rem; } .hint > * { grid-area: 1 / 1; }
-.hint .found { opacity: 0; color: var(--lost-ink); animation: lost-show 1ms forwards paused; }
-.hint .look { animation: lost-hide 1ms forwards paused; }
-main:has(.dig:hover) .hint > * { animation-play-state: running; }
-@keyframes lost-hide { to { opacity: 0; } }
-@media (hover: none) { .hint > * { animation-delay: 1.2s; animation-play-state: running; } }
-@media (prefers-reduced-motion: reduce) { .hint > * { animation-delay: 0s; } }
+${LOST_CHAIN_CSS}
 </style></head>
-<body><main><div class="map lost-sea">${LOST_MAP_SVG}
+<body><main><div class="map lost-sea lost-auto">${LOST_MAP_SVG}
 ${LOST_FOG_HTML}</div>
-<h1>This doc drifted off the map</h1>
-<p>The link was revoked, or it never pointed to a doc.</p>
-<p class="hint" aria-hidden="true"><span class="look">Wipe the fog away to look for it.</span><span class="found">Found the X. The doc isn't there any more.</span></p></main></body></html>`
+<div class="chain">${LOST_CHAIN_SVG}</div>
+<div><p class="big">404</p><h1>Nothing here.</h1><p>The link was revoked, or it never pointed to a doc.</p></div></main></body></html>`
 }

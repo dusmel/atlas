@@ -178,13 +178,12 @@ test("make public, open the share logged out with scripts blocked, then revoke i
   await expect(reader.getByRole("link", { name: "Jump to the log" })).toHaveAttribute("href", "#log")
   await reader.getByRole("link", { name: "Harbour notes" }).click()
   await expect(reader).toHaveURL(/\/s\/elsewhere$/)
-  await expect(reader.getByRole("heading", { name: "This doc drifted off the map" })).toBeVisible()
+  await expect(reader.getByRole("heading", { name: "Nothing here." })).toBeVisible()
   await expect(reader.getByRole("link")).toHaveCount(0)
-  // The X under the fog stamps "404" on hover, with CSS alone.
+  // The fog clears by itself and then stamps "404" on the X, with CSS alone.
   await expect(reader.locator("script")).toHaveCount(0)
   await expect(reader.locator(".lost-stamp")).toHaveCSS("opacity", "0")
-  await reader.locator(".fog .dig").nth(4).hover()
-  await expect(reader.locator(".lost-stamp")).toHaveCSS("opacity", "1")
+  await expect(reader.locator(".lost-stamp")).toHaveCSS("opacity", "1", { timeout: 10_000 })
   await reader.goto(link)
   await expect(reader.getByRole("link", { name: "the keeper's plan" })).toHaveAttribute("href", "/s/elsewhere")
 

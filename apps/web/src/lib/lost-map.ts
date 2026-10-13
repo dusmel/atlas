@@ -26,7 +26,7 @@ export const LOST_MAP_SVG = `<svg class="lost-map" viewBox="0 0 720 360" fill="n
 
 // The fogged map: the map above under a fog of dots, then a "404" stamp on the X once it's found. CSS only, so the
 // share 404 can use it. The host sizes `.lost-sea` and sets --lost-fg, --lost-sea, --lost-fog, --lost-dot and --lost-ink.
-// Plain, the mouse wipes the fog. With `.lost-auto` it clears itself from left to right.
+// Plain, the mouse wipes the fog. With `.lost-auto` it clears itself from left to right, and the mouse does nothing.
 const FOG_COLS = 24
 const FOG_ROWS = 12
 // The cursor wipes its cell and the four around it: the cells beside it, and the ones a row (FOG_COLS cells) above and below.
@@ -53,8 +53,9 @@ export const LOST_FOG_CSS = `
   .fog i { animation-duration: 0.6s; animation-delay: calc(0.5s + var(--d) * 60ms); animation-play-state: running; }
   .lost-stamp { animation-delay: 1.2s; animation-play-state: running; }
 }
-.lost-auto .fog i { animation-duration: 0.7s; animation-delay: calc(0.3s + var(--s) * 110ms); animation-play-state: running; }
-.lost-auto .lost-stamp { animation-delay: 2.9s; animation-play-state: running; }
+.lost-auto .fog i { animation-duration: 1.4s; animation-timing-function: ease-in-out; animation-delay: calc(0.5s + var(--s) * 220ms); animation-play-state: running; }
+/* The X's cells (--s 15 to 17.5) are clear by about 5.8 s. */
+.lost-auto .lost-stamp { animation-delay: 5.9s; animation-play-state: running; }
 @media (prefers-reduced-motion: reduce) {
   .lost-map .drift, .lost-map .needle { animation: none; }
   .fog i, .lost-auto .fog i { animation-delay: 0s; animation-duration: 0.01s; }
@@ -92,3 +93,64 @@ export const LOST_FOG_HTML = `<div class="fog" aria-hidden="true">${FOG}</div>
 <text y="9" text-anchor="middle" fill="var(--lost-ink)" stroke="none" font-size="28" font-weight="700">404</text>
 <text y="26" text-anchor="middle" fill="var(--lost-ink)" stroke="none" font-size="9" letter-spacing="1">not here</text>
 </g></svg>`
+
+// The broken chain under the map: two links in grey dots, apart, with terracotta sparks at the break.
+/** Seeded, so every page draws the same dots. */
+function random(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** Points scattered across a band around a stadium shape (a rectangle with round ends). */
+function stadium(rand: () => number, n: number, o: { cx: number; cy: number; w: number; h: number; band: number; tilt: number; squash: number; skip?: (x: number) => boolean }) {
+  const r = o.h / 2
+  const straight = o.w - o.h
+  const per = 2 * straight + 2 * Math.PI * r
+  const out: { x: number; y: number; s: number; a: number }[] = []
+  for (let i = 0; i < n; i++) {
+    let d = rand() * per
+    let x: number, y: number, nx: number, ny: number
+    if (d < straight) [x, y, nx, ny] = [-straight / 2 + d, -r, 0, -1]
+    else if ((d -= straight) < Math.PI * r) {
+      const a = -Math.PI / 2 + d / r
+      ;[x, y, nx, ny] = [straight / 2 + Math.cos(a) * r, Math.sin(a) * r, Math.cos(a), Math.sin(a)]
+    } else if ((d -= Math.PI * r) < straight) [x, y, nx, ny] = [straight / 2 - d, r, 0, 1]
+    else {
+      const a = Math.PI / 2 + (d - straight) / r
+      ;[x, y, nx, ny] = [-straight / 2 + Math.cos(a) * r, Math.sin(a) * r, Math.cos(a), Math.sin(a)]
+    }
+    const off = (rand() - 0.5) * o.band
+    x += nx * off
+    y = (y + ny * off) * o.squash
+    if (o.skip?.(x)) continue
+    const cos = Math.cos(o.tilt)
+    const sin = Math.sin(o.tilt)
+    out.push({ x: o.cx + x * cos - y * sin, y: o.cy + x * sin + y * cos, s: 0.5 + rand() * 1.1, a: 0.35 + rand() * 0.65 })
+  }
+  return out
+}
+
+const dots = (ps: { x: number; y: number; s: number; a: number }[]) => ps.map((p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.s.toFixed(2)}" opacity="${p.a.toFixed(2)}"/>`).join("")
+
+export const LOST_CHAIN_SVG = (() => {
+  const rand = random(404)
+  const left = stadium(rand, 1700, { cx: 108, cy: 72, w: 150, h: 92, band: 18, tilt: 0.04, squash: 1, skip: (x) => x > 62 && rand() > 0.35 })
+  const right = stadium(rand, 1500, { cx: 268, cy: 66, w: 190, h: 70, band: 16, tilt: -0.03, squash: 0.62, skip: (x) => x < -80 && rand() > 0.3 })
+  const sparks = Array.from({ length: 220 }, () => {
+    const a = rand() * Math.PI * 2
+    const d = Math.pow(rand(), 1.6) * 44
+    return { x: 172 + Math.cos(a) * d * 1.2, y: 70 + Math.sin(a) * d, s: 0.5 + rand() * 1.2, a: 0.4 + rand() * 0.6 }
+  })
+  return `<svg class="lost-chain" viewBox="0 0 380 150" aria-hidden="true"><g fill="currentColor">${dots([...left, ...right])}</g><g class="sparks" fill="var(--lost-ink)">${dots(sparks)}</g></svg>`
+})()
+
+export const LOST_CHAIN_CSS = `
+.lost-chain { display: block; width: 100%; height: auto; color: var(--lost-fg); opacity: 0.8; }
+.lost-chain .sparks { animation: lost-spark 2.4s ease-in-out infinite; }
+@keyframes lost-spark { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .lost-chain .sparks { animation: none; } }
+`
