@@ -134,6 +134,18 @@ describe("DocIndex", () => {
     expect(index.search("heron")).toHaveLength(1)
   })
 
+  test("a doc kept as both md and html shows as the html, even when the md ranks higher", async () => {
+    // The md holds the words in its title, the html only in its text, so the md ranks first.
+    await write("alpha/heron-notes.md", "# Heron survey\n\nCounts by month.")
+    await write("alpha/heron-notes.html", "<title>Wading birds</title><p>heron survey counts</p>")
+    await write("alpha/other.md", "# Other\n\nheron survey mentioned once")
+    await index.sync()
+    const hits = index.search("heron survey")
+    expect(hits.map((h) => [h.path, h.kind, h.title])).toEqual([["heron-notes.html", "html", "Wading birds"], ["other.md", "md", "Other"]])
+    expect(index.htmlTwin("alpha", "heron-notes.md")?.path).toBe("heron-notes.html")
+    expect(index.htmlTwin("alpha", "other.md")).toBeNull()
+  })
+
   test("recent lists the newest docs first, filters by repo and shows twins once", async () => {
     await write("alpha/old.md", "# Old")
     await write("alpha/new.md", "# New")

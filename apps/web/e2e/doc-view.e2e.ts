@@ -28,6 +28,9 @@ test("a markdown doc renders in the app, and relative links lead to an html doc 
 test("a doc the served copy lacks says so, and every doc route needs a login", async ({ page, browser }) => {
   await page.goto("/r/web/notes/missing.md")
   await expect(page.getByText("No doc here")).toBeVisible()
+  // The plan is kept as both md and html, and the html is the doc.
+  await page.goto("/r/web/plans/lighthouse.md")
+  await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
   expect((await page.request.get("/r/web/plans%2f..%2f..%2fapi%2frunbook.html", { maxRedirects: 0 })).status()).toBe(404)
 
   const stranger = await browser.newContext()

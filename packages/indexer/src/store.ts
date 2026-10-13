@@ -183,7 +183,7 @@ export class DocIndex {
   /**
    * Three tiers: every word in the title or path, then the exact phrase anywhere, then every word
    * anywhere. In each, docs in low-weight folders come last, then bm25 with title and path weighted 5x.
-   * A doc kept as both x.md and x.html shows once, as whichever ranks higher.
+   * A doc kept as both x.md and x.html shows once, at the better rank of the two, as the html.
    */
   search(q: string, opts: DocFilters & { limit?: number } = {}): SearchHit[] {
     const match = ftsQuery(q)
@@ -191,7 +191,7 @@ export class DocIndex {
     const limit = opts.limit ?? 20
     const phrase = ftsPhrase(q)
     const tiers = [`{title path} : (${match})`, ...(phrase ? [phrase] : []), match]
-    return hits(tiers.flatMap((m) => this.query(m, opts, limit * 2)), limit)
+    return this.hits(tiers.flatMap((m) => this.query(m, opts, limit * 2)), limit)
   }
 
   /** The most recently changed docs, newest first, with no snippet. Twins show once, as in search. */
@@ -206,7 +206,7 @@ export class DocIndex {
           LIMIT ?`,
       )
       .all(...w.params, limit * 2)
-    return hits(rows, limit)
+    return this.hits(rows, limit)
   }
 
   /** Counts for the filters: every doc matching `q` (or every doc, when it is empty), not only the first page. */
@@ -238,19 +238,29 @@ export class DocIndex {
       )
       .all(match, ...w.params, limit)
   }
-}
 
-// Keeps the first of x.md and x.html, so a doc kept as both shows once.
-function hits(rows: (Omit<SearchHit, "mtime"> & { mtime: number })[], limit: number): SearchHit[] {
-  const seen = new Set<string>()
-  const out: SearchHit[] = []
-  for (const r of rows) {
-    const twin = `${r.repo}/${r.path.replace(/\.(md|html)$/, "")}`
-    if (seen.has(twin)) continue
-    seen.add(twin)
-    out.push({ ...r, mtime: new Date(r.mtime).toISOString() })
+  /** The html twin of an md doc, or null. When both exist, the html is the doc (spec D25). */
+  htmlTwin(repo: string, path: string): Omit<SearchHit, "mtime" | "snippet"> & { mtime: number } | null {
+    if (!path.endsWith(".md")) return null
+    return this.db
+      .query<Omit<SearchHit, "mtime" | "snippet"> & { mtime: number }, [string, string]>("SELECT repo, path, kind, title, mtime, tags FROM docs WHERE repo = ? AND path = ?")
+      .get(repo, `${path.slice(0, -3)}.html`)
   }
-  return out.slice(0, limit)
+
+  // Keeps the first of x.md and x.html, so a doc kept as both shows once, and shows it as the html.
+  private hits(rows: (Omit<SearchHit, "mtime"> & { mtime: number })[], limit: number): SearchHit[] {
+    const seen = new Set<string>()
+    const out: SearchHit[] = []
+    for (const r of rows) {
+      const twin = `${r.repo}/${r.path.replace(/\.(md|html)$/, "")}`
+      if (seen.has(twin)) continue
+      seen.add(twin)
+      const doc = { ...r, ...this.htmlTwin(r.repo, r.path) }
+      out.push({ ...doc, mtime: new Date(doc.mtime).toISOString() })
+      if (out.length === limit) break
+    }
+    return out
+  }
 }
 
 export const folderOf = (path: string) => (path.includes("/") ? path.slice(0, path.indexOf("/")) : ".")

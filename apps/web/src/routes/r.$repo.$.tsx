@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api, ApiError } from "@/lib/api"
-import type { DocPage } from "@/lib/docs"
+import { docHref, type DocPage } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 import { getIndex } from "@/server/docs"
 import { CSP_DOC, docFile, fileResponse } from "@/server/doc-files"
@@ -19,8 +19,11 @@ import { CSP_DOC, docFile, fileResponse } from "@/server/doc-files"
 export const Route = createFileRoute("/r/$repo/$")({
   server: {
     handlers: {
-      GET: ({ params, next }) => {
+      GET: ({ params, request, next }) => {
         const path = params._splat ?? ""
+        // When x.md and x.html both exist, the html is the doc (spec D25).
+        const html = path.endsWith(".md") ? `${path.slice(0, -3)}.html` : null
+        if (html && docFile(getIndex().root, params.repo, html)) return Response.redirect(new URL(docHref({ repo: params.repo, path: html }), request.url), 302)
         if (path.endsWith(".md")) return next()
         const file = docFile(getIndex().root, params.repo, path)
         if (!file) return new Response(`No doc ${params.repo}/${path}`, { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } })
