@@ -1,5 +1,6 @@
-import { DocIndex, htmlText, mdText, watchDocs, type SearchHit } from "@atlas/indexer"
+import { DocIndex, fastWins, htmlText, mdText, watchDocs, type SearchHit } from "@atlas/indexer"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
+import { mkdir, utimes } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
@@ -10,7 +11,7 @@ import { closestDocs } from "./closest-docs"
 import { groupDocPath, movedFrom, placeOf, recordDocIds, type Place } from "./doc-ids"
 import { repoExtras } from "./doc-overview"
 import { docFile } from "./doc-files"
-import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
+import { fastRoot, readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
 import { HttpError } from "./http"
 import { createShare, listShares, type Share } from "./shares"
 
@@ -21,7 +22,7 @@ let unwatch = () => {}
 /** Built on first use, then kept current by the watcher. The container's health check calls this every 30 s, so it starts at boot. */
 export function getIndex(): DocIndex {
   if (index) return index
-  const docs = new DocIndex(sourceRoot(readSource().source))
+  const docs = new DocIndex(sourceRoot(readSource().source), fastRoot())
   docs.onSync = (r) => {
     if (!r.added && !r.changed && !r.removed) return
     try {
@@ -42,6 +43,41 @@ export function getIndex(): DocIndex {
   unwatch = watchDocs(docs)
   index = docs
   return docs
+}
+
+/** A file in the copy being served, or its fast copy while that is newer, by the index's rule. Null when neither has it. */
+export function servedFile(repo: string, path: string): string | null {
+  const base = docFile(getIndex().root, repo, path)
+  const fast = docFile(fastRoot(), repo, path)
+  return fast && fastWins(statSync(fast).mtimeMs, base ? statSync(base).mtimeMs : null) ? fast : base
+}
+
+const MAX_PUBLISH = 5 * 1024 * 1024
+
+/**
+ * `atlas doc publish`: keeps the doc in the fast folder with the Mac's mtime, to the second, and indexes
+ * it before answering, so its link works at once. MEGA's copy takes over once it arrives (spec section 9).
+ */
+export async function publishDoc(input: Record<string, unknown>) {
+  const { repo, path, mtime, text } = input
+  if (typeof repo !== "string" || typeof path !== "string") throw new HttpError(400, "bad_field", "Send repo and path, as in /r/<repo>/<path>")
+  const parts = [repo, ...path.split("/")]
+  if (parts.some((p) => !p || p.startsWith(".") || p.includes("\\") || p.includes("\0")) || !/\.(md|html)$/.test(path)) {
+    throw new HttpError(400, "bad_path", "repo and path name an md or html file inside a repo's docs folder, with no hidden or .. parts")
+  }
+  if (typeof mtime !== "number" || !Number.isFinite(mtime) || mtime <= 0) throw new HttpError(400, "bad_mtime", "mtime is the file's modification time in ms since 1970")
+  if (typeof text !== "string") throw new HttpError(400, "bad_field", "text holds the doc")
+  if (Buffer.byteLength(text) > MAX_PUBLISH) throw new HttpError(413, "too_large", "A doc over 5 MB waits for MEGA")
+  const file = join(fastRoot(), ...parts)
+  await mkdir(join(file, ".."), { recursive: true })
+  await Bun.write(file, text)
+  const seconds = Math.floor(mtime / 1000)
+  await utimes(file, seconds, seconds)
+  const docs = getIndex()
+  await ready
+  await docs.sync()
+  // The sync deletes a fast copy the served copy has caught up with, so a kept one is the one served.
+  return { repo, path, href: docHref({ repo, path }), fast: existsSync(file) }
 }
 
 /**
@@ -132,7 +168,6 @@ function attention() {
     )
     .all()
   const folders = repoFolders()
-  const root = getIndex().root
   const missing = getDb()
     .query<{ group_id: number; name: string; repo_id: string; label: string; path: string; doc_id: string | null }, []>(
       "SELECT d.group_id, g.name, g.repo_id, d.label, d.path, d.doc_id FROM group_docs d JOIN groups g ON g.id = d.group_id ORDER BY g.name, d.label",
@@ -143,7 +178,7 @@ function attention() {
       // A repo with no docs folder here can't be checked.
       if (!folder) return []
       const at = placeOf(getIndex(), doc_id, { repo: folder, path: groupDocPath(d.path) })
-      return docFile(root, at.repo, at.path) ? [] : [{ ...d, folder }]
+      return servedFile(at.repo, at.path) ? [] : [{ ...d, folder }]
     })
   return { no_doc: groups.filter((g) => g.open > 0 && g.docs === 0).map(({ docs, ...g }) => g), missing, duplicates: getIndex().duplicateIds() }
 }
@@ -255,7 +290,7 @@ export function withDocLinks<T extends { item: { repo_id: string }; group: { id:
     if (!folder) return null
     // A doc with an id is found where it is now, after a rename or a move.
     const at = placeOf(getIndex(), ids.get(d.label) ?? null, { repo: folder, path: groupDocPath(d.path) })
-    return docFile(getIndex().root, at.repo, at.path) ? docHref(at) : null
+    return servedFile(at.repo, at.path) ? docHref(at) : null
   }
   return {
     ...detail,
@@ -266,7 +301,7 @@ export function withDocLinks<T extends { item: { repo_id: string }; group: { id:
 
 /** A doc's file in the copy being served, or a 404. */
 export function findDoc(repo: string, path: string) {
-  const file = docFile(getIndex().root, repo, path)
+  const file = servedFile(repo, path)
   if (!file) throw new HttpError(404, "not_found", `No doc ${repo}/${path}`)
   return file
 }
@@ -285,7 +320,7 @@ const ownId = (id: string | null) => (id && getIndex().byId(id) ? id : null)
  * A 404 carries `moved` when a doc with an id once lived at the path and now lives elsewhere.
  */
 export async function viewDoc(repo: string, path: string) {
-  const file = docFile(getIndex().root, repo, path)
+  const file = servedFile(repo, path)
   if (!file) {
     await ready
     const moved = movedFrom(getDb(), getIndex(), { repo, path })
@@ -294,10 +329,10 @@ export async function viewDoc(repo: string, path: string) {
   const kind = path.endsWith(".md") ? "md" : path.endsWith(".html") ? "html" : null
   if (!kind) throw new HttpError(400, "not_a_doc", "Only md and html files open as docs")
   const { title, type, contract } = await readDoc(file, path)
-  const markdown = kind === "md" || !!contract.md || !!docFile(getIndex().root, repo, `${path.slice(0, -5)}.md`)
+  const markdown = kind === "md" || !!contract.md || !!servedFile(repo, `${path.slice(0, -5)}.md`)
   // An md twin's page is its html (spec D25). The app moves there, since links inside the app skip the server's redirect.
   const html = kind === "md" ? `${path.slice(0, -3)}.html` : null
-  const htmlTwin = html && docFile(getIndex().root, repo, html) ? html : null
+  const htmlTwin = html && servedFile(repo, html) ? html : null
   const id = ownId(contract.id)
   const share = listShares(getDb()).find((s) => (id && s.doc_id === id) || (s.repo_id === repo && s.path === path)) ?? null
   const todo = contract.todo === null ? null : (getDb().query<{ id: number; title: string; status: string }, [number]>("SELECT id, title, status FROM items WHERE id = ?").get(contract.todo) ?? null)
@@ -321,13 +356,12 @@ export async function viewDoc(repo: string, path: string) {
 
 /** A doc's markdown for agents and Copy as Markdown: an md file as written, else an html doc's `atlas-md` block, else its md twin. */
 export async function docMarkdown(repo: string, path: string): Promise<string | null> {
-  const { root } = getIndex()
-  const file = docFile(root, repo, path)
+  const file = servedFile(repo, path)
   if (path.endsWith(".md")) return file ? Bun.file(file).text() : null
   if (!path.endsWith(".html")) return null
   const block = file && (await readDoc(file, path)).contract.md
   if (block) return `${block}\n`
-  const md = docFile(root, repo, `${path.slice(0, -5)}.md`)
+  const md = servedFile(repo, `${path.slice(0, -5)}.md`)
   return md ? Bun.file(md).text() : null
 }
 

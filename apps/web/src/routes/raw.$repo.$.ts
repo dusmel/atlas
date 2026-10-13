@@ -2,8 +2,8 @@ import { renderMarkdownPage } from "@atlas/doc-render"
 import { createFileRoute } from "@tanstack/react-router"
 import { basename } from "node:path"
 import { withBridge } from "@/server/bridge"
-import { CSP_RAW, docFile, fileResponse } from "@/server/doc-files"
-import { docMarkdown, getIndex } from "@/server/docs"
+import { CSP_RAW, fileResponse } from "@/server/doc-files"
+import { docMarkdown, servedFile } from "@/server/docs"
 
 const missing = (what: string) => new Response(`No doc ${what}`, { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } })
 const headers = (type: string) => ({ "content-type": type, "content-security-policy": CSP_RAW, "x-content-type-options": "nosniff", "cache-control": "private, no-cache", "referrer-policy": "no-referrer" })
@@ -14,9 +14,8 @@ export const Route = createFileRoute("/raw/$repo/$")({
   server: {
     handlers: {
       GET: async ({ params, request }) => {
-        const { root } = getIndex()
         const path = params._splat ?? ""
-        const file = docFile(root, params.repo, path)
+        const file = servedFile(params.repo, path)
         if (new URL(request.url).searchParams.get("format") === "md") {
           const md = await docMarkdown(params.repo, path)
           return md === null ? missing(`markdown for ${params.repo}/${path}`) : new Response(md, { headers: headers("text/markdown; charset=utf-8") })

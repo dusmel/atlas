@@ -17,6 +17,7 @@ import { loadCandidate, saveCandidate, clearCandidate } from "./state.ts";
 import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId, chooseProjectRoot } from "./repo.ts";
 import { cmdTodo } from "./todo/commands.ts";
 import { cmdPush } from "./push.ts";
+import { cmdDoc } from "./doc.ts";
 import { complete, ZSH_SCRIPT } from "./complete.ts";
 
 /**
@@ -269,6 +270,9 @@ export async function main(): Promise<void> {
       break;
     case "push":
       await cmdPush(args);
+      break;
+    case "doc":
+      await cmdDoc(args);
       break;
     case "completion":
       await out(ZSH_SCRIPT);

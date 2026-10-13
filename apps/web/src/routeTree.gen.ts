@@ -32,6 +32,7 @@ import { Route as ApiDocsActivityRouteImport } from './routes/api/docs.activity'
 import { Route as ApiDocsFoldersRouteImport } from './routes/api/docs.folders'
 import { Route as ApiDocsHoldRouteImport } from './routes/api/docs.hold'
 import { Route as ApiDocsOverviewRouteImport } from './routes/api/docs.overview'
+import { Route as ApiDocsPublishRouteImport } from './routes/api/docs.publish'
 import { Route as ApiDocsPullRouteImport } from './routes/api/docs.pull'
 import { Route as ApiDocsReindexRouteImport } from './routes/api/docs.reindex'
 import { Route as ApiDocsStatusRouteImport } from './routes/api/docs.status'
@@ -164,6 +165,11 @@ const ApiDocsOverviewRoute = ApiDocsOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => ApiDocsRoute,
 } as any)
+const ApiDocsPublishRoute = ApiDocsPublishRouteImport.update({
+  id: '/publish',
+  path: '/publish',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
 const ApiDocsPullRoute = ApiDocsPullRouteImport.update({
   id: '/pull',
   path: '/pull',
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/publish': typeof ApiDocsPublishRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/docs/status': typeof ApiDocsStatusRoute
@@ -310,6 +317,7 @@ export interface FileRoutesByTo {
   '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/publish': typeof ApiDocsPublishRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/docs/status': typeof ApiDocsStatusRoute
@@ -352,6 +360,7 @@ export interface FileRoutesById {
   '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/publish': typeof ApiDocsPublishRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/docs/status': typeof ApiDocsStatusRoute
@@ -395,6 +404,7 @@ export interface FileRouteTypes {
     | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/publish'
     | '/api/docs/pull'
     | '/api/docs/reindex'
     | '/api/docs/status'
@@ -436,6 +446,7 @@ export interface FileRouteTypes {
     | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/publish'
     | '/api/docs/pull'
     | '/api/docs/reindex'
     | '/api/docs/status'
@@ -477,6 +488,7 @@ export interface FileRouteTypes {
     | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/publish'
     | '/api/docs/pull'
     | '/api/docs/reindex'
     | '/api/docs/status'
@@ -682,6 +694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDocsOverviewRouteImport
       parentRoute: typeof ApiDocsRoute
     }
+    '/api/docs/publish': {
+      id: '/api/docs/publish'
+      path: '/publish'
+      fullPath: '/api/docs/publish'
+      preLoaderRoute: typeof ApiDocsPublishRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
     '/api/docs/pull': {
       id: '/api/docs/pull'
       path: '/pull'
@@ -814,6 +833,7 @@ interface ApiDocsRouteChildren {
   ApiDocsFoldersRoute: typeof ApiDocsFoldersRoute
   ApiDocsHoldRoute: typeof ApiDocsHoldRoute
   ApiDocsOverviewRoute: typeof ApiDocsOverviewRoute
+  ApiDocsPublishRoute: typeof ApiDocsPublishRoute
   ApiDocsPullRoute: typeof ApiDocsPullRoute
   ApiDocsReindexRoute: typeof ApiDocsReindexRoute
   ApiDocsStatusRoute: typeof ApiDocsStatusRoute
@@ -825,6 +845,7 @@ const ApiDocsRouteChildren: ApiDocsRouteChildren = {
   ApiDocsFoldersRoute: ApiDocsFoldersRoute,
   ApiDocsHoldRoute: ApiDocsHoldRoute,
   ApiDocsOverviewRoute: ApiDocsOverviewRoute,
+  ApiDocsPublishRoute: ApiDocsPublishRoute,
   ApiDocsPullRoute: ApiDocsPullRoute,
   ApiDocsReindexRoute: ApiDocsReindexRoute,
   ApiDocsStatusRoute: ApiDocsStatusRoute,

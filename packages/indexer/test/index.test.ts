@@ -301,6 +301,30 @@ describe("DocIndex", () => {
     ])
   })
 
+  test("a fast copy is served while it is newer, to the second, and deleted once the served copy catches up", async () => {
+    const fast = await mkdtemp(join(tmpdir(), "atlas-fast-"))
+    const quick = new DocIndex(root, fast)
+    const at = (s: number) => new Date(s * 1000)
+    await write("alpha/plan.md", "# Old plan")
+    await utimes(join(root, "alpha/plan.md"), at(1000), at(1000))
+    await Bun.write(join(fast, "alpha/plan.md"), "# New plan")
+    await utimes(join(fast, "alpha/plan.md"), at(2000), at(2000))
+    await Bun.write(join(fast, "alpha/fresh.md"), "# Fresh")
+    expect(await quick.sync()).toMatchObject({ docs: 2 })
+    expect(quick.files().map((f) => f.title).sort()).toEqual(["Fresh", "New plan"])
+
+    // MEGA brings the same file, with its mtime a fraction of a second off: the fast copy is done.
+    await write("alpha/plan.md", "# New plan")
+    await utimes(join(root, "alpha/plan.md"), at(2000.4), at(2000.4))
+    await quick.sync()
+    expect(quick.files().map((f) => f.title).sort()).toEqual(["Fresh", "New plan"])
+    expect(await Bun.file(join(fast, "alpha/plan.md")).exists()).toBe(false)
+    expect(await Bun.file(join(fast, "alpha/fresh.md")).exists()).toBe(true)
+    // An index with no fast folder yet works as before.
+    expect(await new DocIndex(root, join(fast, "missing")).sync()).toMatchObject({ docs: 1 })
+    await rm(fast, { recursive: true, force: true })
+  })
+
   test("the watcher picks up a new file", async () => {
     await index.sync()
     const stop = watchDocs(index, { debounceMs: 50 })

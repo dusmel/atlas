@@ -17,6 +17,7 @@
         "atlas": "./index.ts",
       },
       "dependencies": {
+        "@atlas/indexer": "workspace:*",
         "@atlas/todos": "workspace:*",
         "@clack/prompts": "^1.8.1",
       },

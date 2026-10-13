@@ -19,8 +19,8 @@ import { typeColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, rawHref, type DocPage } from "@/lib/docs"
 import { getDb } from "@/server/app-db"
 import { movedFrom } from "@/server/doc-ids"
-import { getIndex } from "@/server/docs"
-import { CSP_DOC, docFile, fileResponse } from "@/server/doc-files"
+import { getIndex, servedFile } from "@/server/docs"
+import { CSP_DOC, fileResponse } from "@/server/doc-files"
 
 const DOC = /\.(md|html)$/
 
@@ -33,15 +33,15 @@ export const Route = createFileRoute("/r/$repo/$")({
         const path = params._splat ?? ""
         // When x.md and x.html both exist, the html is the doc (spec D25).
         const html = path.endsWith(".md") ? `${path.slice(0, -3)}.html` : null
-        if (html && docFile(getIndex().root, params.repo, html)) return Response.redirect(new URL(docHref({ repo: params.repo, path: html }), request.url), 302)
+        if (html && servedFile(params.repo, html)) return Response.redirect(new URL(docHref({ repo: params.repo, path: html }), request.url), 302)
         if (DOC.test(path)) {
           // A doc with an id that once lived here moved: go where it is now.
-          const moved = !docFile(getIndex().root, params.repo, path) && movedFrom(getDb(), getIndex(), { repo: params.repo, path })
+          const moved = !servedFile(params.repo, path) && movedFrom(getDb(), getIndex(), { repo: params.repo, path })
           if (moved) return Response.redirect(new URL(docHref(moved) + new URL(request.url).search, request.url), 302)
           // A doc, found or not, is the app's page: it loads the doc from /raw, or says it is missing.
           return next()
         }
-        const file = docFile(getIndex().root, params.repo, path)
+        const file = servedFile(params.repo, path)
         if (!file) return new Response(`No doc ${params.repo}/${path}`, { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } })
         return fileResponse(file, CSP_DOC)
       },

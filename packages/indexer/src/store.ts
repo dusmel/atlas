@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import { stat } from "node:fs/promises"
+import { stat, unlink } from "node:fs/promises"
 import { basename, join } from "node:path"
 import { htmlText, mdText, tagList, type DocText } from "./extract.ts"
 import { scanDocs, type DocFile } from "./scan.ts"
@@ -62,6 +62,12 @@ const words = (q: string) => q.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t
 const quote = (t: string) => t.replace(/"/g, '""')
 
 type Row = { id: number; repo: string; path: string; mtime: number; size: number }
+
+/**
+ * A fast copy (spec section 9, fast publish) is served while it is newer than the served copy's file, to the
+ * second: MEGA may keep mtimes in whole seconds, and once its copy has caught up the fast copy is done.
+ */
+export const fastWins = (fastMs: number, baseMs: number | null) => baseMs === null || Math.floor(fastMs / 1000) > Math.floor(baseMs / 1000)
 type Read = { file: DocFile; id?: number; mtime: number; size: number; text: DocText }
 
 /**
@@ -74,7 +80,11 @@ export class DocIndex {
   /** Called after every sync that finished, with the index already updated. */
   onSync?: (result: SyncResult) => void
 
-  constructor(public root: string) {
+  /** `fast` holds docs sent by `atlas doc publish`, laid out like `root`. */
+  constructor(
+    public root: string,
+    readonly fast?: string,
+  ) {
     this.db.exec(SCHEMA)
   }
 
@@ -115,16 +125,37 @@ export class DocIndex {
     return this.db.query<{ name: string; docs: number }, []>("SELECT repo AS name, count(*) AS docs FROM docs GROUP BY repo ORDER BY repo").all()
   }
 
+  /**
+   * Each doc's file: the fast copy while it wins, else the one under `root`. A fast copy that the
+   * served copy has caught up with is deleted.
+   */
+  private async served(): Promise<(DocFile & { full: string })[]> {
+    const base = (await scanDocs(this.root)).map((f) => ({ ...f, full: join(this.root, f.repo, f.path) }))
+    if (!this.fast) return base
+    const byKey = new Map(base.map((f) => [`${f.repo}/${f.path}`, f]))
+    for (const f of await scanDocs(this.fast).catch(() => [])) {
+      const full = join(this.fast, f.repo, f.path)
+      const other = byKey.get(`${f.repo}/${f.path}`)
+      try {
+        const [mine, theirs] = await Promise.all([stat(full), other && stat(other.full)])
+        if (fastWins(mine.mtimeMs, theirs ? theirs.mtimeMs : null)) byKey.set(`${f.repo}/${f.path}`, { ...f, full })
+        else await unlink(full)
+      } catch {
+        // Gone between the scan and the stat: the next sync sorts it out.
+      }
+    }
+    return [...byKey.values()]
+  }
+
   // A file is re-read when its mtime or size changed. A rename is a removal and an addition.
   private async diff(): Promise<SyncResult> {
     const started = performance.now()
-    const files = await scanDocs(this.root)
+    const files = await this.served()
     const known = new Map(this.db.query<Row, []>("SELECT id, repo, path, mtime, size FROM docs").all().map((r) => [`${r.repo}/${r.path}`, r]))
     const reads: Read[] = []
-    for (const file of files) {
+    for (const { full, ...file } of files) {
       const old = known.get(`${file.repo}/${file.path}`)
       known.delete(`${file.repo}/${file.path}`)
-      const full = join(this.root, file.repo, file.path)
       try {
         const st = await stat(full)
         const mtime = Math.floor(st.mtimeMs)

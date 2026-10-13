@@ -20,6 +20,7 @@ const TOP: Record<string, { about: string; flags: FlagSpec }> = {
   observe: { about: "Score repo engagement from a command", flags: { cmd: "string", exit: "string", repo: "string" } },
   todo: { about: "Todos on the Atlas server", flags: {} },
   push: { about: "Send this Mac's docs to the server", flags: PUSH_FLAGS },
+  doc: { about: "Publish a doc now, or print its markdown", flags: {} },
   completion: { about: "Print the zsh completion script", flags: {} },
 };
 const NEEDS_ID = new Set(["show", "set", "move", "start", "done", "archive"]);
