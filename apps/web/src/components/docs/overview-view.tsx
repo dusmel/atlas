@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { Link, useLocation } from "@tanstack/react-router"
 import { BoxIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, TriangleAlertIcon } from "lucide-react"
 import { cn } from "cn"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DesignDots, DesignLines, DesignReport } from "./overview-designs"
 import { api } from "@/lib/api"
 import { ageTone, repoColor } from "@/lib/doc-colors"
 import { docHref, folderLabel, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
@@ -14,6 +15,7 @@ const link = "rounded underline-offset-4 hover:text-link hover:underline focus-v
 /** A card per repo, the most recently changed first, under the totals and what needs attention. */
 export function DocOverview({ repos }: { repos: string[] }) {
   const q = useQuery({ queryKey: ["doc-overview"], queryFn: () => api<{ repos: RepoOverview[]; attention: Attention }>("/docs/overview") })
+  const design = useLocation({ select: (l) => (l.search as { design?: string }).design })
   if (q.isPending)
     return (
       <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading the overview">
@@ -28,6 +30,8 @@ export function DocOverview({ repos }: { repos: string[] }) {
   if (q.isError) return <p className="text-sm text-destructive">{q.error.message}</p>
   const rows = q.data.repos.filter((r) => !repos.length || repos.includes(r.repo)).sort((a, b) => b.last.localeCompare(a.last))
   const sum = (f: (r: RepoOverview) => number) => rows.reduce((n, r) => n + f(r), 0)
+  const Design = design === "a" ? DesignReport : design === "b" ? DesignDots : design === "c" ? DesignLines : null
+  if (Design) return <Design rows={rows} attention={q.data.attention} NeedsAttention={NeedsAttention} />
   const stats = [
     { label: "Docs", value: sum((r) => r.docs) },
     { label: "Changed this week", value: sum((r) => r.week) },
