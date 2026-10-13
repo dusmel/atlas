@@ -19,6 +19,7 @@ import { docLinks } from "@/lib/docs"
 import { ago, describe, exact } from "@/lib/format"
 import { authorOf, isAgent, STATUS_LABEL, useActions, useGroups, useItemDetail, type Item } from "@/lib/todos"
 import { CopyId } from "./copy-id"
+import { DocLinkTextarea } from "./doc-link-textarea"
 import { PriorityToggle, StatusToggle } from "./dialogs"
 import { StatusIcon } from "./icons"
 import { plainTitle, RichTitle } from "./rich-title"
@@ -286,11 +287,12 @@ function Details({ item, items, flush, onOpen }: Omit<PanelProps, "desktop" | "o
           )}
         </div>
         <TabsContent value="write">
-          <Textarea
+          <DocLinkTextarea
             aria-label="Body"
             name="body"
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onValueChange={setBody}
+            folder={detail.data?.docs_folder ?? null}
             onBlur={save}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

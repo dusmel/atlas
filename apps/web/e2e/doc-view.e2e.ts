@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { api, docFrame, itemByTitle, login, openBoard } from "./helpers"
+import { api, docFrame, getItem, itemByTitle, login, openBoard } from "./helpers"
 
 test.beforeEach(async ({ page }) => login(page))
 
@@ -196,6 +196,35 @@ test("the item panel lists every group doc, and relative links in a body open th
   await page.getByRole("link", { name: "the notes" }).click()
   await expect(page).toHaveURL(/\/r\/web\/notes\/harbour\.md$/)
   await expect(page.frameLocator("iframe").getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+})
+
+test("[[ in a todo's body links a doc: its repo first, arrows move, Esc closes only the list, Enter inserts", async ({ page }) => {
+  const own = await api<{ id: number }>(page, "POST", "/todos", { repo: "github.com-demo-web", title: "Link a doc with brackets", priority: "P3" })
+  await openBoard(page, `/todos?item=${own.id}`)
+  const panel = page.getByRole("dialog", { name: "Link a doc with brackets" })
+  await panel.getByRole("tab", { name: "Write" }).click()
+  const body = panel.getByRole("textbox", { name: "Body" })
+  const list = page.getByRole("listbox", { name: "Docs to link" })
+  await body.pressSequentially("See [[")
+  await expect(list.getByRole("option")).toHaveText([/web\//, /web\//, /api\//])
+  await body.press("ArrowDown")
+  await expect(list.getByRole("option").nth(1)).toHaveAttribute("aria-selected", "true")
+  await body.press("Escape")
+  await expect(list).toBeHidden()
+  await expect(panel).toBeVisible()
+  await body.pressSequentially("x and [[harbour")
+  await expect(list.getByRole("option").first()).toHaveAccessibleName(/^Harbour notes/)
+  await expect(list.getByRole("option").first()).toHaveAttribute("aria-selected", "true")
+  await body.press("Enter")
+  await body.pressSequentially(", [[ferry")
+  await expect(list.getByRole("option", { name: /Ferry runbook/ })).toHaveAttribute("aria-selected", "true")
+  await body.press("Enter")
+  const text = "See [[x and [Harbour notes](atlas/notes/harbour.md), [Ferry runbook](/r/api/runbook.html)"
+  await expect(body).toHaveValue(text)
+  await body.press("ControlOrMeta+Enter")
+  await expect.poll(async () => (await getItem(page, own.id)).body).toBe(text)
+  await panel.getByRole("tab", { name: "Preview" }).click()
+  await expect(panel.getByRole("link", { name: "Harbour notes" })).toHaveAttribute("href", "/r/web/notes/harbour.md")
 })
 
 test("a search result opens its doc", async ({ page }) => {

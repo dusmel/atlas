@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query"
 import { PlusIcon } from "lucide-react"
 import { Fragment, useState } from "react"
 import { cn } from "cn"
@@ -8,7 +9,10 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { api } from "@/lib/api"
+import type { Summary } from "@/lib/docs"
 import { laneOf, PRIORITY_NAME, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, useActions, type Group, type Item, type Repo, type Row, type Status } from "@/lib/todos"
+import { DocLinkTextarea } from "./doc-link-textarea"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { ParentPicker } from "./item-panel"
 import { plainTitle } from "./rich-title"
@@ -86,6 +90,7 @@ function NewItemForm({ priority: startPriority, repos, groups, items, repoHint, 
   const [body, setBody] = useState<string | null>(null)
   const [parent, setParent] = useState<number | null>(null)
   const repoGroups = groups.filter((g) => g.repo_id === repo)
+  const folders = useQuery({ queryKey: ["docs"], queryFn: () => api<Summary>("/docs"), staleTime: 60_000 }).data?.folders ?? {}
   const parentItem = parent === null ? null : items.find((i) => i.id === parent)
   const pickParent = (id: number | null) => {
     setParent(id)
@@ -134,14 +139,15 @@ function NewItemForm({ priority: startPriority, repos, groups, items, repoHint, 
         ) : (
           <Field>
             <FieldLabel htmlFor="new-body">Description</FieldLabel>
-            <Textarea
+            <DocLinkTextarea
               id="new-body"
               name="body"
               autoFocus
               rows={4}
               value={body}
               placeholder="Notes, links, a checklist… Markdown works."
-              onChange={(e) => setBody(e.target.value)}
+              onValueChange={setBody}
+              folder={folders[repo] ?? null}
               onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && submit(e)}
               className="max-h-64 min-h-24"
             />
