@@ -153,9 +153,9 @@ test("Activity has a year grid and lists doc changes, and Overview has totals, a
   await expect(attention.locator('[data-attention="missing"]')).toHaveCount(0)
   // Designs A and C stay one click away until the owner picks.
   const designs = page.getByRole("navigation", { name: "Overview design" })
-  await designs.getByRole("link", { name: "C · Pills" }).click()
+  await designs.getByRole("link", { name: "C · Lines" }).click()
   await expect(page).toHaveURL(/design=c/)
-  await expect(designs.getByRole("link", { name: "C · Pills" })).toHaveAttribute("aria-current", "page")
+  await expect(designs.getByRole("link", { name: "C · Lines" })).toHaveAttribute("aria-current", "page")
   await expect(designs.getByRole("link", { name: "B · Cards" })).not.toHaveAttribute("aria-current")
   await designs.getByRole("link", { name: "B · Cards" }).click()
   await expect(page).not.toHaveURL(/design=/)

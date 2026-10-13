@@ -3,7 +3,7 @@ import { Link, useSearch } from "@tanstack/react-router"
 import { ArrowDownRightIcon, ArrowUpRightIcon, BoxIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, MinusIcon, TriangleAlertIcon } from "lucide-react"
 import { cn } from "cn"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DesignPills, DesignRings } from "./overview-designs"
+import { DesignLines, DesignReport } from "./overview-designs"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
@@ -46,7 +46,7 @@ export function DocOverview({ repos }: { repos: string[] }) {
     todos: sum((r) => r.todo_docs.length),
     stale: sum((r) => r.stale),
   }
-  const Design = design === "a" ? DesignRings : design === "c" ? DesignPills : null
+  const Design = design === "a" ? DesignReport : design === "c" ? DesignLines : null
   if (Design)
     return (
       <div className="flex flex-col gap-4">
@@ -106,8 +106,8 @@ export function DocOverview({ repos }: { repos: string[] }) {
 
 const DESIGNS = [
   { id: undefined, label: "B · Cards" },
-  { id: "a", label: "A · Rings" },
-  { id: "c", label: "C · Pills" },
+  { id: "a", label: "A · Report" },
+  { id: "c", label: "C · Lines" },
 ] as const
 
 /** Until the owner picks: B is the default, A and C sit behind ?design=. */
