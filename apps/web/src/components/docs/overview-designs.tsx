@@ -1,4 +1,4 @@
-// Three Overview designs for the owner to pick from, behind ?design=a|b|c. The two not picked get deleted.
+// Overview's Report and Trends designs, at ?design=report and ?design=trends. Cards, the default, is in overview-view.tsx.
 import { Link } from "@tanstack/react-router"
 import { ArrowDownRightIcon, ArrowUpRightIcon, ListTodoIcon, MinusIcon } from "lucide-react"
 import { cn } from "cn"
@@ -99,7 +99,7 @@ function DayAxis({ className }: { className?: string }) {
   )
 }
 
-// ---------- A: a report. Numbers in a ruled strip, stacked bars, a table of repos.
+// ---------- Report: numbers in a ruled strip, stacked bars, a table of repos.
 
 export function DesignReport({ rows, attention, NeedsAttention }: Props) {
   const t = totals(rows)
@@ -233,9 +233,9 @@ function Spark({ days, color }: { days: number[]; color: string }) {
   )
 }
 
-// ---------- B: dot matrix. One headline number, a dot per doc changed, docs per repo as bars.
+// ---------- Trends: one headline number, a dot per doc changed, and a running total per repo as lines.
 
-export function DesignLines({ rows, attention, NeedsAttention }: Props) {
+export function DesignTrends({ rows, attention, NeedsAttention }: Props) {
   const repoColor = useRepoColor()
   const t = totals(rows)
   const stats = [

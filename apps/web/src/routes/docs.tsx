@@ -26,7 +26,7 @@ import { useRepoColor } from "@/lib/doc-colors"
 import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
-type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; since?: string; doc?: string; design?: "a" | "c" }
+type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; since?: string; doc?: string; design?: "report" | "trends" }
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
@@ -38,8 +38,7 @@ export const Route = createFileRoute("/docs")({
     folder: text(s.folder),
     since: sinceMs(text(s.since)) ? text(s.since) : undefined,
     doc: text(s.doc),
-    // Overview designs A and C stay up for the owner's last comparison with B, the default.
-    design: s.design === "a" || s.design === "c" ? s.design : undefined,
+    design: s.design === "report" || s.design === "trends" ? s.design : undefined,
   }),
   component: DocsPage,
 })

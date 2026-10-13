@@ -3,7 +3,7 @@ import { Link, useSearch } from "@tanstack/react-router"
 import { ArrowDownRightIcon, ArrowUpRightIcon, BoxIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, MinusIcon, TriangleAlertIcon } from "lucide-react"
 import { cn } from "cn"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DesignLines, DesignReport } from "./overview-designs"
+import { DesignReport, DesignTrends } from "./overview-designs"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
@@ -46,7 +46,7 @@ export function DocOverview({ repos }: { repos: string[] }) {
     todos: sum((r) => r.todo_docs.length),
     stale: sum((r) => r.stale),
   }
-  const Design = design === "a" ? DesignReport : design === "c" ? DesignLines : null
+  const Design = design === "report" ? DesignReport : design === "trends" ? DesignTrends : null
   if (Design)
     return (
       <div className="flex flex-col gap-4">
@@ -105,12 +105,12 @@ export function DocOverview({ repos }: { repos: string[] }) {
 }
 
 const DESIGNS = [
-  { id: undefined, label: "B · Cards" },
-  { id: "a", label: "A · Report" },
-  { id: "c", label: "C · Lines" },
+  { id: undefined, label: "Cards" },
+  { id: "report", label: "Report" },
+  { id: "trends", label: "Trends" },
 ] as const
 
-/** Until the owner picks: B is the default, A and C sit behind ?design=. */
+/** Cards is the default; Report and Trends sit behind ?design=. */
 function DesignSwitch() {
   return (
     <nav aria-label="Overview design" className="flex items-center justify-end gap-1 text-xs">
