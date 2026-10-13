@@ -97,7 +97,7 @@ test("the API checks limit, reindexes, and health counts the docs", async ({ pag
   expect((await (await page.request.get("/api/health")).json()).docs).toEqual({ source: "mega", last_pull: expect.any(String), count: 4 })
 })
 
-test("j and k select a result, Enter copies its path, and a linked group's open todos show", async ({ page, context }) => {
+test("j and k select a result, Enter copies its path, and a result shows its tags, the groups that link it and their open todos", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"])
   await page.goto("/docs?q=lamp")
   await expect(results(page)).toHaveCount(2)
@@ -114,6 +114,9 @@ test("j and k select a result, Enter copies its path, and a linked group's open 
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^atlas\/plans\/lighthouse\.(md|html)$/)
 
   // The Onboarding group links plans/lighthouse.html and has one open item; the md twin counts as the same doc.
+  const lighthouse = page.locator(`[data-result$="plans/lighthouse.html"]`)
+  await expect(lighthouse.locator("[data-group]")).toHaveText(["Group: Onboarding"])
+  await expect(lighthouse.locator("[data-tags]")).toHaveText("Tags: plans, lamps")
   await results(page).first().getByRole("link", { name: "1 open todo" }).click()
   await expect(page).toHaveURL(/\/todos\?.*view=list/)
   await expect(page.getByText("Synced with the CLI")).toBeVisible()

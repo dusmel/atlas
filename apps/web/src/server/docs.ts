@@ -143,39 +143,51 @@ function repoFolders(): Map<string, string> {
 
 const twin = (path: string) => path.replace(/\.(md|html)$/, "")
 
-/** Open todos per doc (md and html as one), from the groups that link the doc under any label. */
-function linkedTodos(): Map<string, { open: number; groups: number[] }> {
+/** The groups that link each doc (md and html as one) under any label, and the open todos in them. */
+function linkedGroups(): Map<string, { open: number; groups: number[]; names: string[] }> {
   const groups = getDb()
-    .query<{ id: number; repo_id: string; path: string; open: number }, []>(
-      `SELECT g.id, g.repo_id, d.path,
+    .query<{ id: number; name: string; repo_id: string; path: string; open: number }, []>(
+      `SELECT g.id, g.name, g.repo_id, d.path,
               (SELECT count(*) FROM items i WHERE i.group_id = g.id AND i.status != 'done' AND i.archived_at IS NULL) AS open
-         FROM groups g JOIN group_docs d ON d.group_id = g.id`,
+         FROM groups g JOIN group_docs d ON d.group_id = g.id ORDER BY g.name`,
     )
     .all()
-    .filter((g) => g.open > 0)
-  const linked = new Map<string, { open: number; groups: number[] }>()
+  const linked = new Map<string, { open: number; groups: number[]; names: string[] }>()
   if (!groups.length) return linked
   const folders = repoFolders()
+  // A group can link both twins of a doc; count it once.
+  const seen = new Set<string>()
   for (const g of groups) {
     const folder = folders.get(g.repo_id)
     if (!folder) continue
     const key = twin(posix.normalize(`${folder}/${g.path}`))
-    const entry = linked.get(key) ?? { open: 0, groups: [] }
-    if (entry.groups.includes(g.id)) continue
+    if (seen.has(`${g.id} ${key}`)) continue
+    seen.add(`${g.id} ${key}`)
+    const entry = linked.get(key) ?? { open: 0, groups: [], names: [] }
+    linked.set(key, entry)
+    entry.names.push(g.name)
+    if (!g.open) continue
     entry.open += g.open
     entry.groups.push(g.id)
-    linked.set(key, entry)
   }
   return linked
 }
 
-/** Adds the open todos in groups that link to each doc, as a count and the group ids to filter Todos by. */
+/** Open todos per doc, from the groups that link it: a count and the group ids to filter Todos by. */
+function linkedTodos(): Map<string, { open: number; groups: number[] }> {
+  const out = new Map<string, { open: number; groups: number[] }>()
+  for (const [key, { open, groups }] of linkedGroups()) if (open) out.set(key, { open, groups })
+  return out
+}
+
+/** Adds the names of the groups that link each doc, and the open todos in them. */
 function withTodos(hits: SearchHit[]) {
-  const linked = linkedTodos()
+  const linked = linkedGroups()
   if (!linked.size) return hits
   return hits.map((h) => {
-    const todos = linked.get(twin(`${h.repo}/${h.path}`))
-    return todos ? { ...h, todos } : h
+    const entry = linked.get(twin(`${h.repo}/${h.path}`))
+    if (!entry) return h
+    return { ...h, groups: entry.names, ...(entry.open ? { todos: { open: entry.open, groups: entry.groups } } : {}) }
   })
 }
 

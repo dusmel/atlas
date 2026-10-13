@@ -1,7 +1,9 @@
 import { defaultUrlTransform } from "react-markdown"
 import { ActivityIcon, ChartColumnIcon, GlobeIcon, SearchIcon } from "lucide-react"
 
-export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; todos?: { open: number; groups: number[] } }
+export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; todos?: { open: number; groups: number[] }; groups?: string[] }
+/** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. */
+export const tagList = (tags: string) => tags.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim()).filter(Boolean)
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number> }
 /** `folders` maps a todo repo id to its docs folder, from the folder's meta.json. */
 export type Summary = { docs: number; md: number; html: number; repos: { name: string; docs: number }[]; folders: Record<string, string> }

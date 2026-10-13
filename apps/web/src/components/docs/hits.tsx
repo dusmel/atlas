@@ -1,10 +1,13 @@
 import { Link } from "@tanstack/react-router"
-import { BoxIcon, CopyIcon, ListTodoIcon } from "lucide-react"
+import { BoxIcon, CopyIcon, ListTodoIcon, TagIcon } from "lucide-react"
 import { Fragment } from "react"
 import { cn } from "cn"
 import { copy } from "@/components/todos/copy-id"
+import { GroupDot } from "@/components/todos/filters"
+import { groupColor } from "@/components/todos/group-color"
+import { plainTitle } from "@/components/todos/rich-title"
 import { ageTone, repoColor } from "@/lib/doc-colors"
-import { docHref, docKey, docPath, type Hit } from "@/lib/docs"
+import { docHref, docKey, docPath, tagList, type Hit } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
 export const copyPath = (d: { path: string }) => copy(docPath(d), `Copied ${docPath(d)}`)
@@ -49,6 +52,7 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
               <time dateTime={h.mtime} title={exact(h.mtime)} className={cn("tabular-nums", ageTone(h.mtime))}>
                 {ago(h.mtime)}
               </time>
+              <Details hit={h} />
             </div>
             {h.snippet && (
               <p className="line-clamp-3 text-sm break-words text-muted-foreground">
@@ -76,6 +80,29 @@ export function CopyPath({ doc }: { doc: { path: string } }) {
       <span className="min-w-0 truncate">{doc.path}</span>
       <CopyIcon aria-hidden className="size-3 shrink-0 opacity-0 group-hover/hit:opacity-100 group-data-selected/hit:opacity-100 pointer-coarse:opacity-100" />
     </button>
+  )
+}
+
+/** The doc's tags, then the todo groups that link it. */
+function Details({ hit }: { hit: Hit }) {
+  const tags = tagList(hit.tags)
+  return (
+    <>
+      {tags.length > 0 && (
+        <span data-tags className="flex min-w-0 items-center gap-1" title="Tags">
+          <TagIcon aria-hidden className="size-3 shrink-0" />
+          <span className="sr-only">Tags: </span>
+          <span className="truncate">{tags.join(", ")}</span>
+        </span>
+      )}
+      {hit.groups?.map((name) => (
+        <span key={name} data-group className="flex min-w-0 items-center gap-1.5" title="Todo group that links this doc">
+          <GroupDot color={groupColor(name)} />
+          <span className="sr-only">Group: </span>
+          <span className="truncate">{plainTitle(name)}</span>
+        </span>
+      ))}
+    </>
   )
 }
 

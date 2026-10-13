@@ -42,7 +42,7 @@ export const SEED = {
 
 // The shape of an html-docs page: the same copy and theme scripts, made-up words. Like 18 real docs,
 // its theme script reads localStorage unguarded, which throws in the sandbox without the frame's stand-in.
-const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title></head><body>
+const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title><meta name="tags" content="plans, lamps"></head><body>
 <header data-atlas-chrome>Old top bar</header>
 <button id="theme">Theme</button> <button id="copy-md">Copy as Markdown</button>
 <script type="text/plain" id="md-source"># Lighthouse plan</script>
