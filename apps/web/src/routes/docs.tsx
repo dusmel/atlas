@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { cn } from "cn"
 import { AppHeader } from "@/components/app-header"
 import { DocActivity } from "@/components/docs/activity-view"
+import { YearGrid } from "@/components/year-grid"
 import { DocsPalette } from "@/components/docs/docs-palette"
 import { ChangedPopover, CheckList, FilterBadge, FolderPopover } from "@/components/docs/filters"
 import { copyPath, Hits } from "@/components/docs/hits"
@@ -208,7 +209,10 @@ function DocsPage() {
           )}
 
           {view === "activity" ? (
-            <DocActivity params={filters} />
+            <div className="flex flex-col gap-6">
+              <YearGrid source="/docs/activity/days" params={filters} noun={["doc change", "doc changes"]} />
+              <DocActivity params={filters} />
+            </div>
           ) : view === "overview" ? (
             <DocOverview repos={repos} />
           ) : results.isPending ? (

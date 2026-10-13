@@ -84,13 +84,15 @@ test("Triage: G picks a group for the item on screen", async ({ page }) => {
   await expect.poll(async () => (await getItem(page, id)).group_name).toBe("Release prep")
 })
 
-test("Activity: an item added with atlas todo add shows with its author", async ({ page }) => {
+test("Activity: an item added with atlas todo add shows with its author, and today counts it in the year grid", async ({ page }) => {
   await atlas(page, "add", "Added from the CLI", "--repo", "demo-api")
   await page.goto("/todos?view=activity")
   const newest = page.locator("[data-event]").first()
   await expect(newest).toContainText("Added from the CLI")
   await expect(newest).toContainText("opencode created it")
   await expect(newest.getByRole("img", { name: "opencode" })).toBeVisible()
+  await expect(page.getByRole("img", { name: /changes? in the last year$/ })).toBeVisible()
+  await expect(page.locator("[data-year-grid] rect").last()).not.toHaveAttribute("data-count", "0")
 })
 
 test("Overview: the counts match atlas todo list --all --json", async ({ page }) => {

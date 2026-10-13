@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityView } from "@/components/todos/activity-view"
+import { YearGrid } from "@/components/year-grid"
 import { Board } from "@/components/todos/board"
 import { CommandPalette } from "@/components/todos/command-palette"
 import { MoveDialog, NewItemDialog, ShortcutsDialog } from "@/components/todos/dialogs"
@@ -253,7 +254,12 @@ function TodosPage() {
           shown={view === "board" || view === "list" ? visible.length : view === "triage" ? inbox.length : view === "overview" ? overviewItems.length : undefined}
         />
         {view === "activity" ? (
-          <ActivityView repo={filters.repo} by={filters.by} since={filters.since} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
+          <>
+            <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
+              <YearGrid source="/events/days" params={new URLSearchParams([...(filters.repo?.length ? [["repo", filters.repo.join(",")]] : []), ...(filters.by?.length ? [["by", filters.by.join(",")]] : [])])} noun={["change", "changes"]} />
+            </div>
+            <ActivityView repo={filters.repo} by={filters.by} since={filters.since} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
+          </>
         ) : itemsQuery.isPending ? (
           <BoardSkeleton />
         ) : itemsQuery.isError ? (

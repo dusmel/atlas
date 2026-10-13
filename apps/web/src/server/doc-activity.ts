@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite"
 import { folderOf, type DocMeta } from "@atlas/indexer"
+import { tzModifier, yearAgo } from "./days"
 
 export type DocChange = "added" | "changed" | "removed"
 export type DocEvent = { id: number; at: string; change: DocChange; repo: string; path: string; kind: string; kinds: string[]; title: string }
@@ -65,4 +66,24 @@ export function listDocEvents(db: Database, opts: { repo?: string[]; folder?: st
     out.push({ ...r, kinds: [r.kind] })
   }
   return out.slice(0, limit)
+}
+
+/** Docs changed per day over the last year, in the viewer's timezone. An md and html pair counts once a day. */
+export function docEventDays(db: Database, opts: { repo?: string[]; folder?: string[]; tz?: string | null }): { days: Record<string, number> } {
+  const parts: string[] = []
+  const params: string[] = []
+  for (const key of ["repo", "folder"] as const) {
+    const values = opts[key]
+    if (!values?.length) continue
+    parts.push(`AND ${key} IN (${values.map(() => "?").join(", ")})`)
+    params.push(...values)
+  }
+  const rows = db
+    .query<{ day: string; n: number }, string[]>(
+      `SELECT date(at, ?) AS day,
+              count(DISTINCT repo || '/' || CASE WHEN path LIKE '%.html' THEN substr(path, 1, length(path) - 5) WHEN path LIKE '%.md' THEN substr(path, 1, length(path) - 3) ELSE path END) AS n
+         FROM doc_events WHERE at >= ? ${parts.join(" ")} GROUP BY day`,
+    )
+    .all(tzModifier(opts.tz), yearAgo(), ...params)
+  return { days: Object.fromEntries(rows.map((r) => [r.day, r.n])) }
 }

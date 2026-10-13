@@ -12,6 +12,7 @@ import {
   getImport,
   getTodo,
   listAuthors,
+  eventDays,
   listEvents,
   listGroups,
   listRepos,
@@ -321,6 +322,22 @@ describe("events", () => {
     const [newest, ...rest] = events()
     expect(events({ before: String(newest!.id) })).toEqual(rest)
     expect(events({ limit: "1" })).toHaveLength(1)
+  })
+
+  test("days count changes per day in the viewer's timezone, with the repo and author filters, over the last year", () => {
+    const a = createTodo(db, as("me"), { repo, title: "Mine" })
+    createTodo(db, as("claude-code"), { repo: { id: "github.com-me-web", name: "web" }, title: "Web" })
+    updateTodo(db, as("me"), a.id, { priority: "P1" })
+    const midnight = Math.floor(Date.now() / 864e5) * 864e5 - 2 * 864e5
+    const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+    const ats = [midnight + 23.5 * 36e5, midnight + 36e5, midnight - 400 * 864e5].map((ms) => new Date(ms).toISOString())
+    for (const [n, at] of ats.entries()) db.run("UPDATE events SET at = ? WHERE id = (SELECT id FROM events ORDER BY id LIMIT 1 OFFSET ?)", [at, n])
+    const days = (q: { repo?: string[]; by?: string[]; tz?: string }) => eventDays(db, { repo: [], by: [], ...q }).days
+    expect(days({})).toEqual({ [day(midnight)]: 2 })
+    expect(days({ tz: "120" })).toEqual({ [day(midnight)]: 1, [day(midnight + 864e5)]: 1 })
+    expect(days({ repo: ["web"] })).toEqual({ [day(midnight)]: 1 })
+    expect(days({ by: ["agent"] })).toEqual({ [day(midnight)]: 1 })
+    expect(fails(() => days({ tz: "900" }))).toBe("400 bad_tz")
   })
 
   test("limit is 1 to 500", () => {

@@ -14,6 +14,7 @@ import {
 } from "@atlas/todos"
 import type { Who } from "./auth"
 import { now } from "./db"
+import { tzModifier, yearAgo } from "./days"
 import { HttpError } from "./http"
 
 export type Item = {
@@ -362,6 +363,30 @@ export function listEvents(db: Database, query: EventQuery) {
     )
     .all(...args, limit)
     .map((e) => ({ ...e, data: JSON.parse(e.data) }))
+}
+
+/** Changes per day over the last year, in the viewer's timezone, with the repo and author filters of `listEvents`. */
+export function eventDays(db: Database, query: { repo: string[]; by: string[]; tz?: string | null }): { days: Record<string, number> } {
+  const where = ["events.at >= ?"]
+  const args: string[] = [yearAgo()]
+  if (query.repo.length) {
+    const marks = query.repo.map(() => "?").join(", ")
+    where.push(`(items.repo_id IN (${marks}) OR repos.name IN (${marks}))`)
+    args.push(...query.repo, ...query.repo)
+  }
+  if (query.by.length) {
+    const [sql, by] = byFilter(query.by, "events.author")
+    where.push(sql)
+    args.push(...by)
+  }
+  const rows = db
+    .query<{ day: string; n: number }, string[]>(
+      `SELECT date(events.at, ?) AS day, count(*) AS n
+       FROM events JOIN items ON items.id = events.item_id JOIN repos ON repos.id = items.repo_id
+       WHERE ${where.join(" AND ")} GROUP BY day`,
+    )
+    .all(tzModifier(query.tz), ...args)
+  return { days: Object.fromEntries(rows.map((r) => [r.day, r.n])) }
 }
 
 function parentFor(db: Database, item: { id?: number; repo_id: string }, value: unknown): number | null {

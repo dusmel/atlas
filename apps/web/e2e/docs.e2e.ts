@@ -122,7 +122,7 @@ test("j and k select a result, Enter copies its path, and a result shows its tag
   await expect(page.getByText("Synced with the CLI")).toBeVisible()
 })
 
-test("Activity lists doc changes, and Overview has a card per repo and what needs attention", async ({ page }) => {
+test("Activity has a year grid and lists doc changes, and Overview has a card per repo and what needs attention", async ({ page }) => {
   await page.goto("/docs")
   await views(page).getByRole("link", { name: "Activity" }).click()
   await expect(page).toHaveURL(/view=activity/)
@@ -130,8 +130,12 @@ test("Activity lists doc changes, and Overview has a card per repo and what need
   await expect(page.locator('[data-event="changed"]')).toHaveCount(1)
   await expect(page.locator('[data-event="changed"]')).toContainText("Ferry runbook")
   await expect(page.getByRole("heading", { name: "Today" })).toBeVisible()
+  // The year grid's last square is today.
+  await expect(page.getByRole("img", { name: "1 doc change in the last year" })).toBeVisible()
+  await expect(page.locator("[data-year-grid] rect").last()).toHaveAttribute("data-count", "1")
   await sidebar(page).getByRole("checkbox", { name: /^web/ }).check()
   await expect(page.getByText("No doc changes yet")).toBeVisible()
+  await expect(page.getByRole("img", { name: "0 doc changes in the last year" })).toBeVisible()
 
   await views(page).getByRole("link", { name: "Overview" }).click()
   const cards = page.locator("section[data-repo]")
