@@ -72,6 +72,28 @@ function scan(body: string) {
 
 type Related = { text: string; href: string; why: string }
 
+// The last "## Related" becomes the footer when every line in it is a link item.
+function splitRelated(lines: ReturnType<typeof scan>): { lines: ReturnType<typeof scan>; related: Related[] } {
+  const at = lines
+    .map((l, i) => (!l.inCode && /^##\s+Related\s*$/i.test(l.line) ? i : -1))
+    .filter((i) => i >= 0)
+    .pop()
+  if (at === undefined) return { lines, related: [] }
+  const ITEM = /^\s*[-*]\s+\[(.+?)\]\((\S+?)(?:\s+"[^"]*")?\)\s*(?:(?:—|–|-|:)\s*(.*))?$/
+  const items = lines
+    .slice(at + 1)
+    .filter((l) => l.line.trim())
+    .map((l) => l.line.match(ITEM))
+  if (!items.length || !items.every(Boolean)) return { lines, related: [] }
+  return { lines: lines.slice(0, at), related: items.map((m) => ({ text: m![1]!, href: m![2]!, why: (m![3] ?? "").trim() })) }
+}
+
+/** The markdown without the Related footer that the page would lift out, for a share, which names no other doc. */
+export const withoutRelated = (md: string) =>
+  splitRelated(scan(md))
+    .lines.map((l) => l.line)
+    .join("\n")
+
 function split(body: string) {
   let lines = scan(body)
   let h1 = ""
@@ -93,21 +115,8 @@ function split(body: string) {
       .replace(TLDR, "")
     lines = lines.slice(stop)
   }
-  // The last "## Related" becomes the footer when every line in it is a link item.
-  const related: Related[] = []
-  const at = lines
-    .map((l, i) => (!l.inCode && /^##\s+Related\s*$/i.test(l.line) ? i : -1))
-    .filter((i) => i >= 0)
-    .pop()
-  if (at !== undefined) {
-    const ITEM = /^\s*[-*]\s+\[(.+?)\]\((\S+?)(?:\s+"[^"]*")?\)\s*(?:(?:—|–|-|:)\s*(.*))?$/
-    const tail = lines.slice(at + 1).filter((l) => l.line.trim())
-    const items = tail.map((l) => l.line.match(ITEM))
-    if (items.length && items.every(Boolean)) {
-      for (const m of items) related.push({ text: m![1]!, href: m![2]!, why: (m![3] ?? "").trim() })
-      lines = lines.slice(0, at)
-    }
-  }
+  const { lines: rest, related } = splitRelated(lines)
+  lines = rest
   return { h1, tldr, content: lines.map((l) => l.line).join("\n"), related }
 }
 

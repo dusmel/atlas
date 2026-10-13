@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { frontmatter, renderMarkdownPage } from "../src/index.ts"
+import { frontmatter, renderMarkdownPage, withoutRelated } from "../src/index.ts"
 
 const body = (html: string) => html.slice(html.indexOf("<body>"), html.indexOf('<script type="text/markdown"'))
 
@@ -52,6 +52,9 @@ describe("renderMarkdownPage", () => {
     expect(page).toContain('<nav data-atlas-related><ul>\n<li><a href="plan.html">Plan</a><span class="why">the steps</span></li>')
     // A Related section with prose in it stays a plain section.
     expect(body(renderMarkdownPage("# T\n\n## Related\n\nSee the plan.", "t.md").html)).toContain('<h2 id="related">Related</h2>')
+    // A share drops the same footer, and keeps one with prose.
+    expect(withoutRelated(md)).toBe("# T\n\nText.\n")
+    expect(withoutRelated("# T\n\n## Related\n\nSee the plan.")).toContain("See the plan.")
   })
 
   test("the markdown rides along for agents and Copy as Markdown, with </script> unable to end the block", () => {

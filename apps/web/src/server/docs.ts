@@ -6,6 +6,7 @@ import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
 import { listDocEvents, recordDocChanges } from "./doc-activity"
+import { closestDocs } from "./closest-docs"
 import { repoExtras } from "./doc-overview"
 import { docFile } from "./doc-files"
 import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
@@ -204,7 +205,11 @@ export function findDoc(repo: string, path: string) {
 
 /** What the frame's toolbar needs for `/r/<repo>/<path>`; the page itself loads from `/raw` (spec section 6). */
 export async function viewDoc(repo: string, path: string) {
-  const file = findDoc(repo, path)
+  const file = docFile(getIndex().root, repo, path)
+  if (!file) {
+    await ready
+    throw new HttpError(404, "not_found", `No doc ${repo}/${path}`, { closest: closestDocs(getIndex().files(), repo, path) })
+  }
   const kind = path.endsWith(".md") ? "md" : path.endsWith(".html") ? "html" : null
   if (!kind) throw new HttpError(400, "not_a_doc", "Only md and html files open as docs")
   const text = await Bun.file(file).text()

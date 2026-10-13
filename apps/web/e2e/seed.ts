@@ -49,6 +49,8 @@ const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title></hea
 <p>The keeper lights the lamp at dusk and logs every passing ship.</p>
 <p><a href="../notes/harbour.md">Harbour notes</a> <a href="../index.html">All web docs</a> <a href="#log">Jump to the log</a></p>
 <p><a href="lamp.svg">Lamp sketch</a></p>
+<details class="props" open><summary>Metadata</summary><dl><dt>Status</dt><dd>draft</dd></dl></details>
+<section class="related" data-atlas-chrome><h2>Related</h2><nav data-atlas-related><a href="../notes/harbour.md">Tide notes</a></nav></section>
 <figure data-atlas-diagram><svg width="200" height="80" viewBox="0 0 200 80"><rect width="200" height="80" fill="#ccc"/></svg><figcaption>The lamp room</figcaption></figure>
 <h2 id="log" style="margin-top:120vh">Log</h2>
 <script>

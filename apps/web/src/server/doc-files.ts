@@ -2,6 +2,7 @@ import { realpathSync, statSync } from "node:fs"
 import { extname, join, sep } from "node:path"
 import { marked } from "marked"
 import sanitizeHtml from "sanitize-html"
+import { LOST_MAP_CSS, LOST_MAP_SVG } from "@/lib/lost-map"
 
 /** Logged in, an HTML doc runs its scripts in an opaque origin: no cookie, no API (spec section 8). Shares run none. */
 export const CSP_DOC = "sandbox allow-scripts allow-popups"
@@ -102,4 +103,47 @@ table { border-collapse: collapse; display: block; overflow-x: auto; } th, td { 
 hr { border: 0; border-top: 1px solid var(--line); }
 </style></head>
 <body><main>${html}</main></body></html>`
+}
+
+/** Where a shared doc's links to other pages go: a token that never exists, so the reader gets the share 404. */
+export const SHARE_ELSEWHERE = "/s/elsewhere"
+// Before the doc contract lands (commit 9), html-docs pages mark their navbar `.topbar` and their footer `section.related`.
+const SHARE_HIDE = "<style>[data-atlas-chrome],[data-atlas-related],details.props,.topbar,section.related{display:none!important}</style>"
+
+/** A share shows its one doc and names no other: its chrome is hidden, and any link that stays on this site leads to the share 404. */
+// Read to the end here: the app server stalls when it streams the rewriter's body itself.
+export async function shareView(res: Response): Promise<Response> {
+  const html = await new HTMLRewriter()
+    .on("a[href], area[href]", {
+      element(a) {
+        const href = a.getAttribute("href")!.trim()
+        if (!href.startsWith("#") && !/^([a-z][a-z\d+.-]*:|\/\/)/i.test(href)) a.setAttribute("href", SHARE_ELSEWHERE)
+      },
+    })
+    .onDocument({ end: (end) => void end.append(SHARE_HIDE, { html: true }) })
+    .transform(res)
+    .text()
+  const headers = new Headers(res.headers)
+  headers.delete("content-length")
+  return new Response(html, { status: res.status, headers })
+}
+
+/** The share 404: the app's map and words, with no search, no doc names and no links. */
+export function lostSharePage(): string {
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>Not found</title>
+<style>
+:root { color-scheme: light dark; --fg: #1c1c1e; --muted: #6b6b70; --line: #e4e4e7; }
+@media (prefers-color-scheme: dark) { :root { --fg: #ececee; --muted: #a1a1aa; --line: #2e2e33; } body { background: #111113; } }
+body { margin: 0; color: var(--fg); font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; }
+.map { height: 14rem; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.map svg { width: 600px; flex: none; }
+h1 { font-size: 1.25rem; margin: 1.5rem 0 0.4rem; } p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+${LOST_MAP_CSS}
+</style></head>
+<body><main><div class="map">${LOST_MAP_SVG}</div>
+<h1>This doc drifted off the map</h1>
+<p>The link was revoked, or it never pointed to a doc.</p></main></body></html>`
 }

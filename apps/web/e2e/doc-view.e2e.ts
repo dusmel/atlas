@@ -106,9 +106,18 @@ test("a diagram zooms on click and closes on Escape, and the toolbar copies the 
   await expect(plan.locator("html")).toHaveClass(/dark/)
 })
 
-test("a doc the served copy lacks says so, and every doc route needs a login", async ({ page, browser }) => {
-  await page.goto("/r/web/notes/missing.md")
-  await expect(page.getByText("No doc here")).toBeVisible()
+test("a doc the served copy lacks gets the map 404 with the closest paths, and every doc route needs a login", async ({ page, browser }) => {
+  await page.goto("/r/web/plans/lighthose.html")
+  await expect(page.getByRole("heading", { name: "This doc drifted off the map" })).toBeVisible()
+  const closest = page.getByRole("region", { name: "Closest paths" }).getByRole("link")
+  await expect(closest).toHaveCount(3)
+  await expect(closest.first()).toHaveAttribute("href", "/r/web/plans/lighthouse.html")
+  await page.keyboard.press("ControlOrMeta+k")
+  await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("textbox", { name: "Search the docs" })).toHaveValue("lighthose")
+  await page.getByRole("button", { name: "Search", exact: true }).click()
+  await expect(page).toHaveURL(/\/docs\?q=lighthose$/)
   // The plan is kept as both md and html, and the html is the doc, whether the server or the app is asked.
   await page.goto("/r/web/plans/lighthouse.md")
   await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
@@ -147,6 +156,17 @@ test("make public, open the share logged out with scripts blocked, then revoke i
   expect(html!.headers()["content-security-policy"]).toBe("sandbox")
   await reader.getByRole("button", { name: "Theme" }).click()
   await expect(reader.locator("body")).not.toHaveClass("dark")
+  // A share names no other doc: its top bar, metadata and Related are hidden, and links within the site reach the share 404.
+  await expect(reader.getByText("Old top bar")).toBeHidden()
+  await expect(reader.getByText("Metadata")).toBeHidden()
+  await expect(reader.getByText("Tide notes")).toBeHidden()
+  await expect(reader.getByRole("link", { name: "Jump to the log" })).toHaveAttribute("href", "#log")
+  await reader.getByRole("link", { name: "Harbour notes" }).click()
+  await expect(reader).toHaveURL(/\/s\/elsewhere$/)
+  await expect(reader.getByRole("heading", { name: "This doc drifted off the map" })).toBeVisible()
+  await expect(reader.getByRole("link")).toHaveCount(0)
+  await reader.goto(link)
+  await expect(reader.getByRole("link", { name: "the keeper's plan" })).toHaveAttribute("href", "/s/elsewhere")
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Shared" }).click()
   const rows = page.getByRole("list", { name: "Shared docs" }).locator("[data-share]")

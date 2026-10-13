@@ -5,6 +5,7 @@ import { useTheme } from "next-themes"
 import { useEffect, useRef, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { copyMarkdown, DocPalette } from "@/components/docs/doc-palette"
+import { LostDoc } from "@/components/docs/lost-doc"
 import { CopyPath, TodosLink } from "@/components/docs/hits"
 import { ShareButton } from "@/components/docs/share-button"
 import { Badge } from "@/components/ui/badge"
@@ -71,7 +72,8 @@ function DocView() {
   useEffect(() => setRelated([]), [repo, path])
   useHotkeys({ "mod+k": () => setPalette((o) => !o), "/": () => setPalette(true) })
 
-  const missing = doc.error instanceof ApiError && doc.error.status === 404
+  // A 404 carries the docs with the closest paths.
+  const lost = doc.error instanceof ApiError && doc.error.status === 404 ? ((doc.error.body as { closest?: { repo: string; path: string; title: string }[] } | null)?.closest ?? []) : null
   return (
     <div className="flex h-dvh flex-col">
       <AppHeader onCommand={() => setPalette(true)} />
@@ -139,6 +141,8 @@ function DocView() {
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-5/6" />
         </div>
+      ) : lost ? (
+        <LostDoc repo={repo} path={path} closest={lost} />
       ) : doc.error ? (
         <main className="px-4 py-8">
           <Empty className="mx-auto max-w-2xl border">
@@ -146,8 +150,8 @@ function DocView() {
               <EmptyMedia variant="icon">
                 <FileQuestionIcon />
               </EmptyMedia>
-              <EmptyTitle>{missing ? "No doc here" : "Could not load the doc"}</EmptyTitle>
-              <EmptyDescription>{missing ? `${repo}/${path} is not in the server's copy of the docs. If it is new, MEGA may not have synced it yet.` : doc.error.message}</EmptyDescription>
+              <EmptyTitle>Could not load the doc</EmptyTitle>
+              <EmptyDescription>{doc.error.message}</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button asChild variant="outline">
