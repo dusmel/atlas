@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { Link, useSearch } from "@tanstack/react-router"
 import { ArrowDownRightIcon, ArrowUpRightIcon, BoxIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, MinusIcon, TriangleAlertIcon } from "lucide-react"
 import { cn } from "cn"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DesignLines, DesignReport } from "./overview-designs"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
@@ -21,6 +22,7 @@ const CAP = 12
 /** One number for the week, a dot per doc changed, how fresh the docs are, and each repo's share. */
 export function DocOverview({ repos }: { repos: string[] }) {
   const q = useQuery({ queryKey: ["doc-overview"], queryFn: () => api<{ repos: RepoOverview[]; attention: Attention }>("/docs/overview") })
+  const design = useSearch({ from: "/docs", select: (s) => s.design })
   if (q.isPending)
     return (
       <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading the overview">
@@ -44,10 +46,19 @@ export function DocOverview({ repos }: { repos: string[] }) {
     todos: sum((r) => r.todo_docs.length),
     stale: sum((r) => r.stale),
   }
+  const Design = design === "a" ? DesignReport : design === "c" ? DesignLines : null
+  if (Design)
+    return (
+      <div className="flex flex-col gap-4">
+        <DesignSwitch />
+        <Design rows={rows} attention={q.data.attention} NeedsAttention={NeedsAttention} />
+      </div>
+    )
   const newest = <T extends DocRef>(docs: T[]) => [...docs].sort((a, b) => b.mtime.localeCompare(a.mtime)).slice(0, 6)
 
   return (
     <div className="flex flex-col gap-4">
+      <DesignSwitch />
       <dl aria-label="Totals" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat hero label="Changed this week" value={t.week} to={{ to: "/docs", search: { since: "1w" } }} foot={<Delta now={t.week} before={t.lastWeek} hero />} />
         <Stat label="Docs" value={t.docs} to={{ to: "/docs", search: {} }} foot={`in ${rows.length} ${rows.length === 1 ? "repo" : "repos"}`} />
@@ -90,6 +101,33 @@ export function DocOverview({ repos }: { repos: string[] }) {
         </section>
       </div>
     </div>
+  )
+}
+
+const DESIGNS = [
+  { id: undefined, label: "B · Cards" },
+  { id: "a", label: "A · Report" },
+  { id: "c", label: "C · Lines" },
+] as const
+
+/** Until the owner picks: B is the default, A and C sit behind ?design=. */
+function DesignSwitch() {
+  return (
+    <nav aria-label="Overview design" className="flex items-center justify-end gap-1 text-xs">
+      <span className="mr-1 text-muted-foreground">Design</span>
+      {DESIGNS.map((d) => (
+        <Link
+          key={d.label}
+          from="/docs"
+          to="/docs"
+          search={(s) => ({ ...s, design: d.id })}
+          activeOptions={{ explicitUndefined: true }}
+          className="rounded-full border px-2.5 py-1 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-[current=page]:border-transparent aria-[current=page]:bg-foreground aria-[current=page]:text-background"
+        >
+          {d.label}
+        </Link>
+      ))}
+    </nav>
   )
 }
 
