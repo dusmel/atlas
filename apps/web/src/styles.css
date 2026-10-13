@@ -224,3 +224,6 @@
   .markdown.doc th { font-weight: 600; }
   .markdown.doc li > input[type="checkbox"] { margin-right: 0.4em; vertical-align: -0.1em; }
 }
+
+/* The 404 sparks flicker at the break in the chain. */
+@keyframes spark { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }

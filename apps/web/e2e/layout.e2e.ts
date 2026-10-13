@@ -20,3 +20,15 @@ for (const [name, viewport] of [["desktop", { width: 1280, height: 900 }], ["pho
     })
   })
 }
+
+test("an unknown page shows the 404, with three designs to compare", async ({ page }) => {
+  await login(page)
+  await page.goto("/no-such-page")
+  await expect(page.getByRole("heading", { name: "Nothing here." })).toBeVisible()
+  const designs = page.getByRole("navigation", { name: "404 design" })
+  await designs.getByRole("link", { name: "B · Dots" }).click()
+  await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible()
+  await designs.getByRole("link", { name: "C · Screen" }).click()
+  await expect(page.getByRole("heading", { name: "No signal." })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Go home" })).toHaveAttribute("href", "/")
+})
