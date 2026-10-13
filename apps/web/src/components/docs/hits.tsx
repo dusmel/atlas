@@ -115,7 +115,7 @@ function Details({ hit }: { hit: Hit }) {
 export function TypeBadge({ type }: { type: string | null }) {
   if (!type) return null
   return (
-    <Badge data-type className="gap-1 rounded-sm font-mono text-[10.5px] text-white uppercase [&>svg]:size-3" style={{ background: typeColor(type) }}>
+    <Badge data-type className="h-4 gap-0.5 rounded-sm px-1.5 font-mono text-[9.5px] text-white uppercase [&>svg]:size-2.5!" style={{ background: typeColor(type) }}>
       <ShapesIcon aria-hidden />
       <span className="sr-only">Type: </span>
       {type}
