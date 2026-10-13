@@ -10,7 +10,7 @@ type Props = {
   view: DocView
   selected?: Hit
   filtered: boolean
-  run: { pick: (hit: Hit, query: string) => void; view: (v: DocView) => void; copy: () => void; open: () => void; clear: () => void; go: (to: "/todos" | "/shared" | "/settings") => void }
+  run: { pick: (hit: Hit) => void; view: (v: DocView) => void; copy: () => void; open: () => void; clear: () => void; go: (to: "/todos" | "/shared" | "/settings") => void }
 }
 
 /** ⌘K on the Docs page: find a doc by its words, switch view, or act on the selected doc. */
@@ -33,7 +33,7 @@ function Palette({ view, selected, filtered, onOpenChange, run }: Props) {
       <CommandInput autoFocus value={search} onValueChange={setSearch} placeholder="Type words to find a doc, or a command…" />
       <CommandList className="max-h-[min(65vh,28rem)]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
-        <DocCommandGroup query={search} onPick={(h) => close(() => run.pick(h, search))()} />
+        <DocCommandGroup query={search} onPick={(h) => close(() => run.pick(h))()} />
         {selected && (
           <CommandGroup heading={selected.title.slice(0, 60)}>
             <CommandItem value="open doc" onSelect={close(run.open)}>

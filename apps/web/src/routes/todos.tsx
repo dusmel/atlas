@@ -21,6 +21,7 @@ import { VIEWS, ViewTabs, type View } from "@/components/todos/view-tabs"
 import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
 import { useIsDesktop } from "@/hooks/use-media-query"
 import { layout, step } from "@/lib/board"
+import { docHref } from "@/lib/docs"
 import { matches, sinceMs, STATUSES, useActions, useGroups, useItemDetail, useItems, useRepos, type Filters, type Row, type Status } from "@/lib/todos"
 
 // Filters live in the URL as comma lists, so a bookmark is a saved view: /todos?view=list&repo=sem&priority=P0,P1
@@ -354,7 +355,7 @@ function TodosPage() {
           shortcuts: () => setShortcuts(true),
           settings: () => navigate({ to: "/settings" }),
           go: (to) => navigate({ to }),
-          openDoc: (doc, q) => navigate({ to: "/docs", search: { q: q || undefined, doc } }),
+          openDoc: (doc) => navigate({ href: docHref(doc) }),
           theme: setTheme,
         }}
       />

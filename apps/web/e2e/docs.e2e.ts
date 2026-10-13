@@ -166,13 +166,19 @@ test("Activity has a year grid and lists doc changes, and Overview has totals, a
   await expect(recent(page)).toHaveCount(2)
 })
 
-test("⌘K finds a doc from Todos and opens the Docs search with it selected", async ({ page }) => {
+test("⌘K opens a doc it finds, from Todos and from Docs", async ({ page }) => {
   await openBoard(page, "/todos")
   await page.keyboard.press("ControlOrMeta+k")
   await page.getByRole("dialog").getByRole("combobox").fill("ferry engine")
-  await page.getByRole("option", { name: /Ferry runbook/ }).click()
-  await expect(page).toHaveURL(/\/docs\?.*q=ferry(\+|%20)engine/)
-  await expect(results(page).first()).toHaveAttribute("data-selected", "true")
+  await page.getByRole("option", { name: /Ferry runbook/ }).press("Enter")
+  await expect(page).toHaveURL(/\/r\/api\/runbook\.html$/)
+  await page.goto("/docs")
+  await page.keyboard.press("ControlOrMeta+k")
+  await page.getByRole("dialog").getByRole("combobox").fill("ferry engine")
+  await expect(page.getByRole("option", { name: /Ferry runbook/ })).toHaveAttribute("aria-selected", "true")
+  await page.getByRole("dialog").getByRole("combobox").press("Enter")
+  await expect(page).toHaveURL(/\/r\/api\/runbook\.html$/)
+  await page.goto("/docs")
   await page.keyboard.press("ControlOrMeta+k")
   await page.getByRole("dialog").getByRole("combobox").fill("overview")
   await page.getByRole("option", { name: /^view Overview|Overview/ }).first().click()

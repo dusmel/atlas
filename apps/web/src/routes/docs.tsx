@@ -271,11 +271,7 @@ function DocsPage() {
         selected={current}
         filtered={filtered > 0}
         run={{
-          pick: (h, query) => {
-            setTyped(query)
-            setSelected(docKey(h))
-            void navigate({ search: { q: query || undefined, doc: docKey(h) } })
-          },
+          pick: (h) => void navigate({ href: docHref(h) }),
           view: (v) => set({ view: v === "search" ? undefined : v }),
           copy: () => current && copyPath(current),
           open: () => current && window.location.assign(docHref(current)),
