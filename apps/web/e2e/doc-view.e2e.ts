@@ -56,6 +56,37 @@ test("over an html doc, ⌘K opens the palette, an index link opens Docs for the
   await expect(page.locator("circle")).toBeVisible()
 })
 
+test("⌘K on a doc acts on it, and ⌘K works on Shared too", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  await page.goto("/r/web/notes/harbour.md")
+  await docFrame(page, "Harbour notes")
+  const palette = page.getByRole("dialog", { name: "Command palette" })
+  await page.keyboard.press("ControlOrMeta+k")
+  await palette.getByRole("option", { name: "Copy as Markdown" }).click()
+  await expect(page.getByText("Markdown copied")).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Ships wait outside the harbour")
+
+  await page.keyboard.press("ControlOrMeta+k")
+  await palette.getByRole("option", { name: "Make public" }).click()
+  await expect(page.getByText("Public link copied")).toBeVisible()
+  await page.keyboard.press("ControlOrMeta+k")
+  await expect(palette.getByRole("option", { name: "Copy public link" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  const { shares } = await api<{ shares: { token: string; path: string }[] }>(page, "GET", "/shares")
+  await api(page, "DELETE", `/shares/${shares.find((s) => s.path === "notes/harbour.md")!.token}`)
+
+  await page.goto("/shared")
+  // The first press can land before the page hydrates.
+  await expect(async () => {
+    if (!(await palette.isVisible())) await page.keyboard.press("ControlOrMeta+k")
+    await expect(palette).toBeVisible({ timeout: 1000 })
+  }).toPass()
+  await expect(palette.getByRole("option", { name: "Go to Shared" })).toHaveCount(0)
+  await palette.getByRole("combobox").fill("keeper")
+  await palette.getByRole("option", { name: /Lighthouse plan/ }).click()
+  await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
+})
+
 test("a diagram zooms on click and closes on Escape, and the toolbar copies the markdown", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"])
   await page.goto("/r/web/plans/lighthouse.html")

@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { GlobeIcon, LinkIcon } from "lucide-react"
+import { useState } from "react"
 import { toast } from "sonner"
 import { AppHeader } from "@/components/app-header"
+import { DocPalette } from "@/components/docs/doc-palette"
 import { shareUrl } from "@/components/docs/share-button"
 import { copy } from "@/components/todos/copy-id"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, send } from "@/lib/api"
 import { docHref, type Share } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
@@ -29,9 +32,12 @@ function Shared() {
     onError: (e) => toast.error("Could not revoke the link", { description: (e as Error).message }),
   })
   const rows = shares.data?.shares ?? []
+  const [palette, setPalette] = useState(false)
+  useHotkeys({ "mod+k": () => setPalette((o) => !o) })
   return (
     <>
-      <AppHeader />
+      <AppHeader onCommand={() => setPalette(true)} />
+      <DocPalette open={palette} onOpenChange={setPalette} page="/shared" />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-1">
           <h1 className="text-lg font-medium">Shared</h1>

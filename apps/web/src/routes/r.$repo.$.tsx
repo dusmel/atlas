@@ -4,10 +4,9 @@ import { ClipboardCopyIcon, ExternalLinkIcon, FileQuestionIcon, LinkIcon } from 
 import { useTheme } from "next-themes"
 import { useEffect, useRef, useState } from "react"
 import { AppHeader } from "@/components/app-header"
-import { DocPalette } from "@/components/docs/doc-palette"
-import { copyPath, CopyPath, TodosLink } from "@/components/docs/hits"
+import { copyMarkdown, DocPalette } from "@/components/docs/doc-palette"
+import { CopyPath, TodosLink } from "@/components/docs/hits"
 import { ShareButton } from "@/components/docs/share-button"
-import { copy } from "@/components/todos/copy-id"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -71,7 +70,6 @@ function DocView() {
   useEffect(() => setRelated([]), [repo, path])
   useHotkeys({ "mod+k": () => setPalette((o) => !o), "/": () => setPalette(true) })
 
-  const raw = () => window.open(rawHref({ repo, path }), "_blank", "noopener")
   const missing = doc.error instanceof ApiError && doc.error.status === 404
   return (
     <div className="flex h-dvh flex-col">
@@ -159,26 +157,9 @@ function DocView() {
       ) : (
         <DocFrame key={`${repo}/${path}`} repo={repo} path={path} title={doc.data.title} theme={resolvedTheme} onPalette={() => setPalette(true)} onRelated={setRelated} />
       )}
-      {doc.data && (
-        <DocPalette
-          open={palette}
-          onOpenChange={setPalette}
-          doc={doc.data}
-          run={{
-            pick: (h) => void navigate({ href: docHref(h) }),
-            copy: () => copyPath({ path }),
-            raw,
-            go: (to) => void navigate({ to }),
-          }}
-        />
-      )}
+      <DocPalette open={palette} onOpenChange={setPalette} doc={doc.data} />
     </div>
   )
-}
-
-async function copyMarkdown(repo: string, path: string) {
-  const res = await fetch(`${rawHref({ repo, path })}?format=md`)
-  if (res.ok) await copy(await res.text(), "Markdown copied")
 }
 
 /** The doc in a sandboxed iframe. It mounts once per doc, so a theme change is a message, not a reload. */
