@@ -23,11 +23,15 @@ export const MATCH_END = "\u0003"
 const SCHEMA = `
   CREATE TABLE docs (
     id INTEGER PRIMARY KEY, repo TEXT NOT NULL, path TEXT NOT NULL, folder TEXT NOT NULL, kind TEXT NOT NULL,
-    title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL,
+    title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL, low INTEGER NOT NULL,
     UNIQUE (repo, path)
   );
-  CREATE VIRTUAL TABLE docs_fts USING fts5(title, body, tokenize = 'porter unicode61');
+  CREATE VIRTUAL TABLE docs_fts USING fts5(title, path, body, tokenize = 'porter unicode61');
 `
+
+/** Folders whose docs rank after the rest: proof and leftovers, not the docs people look for. */
+export const LOW_WEIGHT_FOLDERS = [/^evidence$/, /^trash$/, /^legacy/, /^backups$/, /^PR-reviews$/, /^fixtures?$/]
+export const lowWeight = (path: string) => path.split("/").slice(0, -1).some((part) => LOW_WEIGHT_FOLDERS.some((re) => re.test(part)))
 
 /**
  * Every term is quoted, so FTS syntax in the input is just text, and the last one matches as a
@@ -134,13 +138,14 @@ export class DocIndex {
         let rowid = id
         if (rowid === undefined) {
           rowid = this.db
-            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, kind, title, mtime, size, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
-            .get(file.repo, file.path, folderOf(file.path), ...values)!.id
+            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
+            .get(file.repo, file.path, folderOf(file.path), Number(lowWeight(file.path)), ...values)!.id
         } else {
           this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ? WHERE id = ?", [...values, rowid])
           this.db.run("DELETE FROM docs_fts WHERE rowid = ?", [rowid])
         }
-        this.db.run("INSERT INTO docs_fts (rowid, title, body) VALUES (?, ?, ?)", [rowid, text.title, text.body])
+        // The tokenizer splits the path on / - _ and ., so atlas-web-v1-spec.html reads as its words.
+        this.db.run("INSERT INTO docs_fts (rowid, title, path, body) VALUES (?, ?, ?, ?)", [rowid, text.title, file.path, text.body])
       }
     })()
     const changed = reads.filter((r) => r.id !== undefined).length
@@ -176,15 +181,17 @@ export class DocIndex {
   }
 
   /**
-   * Docs holding the exact phrase come first, then docs holding every word, each ranked by bm25
-   * with the title weighted 5x. A doc kept as both x.md and x.html shows once, as whichever ranks higher.
+   * Three tiers: every word in the title or path, then the exact phrase anywhere, then every word
+   * anywhere. In each, docs in low-weight folders come last, then bm25 with title and path weighted 5x.
+   * A doc kept as both x.md and x.html shows once, as whichever ranks higher.
    */
   search(q: string, opts: DocFilters & { limit?: number } = {}): SearchHit[] {
     const match = ftsQuery(q)
     if (!match) return []
     const limit = opts.limit ?? 20
     const phrase = ftsPhrase(q)
-    return hits([...(phrase ? this.query(phrase, opts, limit * 2) : []), ...this.query(match, opts, limit * 2)], limit)
+    const tiers = [`{title path} : (${match})`, ...(phrase ? [phrase] : []), match]
+    return hits(tiers.flatMap((m) => this.query(m, opts, limit * 2)), limit)
   }
 
   /** The most recently changed docs, newest first, with no snippet. Twins show once, as in search. */
@@ -223,10 +230,10 @@ export class DocIndex {
     return this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
         `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags,
-                snippet(docs_fts, 1, char(2), char(3), '…', 16) AS snippet
+                snippet(docs_fts, 2, char(2), char(3), '…', 16) AS snippet
            FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid
           WHERE docs_fts MATCH ? ${w.sql}
-          ORDER BY bm25(docs_fts, 5.0, 1.0)
+          ORDER BY d.low, bm25(docs_fts, 5.0, 5.0, 1.0)
           LIMIT ?`,
       )
       .all(match, ...w.params, limit)

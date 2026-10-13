@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { cp, mkdtemp, rename, rm, unlink, utimes } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { DocIndex, ftsPhrase, ftsQuery, htmlText, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
+import { DocIndex, ftsPhrase, ftsQuery, htmlText, lowWeight, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
 
 describe("htmlText", () => {
   test("takes the title and tags, drops scripts, styles and svg, and decodes entities", () => {
@@ -86,6 +86,28 @@ describe("DocIndex", () => {
     await index.sync()
     expect(index.search("ten steps only you can do").map((h) => h.path)).toEqual(["phrase.md", "apart.md"])
     expect(ftsPhrase('say "hi" there')).toBe('"say ""hi"" there"*')
+  })
+
+  test("a doc whose title or path holds every word beats docs that only link to it", async () => {
+    // The 2026-10-13 case: "web v1 spec" ranked the spec 7th, behind docs linking atlas-web-v1-spec.html.
+    await write("atlas/atlas-web-v1-spec.html", "<title>Atlas Web v1: build spec</title><p>Data model and API.</p>")
+    await write("atlas/atlas-web-v1/report.md", "# Run report\n\nRead [the spec](../atlas-web-v1-spec.html) and the web v1 spec again.")
+    await write("atlas/notes/paths.md", "# Notes\n\nNothing here.")
+    await index.sync()
+    expect(index.search("web v1 spec").map((h) => h.path)).toEqual(["atlas-web-v1-spec.html", "atlas-web-v1/report.md"])
+    expect(index.search("notes paths").map((h) => h.path)).toEqual(["notes/paths.md"])
+  })
+
+  test("docs in evidence, trash, legacy and similar folders rank after the rest in each tier", async () => {
+    await write("alpha/evidence/phase-5/plover.md", "# Plover plan\n\nthe plover")
+    await write("alpha/legacy-notes/plover.md", "# Plover plan\n\nthe plover")
+    await write("alpha/plans/plover.md", "# Plover plan\n\nthe plover")
+    await index.sync()
+    const paths = index.search("plover plan").map((h) => h.path)
+    expect(paths[0]).toBe("plans/plover.md")
+    expect(paths.slice(1).sort()).toEqual(["evidence/phase-5/plover.md", "legacy-notes/plover.md"])
+    expect(lowWeight("trash/notes/a.md")).toBe(true)
+    expect(lowWeight("evidence.md")).toBe(false)
   })
 
   test("matches the last word as a prefix and never errors on FTS syntax", async () => {
