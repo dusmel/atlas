@@ -176,6 +176,7 @@ test("type and tag filters narrow Search, Overview and Folders, and stay in the 
   await expect(page).toHaveURL(/type=reference/)
   await expect(recent(page)).toHaveCount(1)
   await expect(recent(page).first().getByRole("heading")).toHaveText("Ferry runbook")
+  await expect(recent(page).first().locator("[data-type]")).toHaveText("Type: reference")
   // Several types match any of them.
   await side.getByRole("checkbox", { name: "No type" }).check()
   await expect(recent(page)).toHaveCount(2)

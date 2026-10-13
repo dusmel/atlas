@@ -1,7 +1,7 @@
 import { defaultUrlTransform } from "react-markdown"
 import { ActivityIcon, ChartColumnIcon, FolderTreeIcon, GlobeIcon, SearchIcon } from "lucide-react"
 
-export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
+export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; type: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
 /** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. */
 export const tagList = (tags: string) => tags.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim()).filter(Boolean)
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number>; type: Record<string, number>; tag: Record<string, number> }
@@ -47,9 +47,9 @@ export type Option = { value: string; label: string; count: number }
 
 export const DOC_VIEWS = [
   { id: "search", label: "Search", icon: SearchIcon },
+  { id: "folders", label: "Folders", icon: FolderTreeIcon },
   { id: "activity", label: "Activity", icon: ActivityIcon },
   { id: "overview", label: "Overview", icon: ChartColumnIcon },
-  { id: "folders", label: "Folders", icon: FolderTreeIcon },
 ] as const
 export type DocView = (typeof DOC_VIEWS)[number]["id"]
 /** The tabs over Docs: its views, then Shared, which is a page of its own. */

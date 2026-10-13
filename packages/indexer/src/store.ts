@@ -6,7 +6,8 @@ import { scanDocs, type DocFile } from "./scan.ts"
 
 export type Counts = { docs: number; md: number; html: number }
 export type SyncResult = Counts & { added: number; changed: number; removed: number; ms: number }
-export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; title: string; snippet: string; mtime: string; tags: string }
+/** `type` is "" for a doc with no `doc-type`. */
+export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; title: string; snippet: string; mtime: string; tags: string; type: string }
 /**
  * `folder` is the first folder inside the repo, "." for a doc at its top. `after` is a time in ms: only docs changed since.
  * `type` holds doc types, with `none` for a doc without one. Several values in one filter match any of them.
@@ -219,7 +220,7 @@ export class DocIndex {
     const w = where(opts)
     const rows = this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
-        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags, '' AS snippet FROM docs d
+        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags, d.type, '' AS snippet FROM docs d
           WHERE 1 = 1 ${w.sql}
           ORDER BY d.mtime DESC, d.repo, d.path
           LIMIT ?`,
@@ -254,7 +255,7 @@ export class DocIndex {
     const w = where(opts)
     return this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
-        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags,
+        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags, d.type,
                 snippet(docs_fts, 2, char(2), char(3), '…', 16) AS snippet
            FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid
           WHERE docs_fts MATCH ? ${w.sql}
@@ -268,7 +269,7 @@ export class DocIndex {
   htmlTwin(repo: string, path: string): Omit<SearchHit, "mtime" | "snippet"> & { mtime: number } | null {
     if (!path.endsWith(".md")) return null
     return this.db
-      .query<Omit<SearchHit, "mtime" | "snippet"> & { mtime: number }, [string, string]>("SELECT repo, path, kind, title, mtime, tags FROM docs WHERE repo = ? AND path = ?")
+      .query<Omit<SearchHit, "mtime" | "snippet"> & { mtime: number }, [string, string]>("SELECT repo, path, kind, title, mtime, tags, type FROM docs WHERE repo = ? AND path = ?")
       .get(repo, `${path.slice(0, -3)}.html`)
   }
 

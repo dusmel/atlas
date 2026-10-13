@@ -3,16 +3,15 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { BoxIcon, FileTextIcon, FolderIcon } from "lucide-react"
 import { Fragment, useEffect, useState } from "react"
 import { cn } from "cn"
-import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Kbd } from "@/components/ui/kbd"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
-import { ageTone, typeColor, useRepoColor } from "@/lib/doc-colors"
+import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, docKey, tagList, type FolderListing } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
-import { TagPills } from "./hits"
+import { TagPills, TypeBadge } from "./hits"
 
 const link = "underline-offset-3 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none rounded"
 const up = (path: string) => path.split("/").slice(0, -1).join("/")
@@ -142,11 +141,7 @@ export function DocFolders({ path, params, filtered }: { path: string; params: U
                     {d.title}
                   </a>
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-                    {d.type && (
-                      <Badge className="rounded-sm font-mono text-[10.5px] text-white uppercase" style={{ background: typeColor(d.type) }}>
-                        {d.type}
-                      </Badge>
-                    )}
+                    <TypeBadge type={d.type} />
                     <TagPills tags={tagList(d.tags)} />
                     <time dateTime={d.mtime} title={exact(d.mtime)} className={cn("min-w-16 text-right text-xs whitespace-nowrap tabular-nums", ageTone(d.mtime))}>
                       {ago(d.mtime)}

@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router"
-import { BoxIcon, CopyIcon, ListTodoIcon } from "lucide-react"
+import { BoxIcon, CopyIcon, ListTodoIcon, ShapesIcon, TagIcon } from "lucide-react"
 import { Fragment } from "react"
 import { cn } from "cn"
 import { copy } from "@/components/todos/copy-id"
 import { GroupDot } from "@/components/todos/filters"
 import { groupColor } from "@/components/todos/group-color"
 import { plainTitle } from "@/components/todos/rich-title"
-import { ageTone, tagColor, useRepoColor } from "@/lib/doc-colors"
+import { Badge } from "@/components/ui/badge"
+import { ageTone, tagColor, typeColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, docKey, docPath, tagList, type Hit } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
@@ -53,6 +54,7 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
               <time dateTime={h.mtime} title={exact(h.mtime)} className={cn("tabular-nums", ageTone(h.mtime))}>
                 {ago(h.mtime)}
               </time>
+              <TypeBadge type={h.type} />
               <Details hit={h} />
             </div>
             {h.snippet && (
@@ -109,7 +111,19 @@ function Details({ hit }: { hit: Hit }) {
   )
 }
 
-/** Tags as pills, each in its own colour. */
+/** The doc's type in its html-docs colour, with the Type filter's icon. Nothing for a doc without one. */
+export function TypeBadge({ type }: { type: string | null }) {
+  if (!type) return null
+  return (
+    <Badge data-type className="gap-1 rounded-sm font-mono text-[10.5px] text-white uppercase [&>svg]:size-3" style={{ background: typeColor(type) }}>
+      <ShapesIcon aria-hidden />
+      <span className="sr-only">Type: </span>
+      {type}
+    </Badge>
+  )
+}
+
+/** Tags as pills, each in its own colour, after the Tag filter's icon. */
 export function TagPills({ tags }: { tags: string[] }) {
   if (!tags.length) return null
   return (
@@ -117,9 +131,10 @@ export function TagPills({ tags }: { tags: string[] }) {
       {tags.map((t) => (
         <li
           key={t}
-          className="rounded-full px-1.5 py-px text-[10.5px] leading-4 font-medium"
+          className="flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10.5px] leading-4 font-medium"
           style={{ background: `color-mix(in oklab, ${tagColor(t)} 15%, transparent)`, color: `color-mix(in oklab, ${tagColor(t)} 75%, var(--foreground))` }}
         >
+          <TagIcon aria-hidden className="size-2.5 shrink-0" />
           {t}
         </li>
       ))}
