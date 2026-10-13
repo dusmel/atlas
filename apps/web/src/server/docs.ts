@@ -6,6 +6,7 @@ import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
 import { listDocEvents, recordDocChanges } from "./doc-activity"
+import { repoExtras } from "./doc-overview"
 import { docFile } from "./doc-files"
 import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
 import { HttpError } from "./http"
@@ -85,7 +86,32 @@ export async function docsSummary() {
 export async function docsOverview() {
   const docs = getIndex()
   await ready
-  return { repos: docs.overview() }
+  const extras = repoExtras(docs.files(), linkedTodos())
+  return { repos: docs.overview().map((r) => ({ ...r, ...extras.get(r.repo)! })), attention: attention() }
+}
+
+/** Groups with open todos and no doc, and group docs whose file the served copy lacks. */
+function attention() {
+  const groups = getDb()
+    .query<{ id: number; name: string; repo_id: string; open: number; docs: number }, []>(
+      `SELECT g.id, g.name, g.repo_id,
+              (SELECT count(*) FROM items i WHERE i.group_id = g.id AND i.status != 'done' AND i.archived_at IS NULL) AS open,
+              (SELECT count(*) FROM group_docs d WHERE d.group_id = g.id) AS docs
+         FROM groups g`,
+    )
+    .all()
+  const folders = repoFolders()
+  const root = getIndex().root
+  const missing = getDb()
+    .query<{ group_id: number; name: string; repo_id: string; label: string; path: string }, []>("SELECT d.group_id, g.name, g.repo_id, d.label, d.path FROM group_docs d JOIN groups g ON g.id = d.group_id ORDER BY g.name, d.label")
+    .all()
+    .flatMap((d) => {
+      const folder = folders.get(d.repo_id)
+      // A repo with no docs folder here can't be checked.
+      if (!folder) return []
+      return docFile(root, folder, posix.normalize(d.path.replace(/^\.\//, ""))) ? [] : [{ ...d, folder }]
+    })
+  return { no_doc: groups.filter((g) => g.open > 0 && g.docs === 0).map(({ docs, ...g }) => g), missing }
 }
 
 export function docsActivity(input: { repo: string[]; folder: string[]; since?: string }) {

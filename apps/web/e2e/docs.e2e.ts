@@ -5,7 +5,8 @@ test.beforeEach(async ({ page }) => login(page))
 
 const results = (page: import("@playwright/test").Page) => page.getByRole("list", { name: "Results" }).locator("[data-result]")
 const recent = (page: import("@playwright/test").Page) => page.getByRole("list", { name: "Recently changed docs" }).locator("[data-result]")
-const sidebar = (page: import("@playwright/test").Page) => page.getByRole("complementary", { name: "Docs views and repos" })
+const sidebar = (page: import("@playwright/test").Page) => page.getByRole("complementary", { name: "Repos" })
+const views = (page: import("@playwright/test").Page) => page.getByRole("navigation", { name: "Views" })
 
 test("the header links to Docs, which counts the docs and skips backups", async ({ page }) => {
   await page.goto("/todos")
@@ -118,9 +119,9 @@ test("j and k select a result, Enter copies its path, and a linked group's open 
   await expect(page.getByText("Synced with the CLI")).toBeVisible()
 })
 
-test("Activity lists doc changes and Overview counts docs per repo", async ({ page }) => {
+test("Activity lists doc changes, and Overview has a card per repo and what needs attention", async ({ page }) => {
   await page.goto("/docs")
-  await sidebar(page).getByRole("link", { name: "Activity" }).click()
+  await views(page).getByRole("link", { name: "Activity" }).click()
   await expect(page).toHaveURL(/view=activity/)
   // e2e/serve.ts edits the runbook once the first index is done.
   await expect(page.locator('[data-event="changed"]')).toHaveCount(1)
@@ -129,15 +130,21 @@ test("Activity lists doc changes and Overview counts docs per repo", async ({ pa
   await sidebar(page).getByRole("checkbox", { name: /^web/ }).check()
   await expect(page.getByText("No doc changes yet")).toBeVisible()
 
-  await sidebar(page).getByRole("link", { name: "Overview" }).click()
-  const rows = page.getByRole("table", { name: "Docs per repo" }).locator("tbody tr")
-  await expect(rows).toHaveCount(1)
-  await expect(rows.first()).toContainText("web")
-  await sidebar(page).getByRole("button", { name: "Show all" }).click()
-  await expect(rows).toHaveCount(2)
+  await views(page).getByRole("link", { name: "Overview" }).click()
+  const cards = page.locator("section[data-repo]")
+  await expect(cards).toHaveCount(1)
+  const web = page.locator('[data-repo="web"]')
   // web holds the lighthouse plan as md and html, which count as one doc.
-  await expect(page.locator('[data-repo="web"] td').first()).toHaveText("2")
-  await page.locator('[data-repo="web"]').getByRole("link", { name: "web" }).click()
+  await expect(web.locator('[data-count="docs"]')).toHaveText("2")
+  await expect(web.getByRole("list", { name: "Changed this week" }).getByRole("link")).toHaveCount(2)
+  // Onboarding links the plan and the harbour notes, with one open todo.
+  await expect(web.getByRole("list", { name: "With open todos" }).getByRole("link", { name: /Lighthouse plan/ })).toBeVisible()
+  const attention = page.getByRole("region", { name: /Needs attention/ })
+  await expect(attention.locator('[data-attention="no-doc"]', { hasText: "Search quality" })).toContainText("and no doc")
+  await expect(attention.locator('[data-attention="missing"]')).toHaveCount(0)
+  await sidebar(page).getByRole("button", { name: "Show all" }).click()
+  await expect(cards).toHaveCount(2)
+  await web.getByRole("link", { name: "web", exact: true }).click()
   await expect(page).toHaveURL(/\/docs\?repo=web$/)
   await expect(recent(page)).toHaveCount(2)
 })

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router"
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { BoxIcon, ClockIcon, FolderIcon, ListFilterIcon, SearchIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { cn } from "cn"
@@ -11,6 +11,7 @@ import { copyPath, Hits } from "@/components/docs/hits"
 import { DocOverview } from "@/components/docs/overview-view"
 import { DocsSidebar } from "@/components/docs/sidebar"
 import { SinceControl } from "@/components/todos/filters"
+import { ViewNav } from "@/components/todos/view-tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
@@ -99,6 +100,7 @@ function DocsPage() {
   }
   useHotkeys({
     "mod+k": () => setPalette((o) => !o),
+    v: () => setPalette(true),
     "/": () => (set({ view: undefined }), requestAnimationFrame(() => input.current?.focus())),
     j: () => move(1, true),
     k: () => move(-1, true),
@@ -108,26 +110,14 @@ function DocsPage() {
   return (
     <>
       <AppHeader onCommand={() => setPalette(true)} />
+      <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
+        <ViewNav to="/docs" views={DOC_VIEWS} view={view} className="-mx-1" />
+      </div>
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-5 sm:px-6 md:grid-cols-[15rem_minmax(0,1fr)]">
-        <DocsSidebar view={view} summary={summary.data} repoOptions={repoOptions} repos={repos} onToggle={toggleRepo} onAll={() => set({ repo: undefined })} />
+        <DocsSidebar summary={summary.data} repoOptions={repoOptions} repos={repos} onToggle={toggleRepo} onAll={() => set({ repo: undefined })} />
 
         <main className="flex min-w-0 flex-col gap-4">
           <h1 className="sr-only">Docs: {DOC_VIEWS.find((v) => v.id === view)!.label}</h1>
-          <nav aria-label="Views" className="-mx-1 flex gap-1 md:hidden">
-            {DOC_VIEWS.map((v) => (
-              <Link
-                key={v.id}
-                to="/docs"
-                search={(s) => ({ ...s, view: v.id === "search" ? undefined : v.id })}
-                aria-current={view === v.id ? "page" : undefined}
-                className={cn("flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md text-sm text-muted-foreground", view === v.id && "bg-muted font-medium text-foreground")}
-              >
-                <v.icon aria-hidden className="size-4" />
-                {v.label}
-              </Link>
-            ))}
-          </nav>
-
           <form role="search" className="flex flex-col gap-2 md:flex-row" onSubmit={(e) => e.preventDefault()}>
             {view === "search" && (
               <InputGroup className="flex-1">
