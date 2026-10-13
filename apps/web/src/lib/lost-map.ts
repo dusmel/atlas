@@ -14,9 +14,9 @@ export const LOST_MAP_SVG = `<svg class="lost-map" viewBox="0 0 720 360" fill="n
 <path d="M330 228c10-28 50-36 78-24 22 9 46 2 58 22 14 24-8 52-40 56-26 3-40 20-66 12-30-9-40-40-30-66z"/>
 <path d="M420 70c16-20 52-22 70-6 14 12 34 10 40 28 7 20-14 36-38 34-20-2-34 10-52 0-22-12-34-38-20-56z"/>
 </g>
-<path d="M170 150C250 190 300 140 360 190S420 250 470 110" stroke-opacity=".5" stroke-width="2" stroke-dasharray="2 9"/>
-<path d="M462 102l16 16M478 102l-16 16" stroke-width="3" stroke-opacity=".7"/>
-<g transform="translate(64 266)" stroke-opacity=".5"><circle r="24"/><path d="M0-34V34M-34 0H34" stroke-opacity=".3"/><path d="M0-22L6 0 0 22-6 0Z" fill="currentColor" fill-opacity=".5"/></g>
+<path class="route" d="M170 150C250 190 300 140 360 190S420 250 470 110" stroke-opacity=".5" stroke-width="2" stroke-dasharray="2 9"/>
+<path class="x" d="M462 102l16 16M478 102l-16 16" stroke-width="3" stroke-opacity=".7"/>
+<g transform="translate(64 266)" stroke-opacity=".5"><circle r="24"/><path d="M0-34V34M-34 0H34" stroke-opacity=".3"/><path class="needle" d="M0-22L6 0 0 22-6 0Z" fill="currentColor" fill-opacity=".5"/></g>
 <g transform="translate(640 196) rotate(12)"><g class="drift">
 <path d="M0 0h44l16 16v62H0Z" fill="currentColor" fill-opacity=".08" stroke-width="2"/><path d="M44 0v16h16" stroke-width="2"/>
 <path d="M10 32h38M10 44h38M10 56h26" stroke-opacity=".5" stroke-width="2"/>
