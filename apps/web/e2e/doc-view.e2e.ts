@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test"
 import { api, docFrame, getItem, itemByTitle, login, openBoard } from "./helpers"
+import { HARBOUR_TODO, RENAMED } from "./seed"
 
 test.beforeEach(async ({ page }) => login(page))
 
@@ -217,6 +218,51 @@ test("the item panel lists every group doc, and relative links in a body open th
   await page.getByRole("link", { name: "the notes" }).click()
   await expect(page).toHaveURL(/\/r\/web\/notes\/harbour\.md$/)
   await expect(page.frameLocator("iframe").getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+})
+
+test("the toolbar names the doc's parent todo, a todo: link opens that item, and an html doc's markdown block is its markdown", async ({ page }) => {
+  expect((await getItem(page, HARBOUR_TODO.id)).title).toBe(HARBOUR_TODO.title)
+  await page.goto("/r/web/notes/harbour.md")
+  const notes = await docFrame(page, "Harbour notes")
+  await expect(page.getByRole("link", { name: `#${HARBOUR_TODO.id} ${HARBOUR_TODO.title}` })).toHaveAttribute("href", `/todos?item=${HARBOUR_TODO.id}`)
+  await notes.getByRole("link", { name: "the open question" }).click()
+  await expect(page).toHaveURL(new RegExp(`/todos\\?item=${HARBOUR_TODO.id}$`))
+  await expect(page.getByRole("dialog", { name: HARBOUR_TODO.title })).toBeVisible()
+
+  expect((await api<{ id: string }>(page, "GET", "/docs/view?repo=web&path=plans/lighthouse.html")).id).toBe("d_lighthouse")
+  // The plan's md twin lacks the log; its embedded block has it, and wins.
+  expect(await (await page.request.get("/raw/web/plans/lighthouse.html?format=md")).text()).toContain("The keeper trims the wick at midnight.")
+  expect((await api<{ results: { path: string }[] }>(page, "GET", "/search?q=trims wick")).results.map((r) => r.path)).toEqual(["plans/lighthouse.html"])
+})
+
+test("a renamed doc keeps its share link, its old path and its group link, through the id it carries", async ({ page, browser }) => {
+  const share = await api<{ token: string }>(page, "POST", "/shares", { repo: "web", path: "notes/harbour.md" })
+  const item = await itemByTitle(page, "Synced with the CLI")
+  const own = await api<{ id: number }>(page, "POST", "/todos", { repo: "github.com-demo-web", title: "Body links the old path", priority: "P3", body: "See [the notes](atlas/notes/harbour.md)." })
+  // The pushed copy has the harbour notes renamed.
+  await api(page, "POST", "/docs/hold")
+  try {
+    const renamed = RENAMED.path.slice("web/".length)
+    const stranger = await browser.newContext()
+    const reader = await stranger.newPage()
+    await reader.goto(`/s/${share.token}`)
+    await expect(reader.getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+    await stranger.close()
+
+    const old = await page.request.get("/r/web/notes/harbour.md", { maxRedirects: 0 })
+    expect([old.status(), new URL(old.headers().location!).pathname]).toEqual([302, `/r/web/${renamed}`])
+    await openBoard(page, `/todos?item=${item.id}`)
+    await expect(page.getByRole("list", { name: "Group docs" }).getByRole("link", { name: "notes/harbour.md" })).toHaveAttribute("href", `/r/web/${renamed}`)
+    // A link inside the app skips the server, so the doc page follows the move itself.
+    await openBoard(page, `/todos?item=${own.id}`)
+    await page.getByRole("tab", { name: "Preview" }).click()
+    await page.getByRole("link", { name: "the notes" }).click()
+    await expect(page).toHaveURL(new RegExp(`/r/web/${renamed}$`))
+    await docFrame(page, "Harbour notes")
+  } finally {
+    await api(page, "DELETE", "/docs/hold")
+    await api(page, "DELETE", `/shares/${share.token}`)
+  }
 })
 
 test("[[ in a todo's body links a doc: its repo first, arrows move, Esc closes only the list, Enter inserts", async ({ page }) => {

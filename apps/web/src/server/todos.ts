@@ -139,9 +139,11 @@ function docsInput(input: Record<string, unknown>, current: GroupDoc[]): GroupDo
   return path ? [{ label: "plan", path }, ...rest] : rest
 }
 
+// A doc whose label and path stay keeps its id, so it still follows the doc if the file moves later.
 function setDocs(db: Database, groupId: number, docs: GroupDoc[]) {
+  const ids = new Map(db.query<{ label: string; path: string; doc_id: string | null }, [number]>("SELECT label, path, doc_id FROM group_docs WHERE group_id = ?").all(groupId).map((d) => [`${d.label} ${d.path}`, d.doc_id]))
   db.run("DELETE FROM group_docs WHERE group_id = ?", [groupId])
-  for (const d of docs) db.run("INSERT INTO group_docs (group_id, label, path) VALUES (?, ?, ?)", [groupId, d.label, d.path])
+  for (const d of docs) db.run("INSERT INTO group_docs (group_id, label, path, doc_id) VALUES (?, ?, ?, ?)", [groupId, d.label, d.path, ids.get(`${d.label} ${d.path}`) ?? null])
 }
 
 // A group is named within its repo; numbers are ids.

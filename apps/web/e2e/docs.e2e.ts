@@ -133,9 +133,12 @@ test("Activity has a year grid and lists doc changes, and Overview has totals, a
   // The year grid's last square is today. docs-source.e2e.ts logs changes too, so the count depends on what ran first.
   await expect(page.getByRole("img", { name: /^\d+ doc changes? in the last year$/ })).toBeVisible()
   await expect(page.locator("[data-year-grid] rect").last()).not.toHaveAttribute("data-count", "0")
+  // doc-view.e2e.ts renames a note in web while it holds the pushed copy, so only web's plan is sure to have no changes.
   await sidebar(page).getByRole("checkbox", { name: /^web/ }).check()
+  await sidebar(page).getByRole("checkbox", { name: "plan", exact: true }).check()
   await expect(page.getByText("No doc changes yet")).toBeVisible()
   await expect(page.getByRole("img", { name: "0 doc changes in the last year" })).toBeVisible()
+  await sidebar(page).getByRole("checkbox", { name: "plan", exact: true }).uncheck()
 
   await views(page).getByRole("link", { name: "Overview" }).click()
   const cards = page.getByRole("region", { name: "Docs per repo" }).locator("[data-repo]")

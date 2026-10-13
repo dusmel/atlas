@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { copyMarkdown, DocPalette } from "@/components/docs/doc-palette"
 import { LostDoc } from "@/components/docs/lost-doc"
-import { CopyPath, TodosLink } from "@/components/docs/hits"
+import { CopyPath, ParentTodo, TodosLink } from "@/components/docs/hits"
 import { ShareButton } from "@/components/docs/share-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,8 @@ import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, ApiError } from "@/lib/api"
 import { typeColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, rawHref, type DocPage } from "@/lib/docs"
+import { getDb } from "@/server/app-db"
+import { movedFrom } from "@/server/doc-ids"
 import { getIndex } from "@/server/docs"
 import { CSP_DOC, docFile, fileResponse } from "@/server/doc-files"
 
@@ -32,8 +34,13 @@ export const Route = createFileRoute("/r/$repo/$")({
         // When x.md and x.html both exist, the html is the doc (spec D25).
         const html = path.endsWith(".md") ? `${path.slice(0, -3)}.html` : null
         if (html && docFile(getIndex().root, params.repo, html)) return Response.redirect(new URL(docHref({ repo: params.repo, path: html }), request.url), 302)
-        // A doc, found or not, is the app's page: it loads the doc from /raw, or says it is missing.
-        if (DOC.test(path)) return next()
+        if (DOC.test(path)) {
+          // A doc with an id that once lived here moved: go where it is now.
+          const moved = !docFile(getIndex().root, params.repo, path) && movedFrom(getDb(), getIndex(), { repo: params.repo, path })
+          if (moved) return Response.redirect(new URL(docHref(moved) + new URL(request.url).search, request.url), 302)
+          // A doc, found or not, is the app's page: it loads the doc from /raw, or says it is missing.
+          return next()
+        }
         const file = docFile(getIndex().root, params.repo, path)
         if (!file) return new Response(`No doc ${params.repo}/${path}`, { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } })
         return fileResponse(file, CSP_DOC)
@@ -73,8 +80,13 @@ function DocView() {
   useEffect(() => setRelated([]), [repo, path])
   useHotkeys({ "mod+k": () => setPalette((o) => !o), "/": () => setPalette(true) })
 
-  // A 404 carries the docs with the closest paths.
-  const lost = doc.error instanceof ApiError && doc.error.status === 404 ? ((doc.error.body as { closest?: { repo: string; path: string; title: string }[] } | null)?.closest ?? []) : null
+  // A 404 carries the docs with the closest paths, and where the doc went when it moved.
+  const missing = doc.error instanceof ApiError && doc.error.status === 404 ? (doc.error.body as { closest?: { repo: string; path: string; title: string }[]; moved?: { repo: string; path: string } | null } | null) : null
+  const moved = missing?.moved
+  useEffect(() => {
+    if (moved) void navigate({ href: docHref(moved) + window.location.hash, replace: true })
+  }, [moved, navigate])
+  const lost = missing && !moved ? (missing.closest ?? []) : null
   return (
     <div className="flex h-dvh flex-col">
       <AppHeader onCommand={() => setPalette(true)} />
@@ -100,6 +112,7 @@ function DocView() {
         )}
         {doc.data && (
           <div className="ml-auto flex items-center gap-1.5">
+            {doc.data.todo && <ParentTodo todo={doc.data.todo} />}
             {doc.data.todos && <TodosLink todos={doc.data.todos} />}
             {related.length > 0 && (
               <DropdownMenu>
@@ -136,7 +149,7 @@ function DocView() {
           </div>
         )}
       </div>
-      {doc.isPending || twin || !resolvedTheme ? (
+      {doc.isPending || twin || moved || !resolvedTheme ? (
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-8">
           <Skeleton className="h-8 w-2/3" />
           <Skeleton className="h-4 w-full" />

@@ -4,6 +4,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DocIndex, ftsPhrase, ftsQuery, htmlText, lowWeight, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
 
+const NONE = { version: null, id: null, status: null, supersededBy: null, todo: null, repo: null, branch: null, pr: null, ticket: null, md: null }
+
 describe("htmlText", () => {
   test("takes the title and tags, drops scripts, styles and svg, and decodes entities", () => {
     const doc = htmlText(
@@ -11,7 +13,7 @@ describe("htmlText", () => {
        <body><script>var hidden = 1</script><svg><text>chart label</text></svg><p>First</p><p>second&nbsp;line &lt;ok&gt; &#x2192; done</p></body></html>`,
       "plan.html",
     )
-    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", type: "", body: "First second line <ok> → done" })
+    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", type: "", body: "First second line <ok> → done", contract: NONE })
   })
 
   test("falls back to the file name for a title", () => {
@@ -23,10 +25,44 @@ describe("htmlText", () => {
   })
 })
 
+describe("the doc contract", () => {
+  test("an html doc's meta tags and atlas-md block; search reads the block instead of the page text", () => {
+    const doc = htmlText(
+      `<head><meta name="atlas-contract" content="1"><meta name="atlas-id" content="d_8f3k2q7m1x"><meta name="atlas-status" content="Superseded">
+       <meta name="atlas-superseded-by" content="d_aaaaaaaaaa"><meta name="atlas-todo" content="510"><meta name="atlas-repo" content="atlas">
+       <meta name="atlas-branch" content="phase-5"><meta name="atlas-pr" content="14"><meta name="atlas-ticket" content="ATL-3"></head>
+       <body><p>Rendered words</p><script type="text/markdown" id="atlas-md">
+# Plan
+
+Uses </b> & <i> as written
+</script></body>`,
+      "plan.html",
+    )
+    expect(doc.contract).toEqual({ version: 1, id: "d_8f3k2q7m1x", status: "superseded", supersededBy: "d_aaaaaaaaaa", todo: 510, repo: "atlas", branch: "phase-5", pr: "14", ticket: "ATL-3", md: "# Plan\n\nUses </b> & <i> as written" })
+    expect(doc.body).toBe(doc.contract.md!)
+  })
+
+  test("reads the older markdown block ids, and atlas-md wins over them", () => {
+    for (const id of ["md-source", "md", "source-md", "mdSource"]) expect(htmlText(`<script type="text/plain" id="${id}"># Old</script>`, "x.html").contract.md).toBe("# Old")
+    expect(htmlText(`<script id="md-source"># Old</script><script type="text/markdown" id="atlas-md"># New</script>`, "x.html").contract.md).toBe("# New")
+    expect(htmlText(`<script id="other"># Not it</script><p>Page</p>`, "x.html")).toMatchObject({ body: "Page", contract: { md: null } })
+  })
+
+  test("drops values the contract does not allow", () => {
+    const doc = htmlText(`<meta name="atlas-id" content="d_SHORT"><meta name="atlas-status" content="maybe"><meta name="atlas-todo" content="#0"><meta name="atlas-contract" content="v1">`, "x.html")
+    expect(doc.contract).toEqual(NONE)
+  })
+
+  test("markdown frontmatter carries the same fields", () => {
+    const md = "---\natlas-id: d_harbour001\nstatus: active\nsuperseded-by: 'd_bbbbbbbbbb'\ntodo: \"#42\"\nrepo: atlas\nbranch: main\npr: 7\nticket: ATL-9\n---\n\n# Notes"
+    expect(mdText(md, "n.md").contract).toEqual({ version: null, id: "d_harbour001", status: "active", supersededBy: "d_bbbbbbbbbb", todo: 42, repo: "atlas", branch: "main", pr: "7", ticket: "ATL-9", md: null })
+  })
+})
+
 describe("mdText", () => {
   test("reads the title and tags from frontmatter and leaves it out of the body", () => {
     const doc = mdText("---\ntitle: The runbook\ntags: atlas, deploy\n---\n\n# Heading\n\nBody text", "runbook.md")
-    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", type: "", body: "# Heading\n\nBody text" })
+    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", type: "", body: "# Heading\n\nBody text", contract: NONE })
     expect(mdText("---\ndoc-type: reference\n---\n\n# R", "r.md").type).toBe("reference")
   })
 
@@ -241,6 +277,28 @@ describe("DocIndex", () => {
     } finally {
       await rm(other, { recursive: true, force: true })
     }
+  })
+
+  test("finds a doc by its id after a move, and counts an id two docs hold as none", async () => {
+    await write("alpha/plan.html", '<meta name="atlas-id" content="d_aaaaaaaaaa"><title>Plan</title>')
+    await write("alpha/plan.md", "---\natlas-id: d_aaaaaaaaaa\n---\n# Plan")
+    await write("alpha/notes.md", "---\natlas-id: d_bbbbbbbbbb\n---\n# Notes")
+    await index.sync()
+    expect(index.byId("d_aaaaaaaaaa")).toMatchObject({ repo: "alpha", path: "plan.html" })
+    await rename(join(root, "alpha/notes.md"), join(root, "alpha/kept-notes.md"))
+    await index.sync()
+    expect(index.byId("d_bbbbbbbbbb")).toMatchObject({ path: "kept-notes.md" })
+    expect(index.byId("d_cccccccccc")).toBeNull()
+    expect(index.duplicateIds()).toEqual([])
+
+    await write("beta/copy.md", "---\natlas-id: d_bbbbbbbbbb\n---\n# Copy")
+    await index.sync()
+    expect(index.byId("d_bbbbbbbbbb")).toBeNull()
+    expect(index.duplicateIds()).toEqual([{ id: "d_bbbbbbbbbb", docs: [{ repo: "alpha", path: "kept-notes.md", title: "Notes" }, { repo: "beta", path: "copy.md", title: "Copy" }] }])
+    expect(index.ids().sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { repo: "alpha", path: "plan.html", id: "d_aaaaaaaaaa" },
+      { repo: "alpha", path: "plan.md", id: "d_aaaaaaaaaa" },
+    ])
   })
 
   test("the watcher picks up a new file", async () => {

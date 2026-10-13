@@ -1,5 +1,6 @@
 import { defaultUrlTransform } from "react-markdown"
 import { ActivityIcon, ChartColumnIcon, FolderTreeIcon, GlobeIcon, SearchIcon } from "lucide-react"
+import type { Status } from "@atlas/todos"
 
 export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; type: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
 /** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. */
@@ -33,6 +34,8 @@ export type RepoOverview = {
 export type Attention = {
   no_doc: { id: number; name: string; repo_id: string; open: number }[]
   missing: { group_id: number; name: string; repo_id: string; folder: string; label: string; path: string }[]
+  /** Ids two or more docs hold, which then count as none (spec section 9). */
+  duplicates: { id: string; docs: { repo: string; path: string; title: string }[] }[]
 }
 export type MegaPair = { path: string; run: string; status: string; error: string }
 export type DocsStatus = {
@@ -42,7 +45,24 @@ export type DocsStatus = {
   mega: { state: "unknown" | "ok" | "syncing" | "failed"; checked: string | null; last_pull: string | null; pairs: MegaPair[]; detail?: string; pull_requested?: string | null }
 }
 export type Share = { token: string; repo_id: string; path: string; created_at: string; revoked_at: string | null }
-export type DocPage = { repo: string; path: string; kind: "md" | "html"; title: string; type: string | null; markdown: boolean; twin: string | null; mtime: string; todos: { open: number; groups: number[] } | null; share: Share | null }
+/** The doc contract's fields for the open doc (spec section 9), null where the doc has none. */
+export type DocContract = { version: number | null; id: string | null; status: "draft" | "active" | "done" | "superseded" | null; supersededBy: string | null; todo: number | null; repo: string | null; branch: string | null; pr: string | null; ticket: string | null }
+export type DocPage = {
+  repo: string
+  path: string
+  kind: "md" | "html"
+  id: string | null
+  title: string
+  type: string | null
+  markdown: boolean
+  twin: string | null
+  mtime: string
+  todos: { open: number; groups: number[] } | null
+  /** The parent todo the doc names with `atlas-todo`, when that item exists. */
+  todo: { id: number; title: string; status: Status } | null
+  share: Share | null
+  contract: DocContract
+}
 export type Option = { value: string; label: string; count: number }
 
 export const DOC_VIEWS = [

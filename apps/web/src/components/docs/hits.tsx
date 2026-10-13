@@ -3,12 +3,13 @@ import { BoxIcon, CopyIcon, ListTodoIcon, ShapesIcon, TagIcon } from "lucide-rea
 import { Fragment } from "react"
 import { cn } from "cn"
 import { copy } from "@/components/todos/copy-id"
+import { StatusIcon } from "@/components/todos/icons"
 import { GroupDot } from "@/components/todos/filters"
 import { groupColor } from "@/components/todos/group-color"
 import { plainTitle } from "@/components/todos/rich-title"
 import { Badge } from "@/components/ui/badge"
 import { ageTone, tagColor, typeColor, useRepoColor } from "@/lib/doc-colors"
-import { docHref, docKey, docPath, tagList, type Hit } from "@/lib/docs"
+import { docHref, docKey, docPath, tagList, type DocPage, type Hit } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
 export const copyPath = (d: { path: string }) => copy(docPath(d), `Copied ${docPath(d)}`)
@@ -153,6 +154,22 @@ export function TodosLink({ todos }: { todos: NonNullable<Hit["todos"]> }) {
     >
       <ListTodoIcon aria-hidden className="size-3.5" />
       {todos.open} open {todos.open === 1 ? "todo" : "todos"}
+    </Link>
+  )
+}
+
+/** The doc's parent todo, from its `atlas-todo`, with the item's status. */
+export function ParentTodo({ todo }: { todo: NonNullable<DocPage["todo"]> }) {
+  return (
+    <Link
+      to="/todos"
+      search={{ item: todo.id }}
+      title={`Parent todo #${todo.id}`}
+      className="flex max-w-72 min-w-0 shrink items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <StatusIcon status={todo.status} />
+      <span className="font-mono tabular-nums">#{todo.id}</span>
+      <span className="truncate text-foreground max-sm:sr-only">{plainTitle(todo.title)}</span>
     </Link>
   )
 }

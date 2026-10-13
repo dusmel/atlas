@@ -1,13 +1,13 @@
-import { frontmatter } from "@atlas/doc-render"
 import { DocIndex, htmlText, mdText, watchDocs, type SearchHit } from "@atlas/indexer"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
-import { basename, join, posix } from "node:path"
+import { basename, join } from "node:path"
 import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
 import { docEventDays, listDocEvents, recordDocChanges } from "./doc-activity"
 import { folderListing } from "./doc-folders"
 import { closestDocs } from "./closest-docs"
+import { groupDocPath, movedFrom, placeOf, recordDocIds, type Place } from "./doc-ids"
 import { repoExtras } from "./doc-overview"
 import { docFile } from "./doc-files"
 import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
@@ -28,6 +28,11 @@ export function getIndex(): DocIndex {
       recordDocChanges(getDb(), docs.files())
     } catch (err) {
       console.error("atlas: logging doc changes failed", err)
+    }
+    try {
+      recordDocIds(getDb(), docs, repoFolders())
+    } catch (err) {
+      console.error("atlas: recording doc ids failed", err)
     }
   }
   ready = docs.sync().then(
@@ -116,7 +121,7 @@ export async function docsFolder(path: string, input: Pick<FilterInput, "repo" |
   return folderListing(docs.list(filtersOf({ folder: [], ...input })), path)
 }
 
-/** Groups with open todos and no doc, and group docs whose file the served copy lacks. */
+/** Groups with open todos and no doc, group docs whose file the served copy lacks, and ids two docs hold. */
 function attention() {
   const groups = getDb()
     .query<{ id: number; name: string; repo_id: string; open: number; docs: number }, []>(
@@ -129,15 +134,18 @@ function attention() {
   const folders = repoFolders()
   const root = getIndex().root
   const missing = getDb()
-    .query<{ group_id: number; name: string; repo_id: string; label: string; path: string }, []>("SELECT d.group_id, g.name, g.repo_id, d.label, d.path FROM group_docs d JOIN groups g ON g.id = d.group_id ORDER BY g.name, d.label")
+    .query<{ group_id: number; name: string; repo_id: string; label: string; path: string; doc_id: string | null }, []>(
+      "SELECT d.group_id, g.name, g.repo_id, d.label, d.path, d.doc_id FROM group_docs d JOIN groups g ON g.id = d.group_id ORDER BY g.name, d.label",
+    )
     .all()
-    .flatMap((d) => {
+    .flatMap(({ doc_id, ...d }) => {
       const folder = folders.get(d.repo_id)
       // A repo with no docs folder here can't be checked.
       if (!folder) return []
-      return docFile(root, folder, posix.normalize(d.path.replace(/^\.\//, ""))) ? [] : [{ ...d, folder }]
+      const at = placeOf(getIndex(), doc_id, { repo: folder, path: groupDocPath(d.path) })
+      return docFile(root, at.repo, at.path) ? [] : [{ ...d, folder }]
     })
-  return { no_doc: groups.filter((g) => g.open > 0 && g.docs === 0).map(({ docs, ...g }) => g), missing }
+  return { no_doc: groups.filter((g) => g.open > 0 && g.docs === 0).map(({ docs, ...g }) => g), missing, duplicates: getIndex().duplicateIds() }
 }
 
 /**
@@ -188,8 +196,8 @@ const twin = (path: string) => path.replace(/\.(md|html)$/, "")
 /** The groups that link each doc (md and html as one) under any label, and the open todos in them. */
 function linkedGroups(): Map<string, { open: number; groups: number[]; names: { id: number; name: string }[] }> {
   const groups = getDb()
-    .query<{ id: number; name: string; repo_id: string; path: string; open: number }, []>(
-      `SELECT g.id, g.name, g.repo_id, d.path,
+    .query<{ id: number; name: string; repo_id: string; path: string; doc_id: string | null; open: number }, []>(
+      `SELECT g.id, g.name, g.repo_id, d.path, d.doc_id,
               (SELECT count(*) FROM items i WHERE i.group_id = g.id AND i.status != 'done' AND i.archived_at IS NULL) AS open
          FROM groups g JOIN group_docs d ON d.group_id = g.id ORDER BY g.name`,
     )
@@ -202,7 +210,8 @@ function linkedGroups(): Map<string, { open: number; groups: number[]; names: { 
   for (const g of groups) {
     const folder = folders.get(g.repo_id)
     if (!folder) continue
-    const key = twin(posix.normalize(`${folder}/${g.path}`))
+    const at = placeOf(getIndex(), g.doc_id, { repo: folder, path: groupDocPath(g.path) })
+    const key = twin(`${at.repo}/${at.path}`)
     if (seen.has(`${g.id} ${key}`)) continue
     seen.add(`${g.id} ${key}`)
     const entry = linked.get(key) ?? { open: 0, groups: [], names: [] }
@@ -237,16 +246,21 @@ function withTodos(hits: SearchHit[]) {
  * Adds where a todo's group docs open in `/r/`, null for one the served copy lacks, and the
  * docs folder of the todo's repo, which relative links in its body resolve against.
  */
-export function withDocLinks<T extends { item: { repo_id: string }; group: { docs: { label: string; path: string }[] } | null }>(detail: T) {
+export function withDocLinks<T extends { item: { repo_id: string }; group: { id: number; docs: { label: string; path: string }[] } | null }>(detail: T) {
   const folder = repoFolders().get(detail.item.repo_id) ?? null
-  const href = (path: string) => {
-    const rel = posix.normalize(path.replace(/^\.\//, ""))
-    return folder && docFile(getIndex().root, folder, rel) ? docHref({ repo: folder, path: rel }) : null
+  const ids = new Map(
+    detail.group ? getDb().query<{ label: string; doc_id: string | null }, [number]>("SELECT label, doc_id FROM group_docs WHERE group_id = ?").all(detail.group.id).map((d) => [d.label, d.doc_id]) : [],
+  )
+  const href = (d: { label: string; path: string }) => {
+    if (!folder) return null
+    // A doc with an id is found where it is now, after a rename or a move.
+    const at = placeOf(getIndex(), ids.get(d.label) ?? null, { repo: folder, path: groupDocPath(d.path) })
+    return docFile(getIndex().root, at.repo, at.path) ? docHref(at) : null
   }
   return {
     ...detail,
     docs_folder: folder,
-    group: detail.group && { ...detail.group, docs: detail.group.docs.map((d) => ({ ...d, href: href(d.path) })) },
+    group: detail.group && { ...detail.group, docs: detail.group.docs.map((d) => ({ ...d, href: href(d) })) },
   }
 }
 
@@ -257,36 +271,83 @@ export function findDoc(repo: string, path: string) {
   return file
 }
 
-/** What the frame's toolbar needs for `/r/<repo>/<path>`; the page itself loads from `/raw` (spec section 6). */
+/** A doc's text and contract, read from its file. */
+async function readDoc(file: string, path: string) {
+  const text = await Bun.file(file).text()
+  return path.endsWith(".md") ? mdText(text, basename(path)) : htmlText(text, basename(path))
+}
+
+/** The doc's id when no other doc holds it (spec section 9), else null. */
+const ownId = (id: string | null) => (id && getIndex().byId(id) ? id : null)
+
+/**
+ * What the frame's toolbar needs for `/r/<repo>/<path>`; the page itself loads from `/raw` (spec section 6).
+ * A 404 carries `moved` when a doc with an id once lived at the path and now lives elsewhere.
+ */
 export async function viewDoc(repo: string, path: string) {
   const file = docFile(getIndex().root, repo, path)
   if (!file) {
     await ready
-    throw new HttpError(404, "not_found", `No doc ${repo}/${path}`, { closest: closestDocs(getIndex().files(), repo, path) })
+    const moved = movedFrom(getDb(), getIndex(), { repo, path })
+    throw new HttpError(404, "not_found", `No doc ${repo}/${path}`, { closest: closestDocs(getIndex().files(), repo, path), moved })
   }
   const kind = path.endsWith(".md") ? "md" : path.endsWith(".html") ? "html" : null
   if (!kind) throw new HttpError(400, "not_a_doc", "Only md and html files open as docs")
-  const text = await Bun.file(file).text()
-  const name = basename(path)
-  const title = kind === "md" ? mdText(text, name).title : htmlText(text, name).title
-  const type = (kind === "md" ? frontmatter(text).front["doc-type"] : /<meta\s+name="doc-type"\s+content="([^"]*)"/i.exec(text)?.[1]) || null
-  const markdown = kind === "md" || !!docFile(getIndex().root, repo, `${path.slice(0, -5)}.md`)
+  const { title, type, contract } = await readDoc(file, path)
+  const markdown = kind === "md" || !!contract.md || !!docFile(getIndex().root, repo, `${path.slice(0, -5)}.md`)
   // An md twin's page is its html (spec D25). The app moves there, since links inside the app skip the server's redirect.
   const html = kind === "md" ? `${path.slice(0, -3)}.html` : null
   const htmlTwin = html && docFile(getIndex().root, repo, html) ? html : null
-  const share = listShares(getDb()).find((s) => s.repo_id === repo && s.path === path) ?? null
-  return { repo, path, kind, title, type, markdown, twin: htmlTwin, mtime: statSync(file).mtime.toISOString(), todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null, share }
+  const id = ownId(contract.id)
+  const share = listShares(getDb()).find((s) => (id && s.doc_id === id) || (s.repo_id === repo && s.path === path)) ?? null
+  const todo = contract.todo === null ? null : (getDb().query<{ id: number; title: string; status: string }, [number]>("SELECT id, title, status FROM items WHERE id = ?").get(contract.todo) ?? null)
+  const { md: _, ...fields } = contract
+  return {
+    repo,
+    path,
+    kind,
+    id,
+    title,
+    type: type || null,
+    markdown,
+    twin: htmlTwin,
+    mtime: statSync(file).mtime.toISOString(),
+    todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null,
+    todo,
+    share,
+    contract: { ...fields, id },
+  }
 }
 
-export function shareDoc(repo: string, path: string): Share {
-  findDoc(repo, path)
-  return createShare(getDb(), repo, path)
+/** A doc's markdown for agents and Copy as Markdown: an md file as written, else an html doc's `atlas-md` block, else its md twin. */
+export async function docMarkdown(repo: string, path: string): Promise<string | null> {
+  const { root } = getIndex()
+  const file = docFile(root, repo, path)
+  if (path.endsWith(".md")) return file ? Bun.file(file).text() : null
+  if (!path.endsWith(".html")) return null
+  const block = file && (await readDoc(file, path)).contract.md
+  if (block) return `${block}\n`
+  const md = docFile(root, repo, `${path.slice(0, -5)}.md`)
+  return md ? Bun.file(md).text() : null
 }
 
-/** Live shares with each doc's title, or null when the doc is gone from the served copy. */
+export async function shareDoc(repo: string, path: string): Promise<Share> {
+  const file = findDoc(repo, path)
+  return createShare(getDb(), repo, path, ownId((await readDoc(file, path)).contract.id))
+}
+
+/** Where a share's doc is now: found by its id after a move, else at the path it was shared from. */
+export const sharePlace = (share: Share): Place => placeOf(getIndex(), share.doc_id, { repo: share.repo_id, path: share.path })
+
+/** Live shares with each doc's current place and title, or a null title when the doc is gone from the served copy. */
 export async function sharesWithTitles() {
   const docs = getIndex()
   await ready
   const titles = new Map(docs.files().map((f) => [`${f.repo}/${f.path}`, f.title]))
-  return { shares: listShares(getDb()).map((s) => ({ ...s, title: titles.get(`${s.repo_id}/${s.path}`) ?? null })) }
+  return {
+    shares: listShares(getDb()).map((s) => {
+      const at = sharePlace(s)
+      return { ...s, repo_id: at.repo, path: at.path, title: titles.get(`${at.repo}/${at.path}`) ?? null }
+    }),
+  }
 }

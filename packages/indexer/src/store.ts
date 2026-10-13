@@ -30,8 +30,10 @@ const SCHEMA = `
   CREATE TABLE docs (
     id INTEGER PRIMARY KEY, repo TEXT NOT NULL, path TEXT NOT NULL, folder TEXT NOT NULL, kind TEXT NOT NULL,
     title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL, low INTEGER NOT NULL, type TEXT NOT NULL,
+    doc_id TEXT NOT NULL,
     UNIQUE (repo, path)
   );
+  CREATE INDEX docs_doc_id ON docs (doc_id) WHERE doc_id != '';
   CREATE TABLE doc_tags (doc_id INTEGER NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (tag, doc_id)) WITHOUT ROWID;
   CREATE VIRTUAL TABLE docs_fts USING fts5(title, path, body, tokenize = 'porter unicode61');
 `
@@ -143,14 +145,14 @@ export class DocIndex {
         this.db.run("DELETE FROM docs WHERE id = ?", [id])
       }
       for (const { file, id, mtime, size, text } of reads) {
-        const values = [file.kind, text.title, mtime, size, text.tags, text.type]
+        const values = [file.kind, text.title, mtime, size, text.tags, text.type, text.contract.id ?? ""]
         let rowid = id
         if (rowid === undefined) {
           rowid = this.db
-            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
+            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags, type, doc_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
             .get(file.repo, file.path, folderOf(file.path), Number(lowWeight(file.path)), ...values)!.id
         } else {
-          this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ?, type = ? WHERE id = ?", [...values, rowid])
+          this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ?, type = ?, doc_id = ? WHERE id = ?", [...values, rowid])
           this.db.run("DELETE FROM docs_fts WHERE rowid = ?", [rowid])
           this.db.run("DELETE FROM doc_tags WHERE doc_id = ?", [rowid])
         }
@@ -263,6 +265,45 @@ export class DocIndex {
           LIMIT ?`,
       )
       .all(match, ...w.params, limit)
+  }
+
+  /**
+   * Where the doc with this id is now, as the html when it has twins. Null when no doc holds the id, or
+   * when two docs do: a copied doc keeps its id, and the contract counts both as having none.
+   */
+  byId(id: string): DocMeta | null {
+    const rows = this.db.query<DocMeta & { stem: string }, [string]>(`SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.size, ${TWIN} AS stem FROM docs d WHERE d.doc_id = ? ORDER BY d.kind = 'md'`).all(id)
+    if (!rows.length || rows.some((r) => r.stem !== rows[0]!.stem)) return null
+    const { stem: _, ...doc } = rows[0]!
+    return doc
+  }
+
+  /** Every file whose id no other doc holds, for the server's record of the paths each id has had. */
+  ids(): { repo: string; path: string; id: string }[] {
+    return this.db
+      .query<{ repo: string; path: string; id: string }, []>(
+        `SELECT d.repo, d.path, d.doc_id AS id FROM docs d
+          WHERE d.doc_id != '' AND d.doc_id NOT IN (SELECT doc_id FROM docs d WHERE doc_id != '' GROUP BY doc_id HAVING count(DISTINCT ${TWIN}) > 1)`,
+      )
+      .all()
+  }
+
+  /** Ids held by more than one doc, each with its docs (twins once, as the html). Overview lists them. */
+  duplicateIds(): { id: string; docs: { repo: string; path: string; title: string }[] }[] {
+    const rows = this.db
+      .query<{ id: string; repo: string; path: string; title: string; stem: string }, []>(
+        `SELECT d.doc_id AS id, d.repo, d.path, d.title, ${TWIN} AS stem FROM docs d
+          WHERE d.doc_id IN (SELECT doc_id FROM docs d WHERE doc_id != '' GROUP BY doc_id HAVING count(DISTINCT ${TWIN}) > 1)
+          ORDER BY d.doc_id, d.repo, d.path, d.kind = 'md'`,
+      )
+      .all()
+    const out = new Map<string, Map<string, { repo: string; path: string; title: string }>>()
+    for (const { id, stem, ...doc } of rows) {
+      const docs = out.get(id) ?? new Map()
+      out.set(id, docs)
+      if (!docs.has(stem)) docs.set(stem, doc)
+    }
+    return [...out].map(([id, docs]) => ({ id, docs: [...docs.values()] }))
   }
 
   /** The html twin of an md doc, or null. When both exist, the html is the doc (spec D25). */

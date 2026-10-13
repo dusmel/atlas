@@ -77,11 +77,17 @@ const script = String.raw`(function () {
     if (!a) return;
     var url;
     try { url = new URL(a.getAttribute("href"), location.href); } catch (err) { return; }
+    var tab = e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank";
+    // A todo:42 link opens that item in the app (the doc contract, spec section 9).
+    var todo = url.protocol === "todo:" && /^#?(\d+)$/.exec(url.pathname);
+    if (todo) {
+      e.preventDefault();
+      return post({ type: "atlas:navigate", href: "/todos?item=" + todo[1], tab: tab });
+    }
     if (!/^https?:$/.test(url.protocol)) return;
     var here = url.pathname === location.pathname && url.search === location.search;
     if (here && url.hash) return;
     e.preventDefault();
-    var tab = e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank";
     if (isHome(a, url)) return post({ type: "atlas:navigate", href: "/docs?repo=" + encodeURIComponent(repo), tab: tab });
     var path = docPath(url);
     if (path) return post({ type: "atlas:navigate", href: "/r" + path + url.hash, tab: tab });

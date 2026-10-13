@@ -40,12 +40,24 @@ export const SEED = {
   ],
 }
 
+const LIGHTHOUSE_MD = "# Lighthouse plan\n\nThe keeper lights the lamp at dusk and logs every passing ship."
+/** The item the harbour notes name as their parent todo. */
+export const HARBOUR_TODO = { id: 11, title: "Jump here by number" }
+
 // The shape of an html-docs page: the same copy and theme scripts, made-up words. Like 18 real docs,
 // its theme script reads localStorage unguarded, which throws in the sandbox without the frame's stand-in.
-const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title><meta name="tags" content="plans, lamps"><meta name="doc-type" content="plan"></head><body>
+// It carries a contract id and its markdown under one of the older block ids, but no atlas-contract
+// version: a doc with one follows atlas:theme itself, and this one leaves the theme to the bridge.
+const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title><meta name="tags" content="plans, lamps"><meta name="doc-type" content="plan">
+<meta name="atlas-id" content="d_lighthouse"></head><body>
 <header data-atlas-chrome>Old top bar</header>
 <button id="theme">Theme</button> <button id="copy-md">Copy as Markdown</button>
-<script type="text/plain" id="md-source"># Lighthouse plan</script>
+<script type="text/plain" id="md-source">${LIGHTHOUSE_MD}
+
+## Log
+
+The keeper trims the wick at midnight.
+</script>
 <p>The keeper lights the lamp at dusk and logs every passing ship.</p>
 <p><a href="../notes/harbour.md">Harbour notes</a> <a href="../index.html">All web docs</a> <a href="#log">Jump to the log</a></p>
 <p><a href="lamp.svg">Lamp sketch</a></p>
@@ -69,10 +81,10 @@ document.getElementById('copy-md').addEventListener('click', async function () {
 
 /** Made-up docs under data/docs/<repo>/, as MEGA would leave them. */
 export const DOCS: Record<string, string> = {
-  "web/plans/lighthouse.md": "---\ntitle: Lighthouse plan\ntags: plans\ndoc-type: plan\n---\n\n# Lighthouse plan\n\nThe keeper lights the lamp at dusk and logs every passing ship.",
+  "web/plans/lighthouse.md": `---\ntitle: Lighthouse plan\ntags: plans\ndoc-type: plan\natlas-id: d_lighthouse\n---\n\n${LIGHTHOUSE_MD}`,
   "web/plans/lighthouse.html": HTML_DOC,
   "web/plans/lamp.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="16" fill="#f59e0b"/></svg>',
-  "web/notes/harbour.md": "# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.\n\nRead [the keeper's plan](../plans/lighthouse.html).\n\n| tide | wait |\n|---|---|\n| low | two hours |",
+  "web/notes/harbour.md": `---\natlas-id: d_harbour001\ntodo: ${HARBOUR_TODO.id}\n---\n\n# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.\n\nRead [the keeper's plan](../plans/lighthouse.html), or [the open question](todo:${HARBOUR_TODO.id}).\n\n| tide | wait |\n|---|---|\n| low | two hours |`,
   "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><meta name="doc-type" content="reference"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
   "api/backups/old.md": "# Skipped\n\nThe lamp in a backup is never indexed.",
   // Ties the folder to its todo repo, so docs linked from a group show their open todos.
@@ -84,3 +96,6 @@ export const MEGA_SYNCED = "LOCALPATH|RUN_STATE|STATUS|ERROR\n/data/docs|Running
 
 // A doc in the pushed copy only, so holding and resuming show up in search.
 export const PUSHED_ONLY = { path: "api/pushed/ferry-timetable.md", text: "# Ferry timetable\n\nThe albatross sailing leaves at noon." }
+
+// The harbour notes' new path in the pushed copy.
+export const RENAMED = { from: "web/notes/harbour.md", path: "web/notes/harbour-notes.md" }

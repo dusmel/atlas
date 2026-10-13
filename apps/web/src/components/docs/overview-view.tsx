@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query"
 import { Link, useSearch } from "@tanstack/react-router"
-import { ArrowDownRightIcon, ArrowUpRightIcon, BoxIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, MinusIcon, TriangleAlertIcon } from "lucide-react"
+import { ArrowDownRightIcon, ArrowUpRightIcon, BoxIcon, CopyXIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, MinusIcon, TriangleAlertIcon } from "lucide-react"
+import { Fragment } from "react"
 import { cn } from "cn"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DesignReport, DesignTrends } from "./overview-designs"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
-import { docHref, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
+import { docHref, docKey, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
 const card = "rounded-2xl border bg-card p-5 shadow-xs"
@@ -355,7 +356,7 @@ function DocList({ label, docs, empty }: { label: string; docs: (DocRef | Linked
 }
 
 function NeedsAttention({ attention }: { attention: Attention }) {
-  const total = attention.no_doc.length + attention.missing.length
+  const total = attention.no_doc.length + attention.missing.length + attention.duplicates.length
   if (!total) return null
   return (
     <section aria-labelledby="attention" className="rounded-2xl border border-amber-500/40 bg-amber-500/5 px-5 py-4">
@@ -376,6 +377,24 @@ function NeedsAttention({ attention }: { attention: Attention }) {
                 {" "}
                 links its {m.label} to <code className="font-mono text-xs">{m.path}</code>, which is not in {m.folder}
               </span>
+            </span>
+          </li>
+        ))}
+        {attention.duplicates.map((d) => (
+          <li key={d.id} data-attention="duplicate-id" className="flex min-w-0 items-start gap-2">
+            <CopyXIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0">
+              <span className="text-muted-foreground">
+                {d.docs.length} docs share the id <code className="font-mono text-xs">{d.id}</code>, so links by that id find none of them:{" "}
+              </span>
+              {d.docs.map((doc, i) => (
+                <Fragment key={docKey(doc)}>
+                  {i > 0 && <span className="text-muted-foreground">, </span>}
+                  <a href={docHref(doc)} className={link} translate="no">
+                    {doc.repo}/{doc.path}
+                  </a>
+                </Fragment>
+              ))}
             </span>
           </li>
         ))}

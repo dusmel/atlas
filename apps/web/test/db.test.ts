@@ -33,7 +33,7 @@ describe("migrations", () => {
     migrate(db, realMigrations().slice(0, 3))
     db.run("INSERT INTO repos (id, name, updated_at) VALUES ('r', 'r', 'now')")
     db.run("INSERT INTO groups (id, repo_id, name, doc_path, created_at) VALUES (1, 'r', 'With', 'plans/a.html', 'now'), (2, 'r', 'Without', NULL, 'now'), (3, 'r', 'Empty', '', 'now')")
-    migrate(db, realMigrations())
+    migrate(db, realMigrations().slice(0, 4))
     expect(db.query("SELECT * FROM group_docs").all()).toEqual([{ group_id: 1, label: "plan", path: "plans/a.html" }])
     expect(db.query<{ name: string }, []>("SELECT name FROM pragma_table_info('groups')").all().map((c) => c.name)).not.toContain("doc_path")
   })
