@@ -1,5 +1,5 @@
 import { defaultUrlTransform } from "react-markdown"
-import { ActivityIcon, ChartColumnIcon, GlobeIcon, SearchIcon } from "lucide-react"
+import { ActivityIcon, ChartColumnIcon, FolderTreeIcon, GlobeIcon, SearchIcon } from "lucide-react"
 
 export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
 /** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. */
@@ -7,6 +7,12 @@ export const tagList = (tags: string) => tags.replace(/^\[|\]$/g, "").split(",")
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number>; type: Record<string, number>; tag: Record<string, number> }
 /** `folders` maps a todo repo id to its docs folder, from the folder's meta.json. `types` and `tags` count every doc. */
 export type Summary = { docs: number; md: number; html: number; repos: { name: string; docs: number }[]; types: Record<string, number>; tags: Record<string, number>; folders: Record<string, string> }
+/** One level of the docs tree, from `/api/docs/folders`. */
+export type FolderListing = {
+  path: string
+  folders: { name: string; docs: number; last: string }[]
+  docs: { repo: string; path: string; kind: "md" | "html"; title: string; type: string | null; tags: string; mtime: string }[]
+}
 export type DocEvent = { id: number; at: string; change: "added" | "changed" | "removed"; repo: string; path: string; kind: string; kinds: string[]; title: string }
 export type DocRef = { repo: string; path: string; title: string; mtime: string }
 export type LinkedDoc = DocRef & { open: number; groups: number[] }
@@ -43,6 +49,7 @@ export const DOC_VIEWS = [
   { id: "search", label: "Search", icon: SearchIcon },
   { id: "activity", label: "Activity", icon: ActivityIcon },
   { id: "overview", label: "Overview", icon: ChartColumnIcon },
+  { id: "folders", label: "Folders", icon: FolderTreeIcon },
 ] as const
 export type DocView = (typeof DOC_VIEWS)[number]["id"]
 /** The tabs over Docs: its views, then Shared, which is a page of its own. */

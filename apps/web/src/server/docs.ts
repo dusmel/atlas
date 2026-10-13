@@ -6,6 +6,7 @@ import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
 import { docEventDays, listDocEvents, recordDocChanges } from "./doc-activity"
+import { folderListing } from "./doc-folders"
 import { closestDocs } from "./closest-docs"
 import { repoExtras } from "./doc-overview"
 import { docFile } from "./doc-files"
@@ -106,6 +107,13 @@ export async function docsOverview(input: Pick<FilterInput, "type" | "tag">) {
   const filters = filtersOf({ repo: [], folder: [], ...input })
   const extras = repoExtras(docs.list(filters), linkedTodos())
   return { repos: docs.overview(Date.now(), filters).map((r) => ({ ...r, ...extras.get(r.repo)! })), attention: attention() }
+}
+
+/** One level of the docs tree, narrowed by the repo, type and tag filters. */
+export async function docsFolder(path: string, input: Pick<FilterInput, "repo" | "type" | "tag">) {
+  const docs = getIndex()
+  await ready
+  return folderListing(docs.list(filtersOf({ folder: [], ...input })), path)
 }
 
 /** Groups with open todos and no doc, and group docs whose file the served copy lacks. */

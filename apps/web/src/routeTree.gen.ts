@@ -29,6 +29,7 @@ import { Route as ApiTodosRouteImport } from './routes/api/todos'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as ApiDocsActivityRouteImport } from './routes/api/docs.activity'
+import { Route as ApiDocsFoldersRouteImport } from './routes/api/docs.folders'
 import { Route as ApiDocsHoldRouteImport } from './routes/api/docs.hold'
 import { Route as ApiDocsOverviewRouteImport } from './routes/api/docs.overview'
 import { Route as ApiDocsPullRouteImport } from './routes/api/docs.pull'
@@ -148,6 +149,11 @@ const ApiDocsActivityRoute = ApiDocsActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => ApiDocsRoute,
 } as any)
+const ApiDocsFoldersRoute = ApiDocsFoldersRouteImport.update({
+  id: '/folders',
+  path: '/folders',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
 const ApiDocsHoldRoute = ApiDocsHoldRouteImport.update({
   id: '/hold',
   path: '/hold',
@@ -260,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/s/$token': typeof STokenRoute
   '/api/docs/activity': typeof ApiDocsActivityRouteWithChildren
+  '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/s/$token': typeof STokenRoute
   '/api/docs/activity': typeof ApiDocsActivityRouteWithChildren
+  '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
@@ -341,6 +349,7 @@ export interface FileRoutesById {
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/s/$token': typeof STokenRoute
   '/api/docs/activity': typeof ApiDocsActivityRouteWithChildren
+  '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/api/tokens'
     | '/s/$token'
     | '/api/docs/activity'
+    | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
     | '/api/docs/pull'
@@ -423,6 +433,7 @@ export interface FileRouteTypes {
     | '/api/tokens'
     | '/s/$token'
     | '/api/docs/activity'
+    | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
     | '/api/docs/pull'
@@ -463,6 +474,7 @@ export interface FileRouteTypes {
     | '/api/tokens'
     | '/s/$token'
     | '/api/docs/activity'
+    | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
     | '/api/docs/pull'
@@ -649,6 +661,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDocsActivityRouteImport
       parentRoute: typeof ApiDocsRoute
     }
+    '/api/docs/folders': {
+      id: '/api/docs/folders'
+      path: '/folders'
+      fullPath: '/api/docs/folders'
+      preLoaderRoute: typeof ApiDocsFoldersRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
     '/api/docs/hold': {
       id: '/api/docs/hold'
       path: '/hold'
@@ -792,6 +811,7 @@ const ApiDocsActivityRouteWithChildren = ApiDocsActivityRoute._addFileChildren(
 
 interface ApiDocsRouteChildren {
   ApiDocsActivityRoute: typeof ApiDocsActivityRouteWithChildren
+  ApiDocsFoldersRoute: typeof ApiDocsFoldersRoute
   ApiDocsHoldRoute: typeof ApiDocsHoldRoute
   ApiDocsOverviewRoute: typeof ApiDocsOverviewRoute
   ApiDocsPullRoute: typeof ApiDocsPullRoute
@@ -802,6 +822,7 @@ interface ApiDocsRouteChildren {
 
 const ApiDocsRouteChildren: ApiDocsRouteChildren = {
   ApiDocsActivityRoute: ApiDocsActivityRouteWithChildren,
+  ApiDocsFoldersRoute: ApiDocsFoldersRoute,
   ApiDocsHoldRoute: ApiDocsHoldRoute,
   ApiDocsOverviewRoute: ApiDocsOverviewRoute,
   ApiDocsPullRoute: ApiDocsPullRoute,

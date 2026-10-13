@@ -166,7 +166,7 @@ test("Activity has a year grid and lists doc changes, and Overview has totals, a
   await expect(recent(page)).toHaveCount(2)
 })
 
-test("type and tag filters narrow Search and Overview, and stay in the URL", async ({ page }) => {
+test("type and tag filters narrow Search, Overview and Folders, and stay in the URL", async ({ page }) => {
   await page.goto("/docs")
   const side = sidebar(page)
   await expect(recent(page)).toHaveCount(3)
@@ -187,6 +187,46 @@ test("type and tag filters narrow Search and Overview, and stay in the URL", asy
 
   await views(page).getByRole("link", { name: "Overview" }).click()
   await expect(page.locator("dl[aria-label=Totals]")).toContainText("Docs1")
+  await views(page).getByRole("link", { name: "Folders" }).click()
+  await expect(page.locator("[data-row]")).toHaveText([/^api/])
+  await page.getByRole("button", { name: "Remove Tag ops" }).click()
+  await page.getByRole("button", { name: "Remove Type reference" }).click()
+  // Only the harbour notes have no type.
+  await expect(page.locator("[data-row]")).toHaveText([/^web/])
+})
+
+test("Folders browses from the repos to a doc, and the path and Backspace lead back", async ({ page }) => {
+  await page.goto("/docs")
+  await views(page).getByRole("link", { name: "Folders" }).click()
+  await expect(page).toHaveURL(/view=folders/)
+  const rows = page.locator("[data-row]")
+  // docs-source.e2e.ts can push a doc into api, so only web's count is fixed.
+  await expect(rows.filter({ hasText: /^web/ })).toContainText("2 docs")
+  await rows.filter({ hasText: /^web/ }).getByRole("link").click()
+  await expect(page).toHaveURL(/path=web$/)
+  // Subfolders first, by name; meta.json and the svg are not docs.
+  await expect(rows).toHaveText([/^notes1 doc/, /^plans1 doc/])
+  await page.keyboard.press("j")
+  await page.keyboard.press("j")
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/path=web(%2F|\/)plans$/)
+  await expect(page.getByRole("navigation", { name: "Folder path" })).toHaveText("All repos/web/plans")
+  // A doc kept as md and html shows once, as the html, with its type and tags.
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toContainText("Lighthouse plan")
+  await expect(rows.first()).toContainText("plan")
+  await expect(rows.first().getByRole("list", { name: "Tags" })).toHaveText("planslamps")
+  await page.keyboard.press("Backspace")
+  await expect(page).toHaveURL(/path=web$/)
+  await expect(rows.filter({ hasText: /^plans/ })).toHaveAttribute("aria-current", "true")
+  await page.keyboard.press("Enter")
+  await page.keyboard.press("j")
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
+  await page.goBack()
+  await page.getByRole("navigation", { name: "Folder path" }).getByRole("link", { name: "All repos" }).click()
+  await expect(page).not.toHaveURL(/path=/)
+  await expect(rows.filter({ hasText: /^web/ })).toBeVisible()
 })
 
 test("⌘K opens a doc it finds, from Todos and from Docs", async ({ page }) => {

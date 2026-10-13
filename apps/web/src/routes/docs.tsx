@@ -8,6 +8,7 @@ import { DocActivity } from "@/components/docs/activity-view"
 import { YearGrid } from "@/components/year-grid"
 import { DocsPalette } from "@/components/docs/docs-palette"
 import { ChangedPopover, CheckList, FilterBadge, FolderPopover, TypeTagFilters } from "@/components/docs/filters"
+import { DocFolders } from "@/components/docs/folders-view"
 import { copyPath, Hits } from "@/components/docs/hits"
 import { DocOverview } from "@/components/docs/overview-view"
 import { DocsSidebar } from "@/components/docs/sidebar"
@@ -26,7 +27,7 @@ import { useRepoColor } from "@/lib/doc-colors"
 import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, NO_TYPE, typeLabel, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
-type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; type?: string; tag?: string; since?: string; doc?: string; design?: "report" | "trends" }
+type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; type?: string; tag?: string; since?: string; doc?: string; path?: string; design?: "report" | "trends" }
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
@@ -40,6 +41,7 @@ export const Route = createFileRoute("/docs")({
     tag: text(s.tag),
     since: sinceMs(text(s.since)) ? text(s.since) : undefined,
     doc: text(s.doc),
+    path: text(s.path),
     design: s.design === "report" || s.design === "trends" ? s.design : undefined,
   }),
   component: DocsPage,
@@ -55,7 +57,7 @@ function DocsPage() {
   const repos = list(search.repo)
   const types = list(search.type)
   const tags = list(search.tag)
-  // The folder and changed filters apply to Search and Activity; Overview takes repo, type and tag.
+  // The folder and changed filters apply to Search and Activity; Overview and Folders take repo, type and tag.
   const scoped = view === "search" || view === "activity"
   const folders = scoped ? list(search.folder) : []
   const navigate = useNavigate({ from: "/docs" })
@@ -126,8 +128,8 @@ function DocsPage() {
     "mod+k": () => setPalette((o) => !o),
     v: () => setPalette(true),
     "/": () => (set({ view: undefined }), requestAnimationFrame(() => input.current?.focus())),
-    j: () => move(1, true),
-    k: () => move(-1, true),
+    // Folders moves its own rows.
+    ...(view !== "folders" && { j: () => move(1, true), k: () => move(-1, true) }),
     o: () => current && window.location.assign(docHref(current)),
   })
 
@@ -242,6 +244,8 @@ function DocsPage() {
             </div>
           ) : view === "overview" ? (
             <DocOverview repos={repos} params={filters} />
+          ) : view === "folders" ? (
+            <DocFolders path={search.path ?? ""} params={filters} filtered={filtered > 0} />
           ) : results.isPending ? (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-16" />

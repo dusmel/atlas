@@ -89,19 +89,7 @@ function Details({ hit }: { hit: Hit }) {
   const tags = tagList(hit.tags)
   return (
     <>
-      {tags.length > 0 && (
-        <ul data-tags aria-label="Tags" className="flex flex-wrap gap-1">
-          {tags.map((t) => (
-            <li
-              key={t}
-              className="rounded-full px-1.5 py-px text-[10.5px] leading-4 font-medium"
-              style={{ background: `color-mix(in oklab, ${tagColor(t)} 15%, transparent)`, color: `color-mix(in oklab, ${tagColor(t)} 75%, var(--foreground))` }}
-            >
-              {t}
-            </li>
-          ))}
-        </ul>
-      )}
+      <TagPills tags={tags} />
       {hit.groups?.map((g) => (
         <Link
           key={g.id}
@@ -118,6 +106,24 @@ function Details({ hit }: { hit: Hit }) {
         </Link>
       ))}
     </>
+  )
+}
+
+/** Tags as pills, each in its own colour. */
+export function TagPills({ tags }: { tags: string[] }) {
+  if (!tags.length) return null
+  return (
+    <ul data-tags aria-label="Tags" className="flex flex-wrap gap-1">
+      {tags.map((t) => (
+        <li
+          key={t}
+          className="rounded-full px-1.5 py-px text-[10.5px] leading-4 font-medium"
+          style={{ background: `color-mix(in oklab, ${tagColor(t)} 15%, transparent)`, color: `color-mix(in oklab, ${tagColor(t)} 75%, var(--foreground))` }}
+        >
+          {t}
+        </li>
+      ))}
+    </ul>
   )
 }
 
