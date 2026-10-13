@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button"
 import type { Option, Summary } from "@/lib/docs"
-import { repoColor } from "@/lib/doc-colors"
+import { useRepoColor } from "@/lib/doc-colors"
 import { CheckList } from "./filters"
 
 /** The repos with their counts. Wide screens only; phones get the Filters drawer. */
 export function DocsSidebar({ summary, repoOptions, repos, onToggle, onAll }: { summary?: Summary; repoOptions: Option[]; repos: string[]; onToggle: (v: string) => void; onAll: () => void }) {
+  const repoColor = useRepoColor()
   return (
     <aside aria-label="Repos" className="hidden md:block">
       <div className="sticky top-19 flex max-h-[calc(100dvh-6rem)] flex-col gap-3">

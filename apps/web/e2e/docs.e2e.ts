@@ -115,14 +115,14 @@ test("j and k select a result, Enter copies its path, and a result shows its tag
 
   // The Onboarding group links plans/lighthouse.html and has one open item; the md twin counts as the same doc.
   const lighthouse = page.locator(`[data-result$="plans/lighthouse.html"]`)
-  await expect(lighthouse.locator("[data-group]")).toHaveText(["Group: Onboarding"])
-  await expect(lighthouse.locator("[data-tags]")).toHaveText("Tags: plans, lamps")
+  await expect(lighthouse.getByRole("link", { name: "Group: Onboarding" })).toHaveAttribute("href", /\/todos\?view=list&group=\d+$/)
+  await expect(lighthouse.getByRole("list", { name: "Tags" }).getByRole("listitem")).toHaveText(["plans", "lamps"])
   await results(page).first().getByRole("link", { name: "1 open todo" }).click()
   await expect(page).toHaveURL(/\/todos\?.*view=list/)
   await expect(page.getByText("Synced with the CLI")).toBeVisible()
 })
 
-test("Activity has a year grid and lists doc changes, and Overview has a card per repo and what needs attention", async ({ page }) => {
+test("Activity has a year grid and lists doc changes, and Overview has totals, a row per repo and what needs attention", async ({ page }) => {
   await page.goto("/docs")
   await views(page).getByRole("link", { name: "Activity" }).click()
   await expect(page).toHaveURL(/view=activity/)
@@ -138,14 +138,16 @@ test("Activity has a year grid and lists doc changes, and Overview has a card pe
   await expect(page.getByRole("img", { name: "0 doc changes in the last year" })).toBeVisible()
 
   await views(page).getByRole("link", { name: "Overview" }).click()
-  const cards = page.locator("section[data-repo]")
+  const cards = page.getByRole("region", { name: "Docs per repo" }).locator("[data-repo]")
   await expect(cards).toHaveCount(1)
   const web = page.locator('[data-repo="web"]')
   // web holds the lighthouse plan as md and html, which count as one doc.
   await expect(web.locator('[data-count="docs"]')).toHaveText("2")
-  await expect(web.getByRole("list", { name: "Changed this week" }).getByRole("link")).toHaveCount(2)
+  await expect(page.locator("dl[aria-label=Totals]")).toContainText("Docs2")
+  await expect(page.getByRole("link", { name: "Open: Changed this week" })).toHaveAttribute("href", "/docs?since=1w")
+  await expect(page.getByRole("list", { name: "Changed this week" }).getByRole("link")).toHaveCount(2)
   // Onboarding links the plan and the harbour notes, with one open todo.
-  await expect(web.getByRole("list", { name: "With open todos" }).getByRole("link", { name: /Lighthouse plan/ })).toBeVisible()
+  await expect(page.getByRole("list", { name: "With open todos" }).getByRole("link", { name: /Lighthouse plan/ })).toBeVisible()
   const attention = page.getByRole("region", { name: /Needs attention/ })
   await expect(attention.locator('[data-attention="no-doc"]', { hasText: "Search quality" })).toContainText("and no doc")
   await expect(attention.locator('[data-attention="missing"]')).toHaveCount(0)

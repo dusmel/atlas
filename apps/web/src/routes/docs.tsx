@@ -22,7 +22,7 @@ import { Kbd } from "@/components/ui/kbd"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
-import { repoColor } from "@/lib/doc-colors"
+import { useRepoColor } from "@/lib/doc-colors"
 import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
@@ -43,6 +43,7 @@ export const Route = createFileRoute("/docs")({
 })
 
 function DocsPage() {
+  const repoColor = useRepoColor()
   const search = Route.useSearch()
   const { since } = search
   const view: DocView = search.view ?? "search"

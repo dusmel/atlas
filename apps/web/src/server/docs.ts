@@ -144,7 +144,7 @@ function repoFolders(): Map<string, string> {
 const twin = (path: string) => path.replace(/\.(md|html)$/, "")
 
 /** The groups that link each doc (md and html as one) under any label, and the open todos in them. */
-function linkedGroups(): Map<string, { open: number; groups: number[]; names: string[] }> {
+function linkedGroups(): Map<string, { open: number; groups: number[]; names: { id: number; name: string }[] }> {
   const groups = getDb()
     .query<{ id: number; name: string; repo_id: string; path: string; open: number }, []>(
       `SELECT g.id, g.name, g.repo_id, d.path,
@@ -152,7 +152,7 @@ function linkedGroups(): Map<string, { open: number; groups: number[]; names: st
          FROM groups g JOIN group_docs d ON d.group_id = g.id ORDER BY g.name`,
     )
     .all()
-  const linked = new Map<string, { open: number; groups: number[]; names: string[] }>()
+  const linked = new Map<string, { open: number; groups: number[]; names: { id: number; name: string }[] }>()
   if (!groups.length) return linked
   const folders = repoFolders()
   // A group can link both twins of a doc; count it once.
@@ -165,7 +165,7 @@ function linkedGroups(): Map<string, { open: number; groups: number[]; names: st
     seen.add(`${g.id} ${key}`)
     const entry = linked.get(key) ?? { open: 0, groups: [], names: [] }
     linked.set(key, entry)
-    entry.names.push(g.name)
+    entry.names.push({ id: g.id, name: g.name })
     if (!g.open) continue
     entry.open += g.open
     entry.groups.push(g.id)

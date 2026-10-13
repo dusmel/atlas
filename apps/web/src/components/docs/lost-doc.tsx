@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Kbd } from "@/components/ui/kbd"
-import { repoColor } from "@/lib/doc-colors"
+import { useRepoColor } from "@/lib/doc-colors"
 import { docHref } from "@/lib/docs"
 import { LOST_MAP_CSS, LOST_MAP_SVG } from "@/lib/lost-map"
 
@@ -12,6 +12,7 @@ type Near = { repo: string; path: string; title: string }
 
 /** The app's 404 for a doc: the map, the docs with the closest paths, and a search for the file name. */
 export function LostDoc({ repo, path, closest }: { repo: string; path: string; closest: Near[] }) {
+  const repoColor = useRepoColor()
   const navigate = useNavigate()
   const name = path.split("/").pop()!.replace(/\.(md|html)$/, "")
   return (

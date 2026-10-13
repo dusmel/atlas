@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { cn } from "cn"
 import { Textarea } from "@/components/ui/textarea"
 import { api } from "@/lib/api"
-import { repoColor } from "@/lib/doc-colors"
+import { useRepoColor } from "@/lib/doc-colors"
 import { docKey, type Hit } from "@/lib/docs"
 
 type Pick = { start: number; end: number; query: string }
@@ -36,6 +36,7 @@ export function docLink(hit: Hit, folder: string | null): string {
 
 /** A textarea where `[[` opens a list of docs to link, the item's repo first. Arrows move, Enter inserts, Esc closes. */
 export function DocLinkTextarea({ value, onValueChange, folder, onKeyDown, onBlur, className, ...props }: Props) {
+  const repoColor = useRepoColor()
   const ref = useRef<HTMLTextAreaElement>(null)
   const list = useId()
   const [pick, setPick] = useState<Pick | null>(null)

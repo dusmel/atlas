@@ -18,6 +18,7 @@
     --color-doing: var(--doing);
     --color-done: var(--done);
     --color-link: var(--link);
+    --color-brand: var(--brand);
     --color-fresh: var(--fresh);
     --color-old: var(--old);
     --color-sidebar-ring: var(--sidebar-ring);
@@ -105,6 +106,21 @@
     --group-c: 0.13;
     /* The logo's terracotta, darkened to 5:1 on white so links stay readable. */
     --link: #b4532f;
+    /* Filled cards with white text. Dark mode keeps it, since its lighter --link fails white text. */
+    --brand: #b4532f;
+    /* Repos and tags: twelve colours apart from each other, so ten repos don't share one. */
+    --palette-0: #c2552f;
+    --palette-1: #3f7d4e;
+    --palette-2: #2f6db5;
+    --palette-3: #a87410;
+    --palette-4: #8a4fbf;
+    --palette-5: #0e8080;
+    --palette-6: #c23b67;
+    --palette-7: #66771a;
+    --palette-8: #4b55d1;
+    --palette-9: #8c5a35;
+    --palette-10: #5b6b80;
+    --palette-11: #b03a9e;
     --fresh: oklch(0.55 0.14 155);
     --old: oklch(0.6 0.15 65);
 }
@@ -151,6 +167,18 @@
     --group-l: 0.72;
     --group-c: 0.12;
     --link: #e8906e;
+    --palette-0: #ee9572;
+    --palette-1: #7fc08f;
+    --palette-2: #78aef0;
+    --palette-3: #e7b955;
+    --palette-4: #c39af0;
+    --palette-5: #4fcaca;
+    --palette-6: #f28aab;
+    --palette-7: #b7c860;
+    --palette-8: #9aa2f7;
+    --palette-9: #cf9c75;
+    --palette-10: #a4b2c4;
+    --palette-11: #ec8ad8;
     --fresh: oklch(0.74 0.14 155);
     --old: oklch(0.8 0.14 75);
 }

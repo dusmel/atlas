@@ -15,7 +15,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, ApiError } from "@/lib/api"
-import { repoColor, typeColor } from "@/lib/doc-colors"
+import { typeColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, rawHref, type DocPage } from "@/lib/docs"
 import { getIndex } from "@/server/docs"
 import { CSP_DOC, docFile, fileResponse } from "@/server/doc-files"
@@ -52,6 +52,7 @@ type FromDoc =
   | { type: "atlas:ready"; related: Related[] }
 
 function DocView() {
+  const repoColor = useRepoColor()
   const { repo, _splat: path = "" } = Route.useParams()
   const navigate = useNavigate()
   const { resolvedTheme } = useTheme()

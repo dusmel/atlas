@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router"
-import { BoxIcon, CopyIcon, ListTodoIcon, TagIcon } from "lucide-react"
+import { BoxIcon, CopyIcon, ListTodoIcon } from "lucide-react"
 import { Fragment } from "react"
 import { cn } from "cn"
 import { copy } from "@/components/todos/copy-id"
 import { GroupDot } from "@/components/todos/filters"
 import { groupColor } from "@/components/todos/group-color"
 import { plainTitle } from "@/components/todos/rich-title"
-import { ageTone, repoColor } from "@/lib/doc-colors"
+import { ageTone, tagColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, docKey, docPath, tagList, type Hit } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
@@ -14,6 +14,7 @@ export const copyPath = (d: { path: string }) => copy(docPath(d), `Copied ${docP
 
 /** Search results and the recent list. `selected` is the row j and k move and focus; its bar and background are the focus mark. */
 export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: string; selected?: string; onSelect: (key: string) => void }) {
+  const repoColor = useRepoColor()
   return (
     <ol aria-label={label} className="flex flex-col">
       {hits.map((h) => {
@@ -83,24 +84,38 @@ export function CopyPath({ doc }: { doc: { path: string } }) {
   )
 }
 
-/** The doc's tags, then the todo groups that link it. */
+/** The doc's tags as pills in their own colours, then the todo groups that link it, each opening its todos. */
 function Details({ hit }: { hit: Hit }) {
   const tags = tagList(hit.tags)
   return (
     <>
       {tags.length > 0 && (
-        <span data-tags className="flex min-w-0 items-center gap-1" title="Tags">
-          <TagIcon aria-hidden className="size-3 shrink-0" />
-          <span className="sr-only">Tags: </span>
-          <span className="truncate">{tags.join(", ")}</span>
-        </span>
+        <ul data-tags aria-label="Tags" className="flex flex-wrap gap-1">
+          {tags.map((t) => (
+            <li
+              key={t}
+              className="rounded-full px-1.5 py-px text-[10.5px] leading-4 font-medium"
+              style={{ background: `color-mix(in oklab, ${tagColor(t)} 15%, transparent)`, color: `color-mix(in oklab, ${tagColor(t)} 75%, var(--foreground))` }}
+            >
+              {t}
+            </li>
+          ))}
+        </ul>
       )}
-      {hit.groups?.map((name) => (
-        <span key={name} data-group className="flex min-w-0 items-center gap-1.5" title="Todo group that links this doc">
-          <GroupDot color={groupColor(name)} />
+      {hit.groups?.map((g) => (
+        <Link
+          key={g.id}
+          data-group
+          to="/todos"
+          search={{ view: "list", group: String(g.id) }}
+          onClick={(e) => e.stopPropagation()}
+          title="Todo group that links this doc"
+          className="flex min-w-0 items-center gap-1 rounded-md border bg-background py-px pr-1.5 pl-1 text-[11px] leading-4 text-foreground/80 transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <GroupDot color={groupColor(g.name)} />
           <span className="sr-only">Group: </span>
-          <span className="truncate">{plainTitle(name)}</span>
-        </span>
+          <span className="truncate">{plainTitle(g.name)}</span>
+        </Link>
       ))}
     </>
   )
