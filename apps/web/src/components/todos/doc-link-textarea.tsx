@@ -10,6 +10,22 @@ type Pick = { start: number; end: number; query: string }
 type Props = Omit<React.ComponentProps<typeof Textarea>, "value" | "onChange"> & { value: string; onValueChange: (value: string) => void; folder: string | null }
 
 const TRIGGER = /\[\[([^[\]\n]*)$/
+const MIRRORED = ["boxSizing", "width", "fontFamily", "fontSize", "fontWeight", "letterSpacing", "lineHeight", "tabSize", "textTransform", "wordSpacing", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"] as const
+
+/** The bottom of the caret's line, from the textarea's top: the text before the caret is laid out in a hidden copy with the same box and font. */
+function caretLineBottom(el: HTMLTextAreaElement, caret: number): number {
+  const css = getComputedStyle(el)
+  const copy = document.createElement("div")
+  for (const k of MIRRORED) copy.style[k] = css[k]
+  Object.assign(copy.style, { position: "absolute", visibility: "hidden", top: "0", left: "-9999px", whiteSpace: "pre-wrap", overflowWrap: "break-word", overflow: "hidden" })
+  copy.textContent = el.value.slice(0, caret)
+  const mark = copy.appendChild(document.createElement("span"))
+  mark.textContent = "\u200b"
+  document.body.appendChild(copy)
+  const bottom = mark.offsetTop + mark.offsetHeight - el.scrollTop
+  copy.remove()
+  return Math.min(Math.max(bottom, 0), el.offsetHeight)
+}
 const segments = (path: string) => path.split("/").map(encodeURIComponent).join("/")
 
 /** The link `[[` inserts: `atlas/<path>` for a doc in the item's own repo, as copied paths read, else its /r/ page. */
@@ -24,6 +40,7 @@ export function DocLinkTextarea({ value, onValueChange, folder, onKeyDown, onBlu
   const list = useId()
   const [pick, setPick] = useState<Pick | null>(null)
   const [active, setActive] = useState(0)
+  const [top, setTop] = useState<number | null>(null)
   // Esc closes the list until the `[[` it was opened from changes.
   const dismissed = useRef<number | null>(null)
 
@@ -47,6 +64,7 @@ export function DocLinkTextarea({ value, onValueChange, folder, onKeyDown, onBlu
     if (!m) dismissed.current = null
     if (!m || start === dismissed.current) return setPick(null)
     setPick((p) => (p?.start === start && p.query === m[1] ? p : { start, end: caret, query: m[1]! }))
+    if (ref.current) setTop(caretLineBottom(ref.current, caret))
     setActive(0)
   }
 
@@ -106,7 +124,7 @@ export function DocLinkTextarea({ value, onValueChange, folder, onKeyDown, onBlu
         }}
       />
       {open && (
-        <ul id={list} role="listbox" aria-label="Docs to link" className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+        <ul id={list} role="listbox" aria-label="Docs to link" style={top === null ? undefined : { top }} className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
           {hits.map((h, i) => (
             <li
               key={docKey(h)}

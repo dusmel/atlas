@@ -224,6 +224,10 @@ test("[[ in a todo's body links a doc: its repo first, arrows move, Esc closes o
   const list = page.getByRole("listbox", { name: "Docs to link" })
   await body.pressSequentially("See [[")
   await expect(list.getByRole("option")).toHaveText([/web\//, /web\//, /api\//])
+  // The list opens under the caret's line, not under the whole box.
+  const [box, at] = [(await body.boundingBox())!, (await list.boundingBox())!]
+  expect(box.height).toBeGreaterThan(96)
+  expect(at.y - box.y).toBeLessThan(48)
   await body.press("ArrowDown")
   await expect(list.getByRole("option").nth(1)).toHaveAttribute("aria-selected", "true")
   await body.press("Escape")
