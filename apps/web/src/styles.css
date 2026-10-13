@@ -103,8 +103,8 @@
     --done: oklch(0.6 0.14 155);
     --group-l: 0.62;
     --group-c: 0.13;
-    /* html-docs' accent, so the app and its docs mark links alike. */
-    --link: #2563eb;
+    /* The logo's terracotta, darkened to 5:1 on white so links stay readable. */
+    --link: #b4532f;
     --fresh: oklch(0.55 0.14 155);
     --old: oklch(0.6 0.15 65);
 }
@@ -150,7 +150,7 @@
     --done: oklch(0.72 0.14 155);
     --group-l: 0.72;
     --group-c: 0.12;
-    --link: #60a5fa;
+    --link: #e8906e;
     --fresh: oklch(0.74 0.14 155);
     --old: oklch(0.8 0.14 75);
 }
