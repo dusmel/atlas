@@ -1,40 +1,94 @@
 import { expect, test } from "@playwright/test"
-import { api, itemByTitle, login, openBoard } from "./helpers"
+import { api, docFrame, itemByTitle, login, openBoard } from "./helpers"
 
 test.beforeEach(async ({ page }) => login(page))
 
-test("a markdown doc renders in the app, and relative links lead to an html doc whose scripts run sandboxed", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+test("a markdown doc opens in the frame, and its links move the page to an html doc whose scripts run sandboxed", async ({ page }) => {
   await page.goto("/r/web/notes/harbour.md")
-  await expect(page.getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+  const doc = await docFrame(page, "Harbour notes")
+  await expect(doc.getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
   await expect(page).toHaveTitle("Harbour notes · Atlas")
-  await expect(page.locator(".markdown.doc table")).toContainText("two hours")
+  await expect(doc.locator("table")).toContainText("two hours")
   // The overview label links this doc to Onboarding, which has one open item.
   await expect(page.getByRole("link", { name: "1 open todo" })).toBeVisible()
 
-  const html = page.waitForResponse((r) => r.url().endsWith("/r/web/plans/lighthouse.html"))
-  await page.getByRole("link", { name: "the keeper's plan" }).click()
-  expect((await html).headers()["content-security-policy"]).toBe("sandbox allow-scripts allow-popups")
-  await expect(page.getByText("The keeper lights the lamp")).toBeVisible()
-  await page.getByRole("button", { name: "Theme" }).click()
-  await expect(page.locator("body")).toHaveClass("dark")
-  await page.getByRole("button", { name: "Copy as Markdown" }).click()
-  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible()
+  const raw = page.waitForResponse((r) => new URL(r.url()).pathname === "/raw/web/plans/lighthouse.html")
+  await doc.getByRole("link", { name: "the keeper's plan" }).click()
+  await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
+  expect((await raw).headers()["content-security-policy"]).toBe("sandbox allow-scripts allow-popups; frame-ancestors 'self'")
+  const plan = await docFrame(page, "Lighthouse plan")
+  await expect(plan.getByText("The keeper lights the lamp")).toBeVisible()
+  // The doc's own top bar is hidden: the toolbar does its job.
+  await expect(plan.getByText("Old top bar")).toBeHidden()
+  // Its theme script reads localStorage before anything else, which throws in the sandbox unless the bridge stands in.
+  await plan.getByRole("button", { name: "Theme" }).click()
+  await expect(plan.locator("body")).toHaveClass(/dark/)
 
-  await page.getByRole("link", { name: "Harbour notes" }).click()
-  await expect(page.getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+  await page.goBack()
+  await expect(page).toHaveURL(/\/r\/web\/notes\/harbour\.md$/)
+  await expect(page.frameLocator('iframe[title="Harbour notes"]').getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+})
+
+test("over an html doc, ⌘K opens the palette, an index link opens Docs for the repo, and anchors stay in the doc", async ({ page }) => {
+  await page.goto("/r/web/plans/lighthouse.html")
+  let plan = await docFrame(page, "Lighthouse plan")
+  await plan.getByRole("link", { name: "Jump to the log" }).click()
+  await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html#log$/)
+  await expect(plan.getByRole("heading", { name: "Log" })).toBeInViewport()
+
+  await plan.locator("body").press("ControlOrMeta+k")
+  const palette = page.getByRole("dialog", { name: "Command palette" })
+  await expect(palette).toBeVisible()
+  await palette.getByRole("combobox").fill("tide")
+  await palette.getByRole("option", { name: /Harbour notes/ }).click()
+  await expect(page).toHaveURL(/\/r\/web\/notes\/harbour\.md$/)
+
+  await page.goto("/r/web/plans/lighthouse.html")
+  plan = await docFrame(page, "Lighthouse plan")
+  await plan.getByRole("link", { name: "All web docs" }).click()
+  await expect(page).toHaveURL(/\/docs\?repo=web$/)
+
+  // A file that is not a doc, such as a screenshot, opens as itself.
+  await page.goto("/r/web/plans/lighthouse.html")
+  plan = await docFrame(page, "Lighthouse plan")
+  await plan.getByRole("link", { name: "Lamp sketch" }).click()
+  await expect(page).toHaveURL(/\/r\/web\/plans\/lamp\.svg$/)
+  await expect(page.locator("circle")).toBeVisible()
+})
+
+test("a diagram zooms on click and closes on Escape, and the toolbar copies the markdown", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  await page.goto("/r/web/plans/lighthouse.html")
+  const plan = await docFrame(page, "Lighthouse plan")
+  await plan.getByText("The lamp room").click()
+  const zoom = plan.getByRole("dialog", { name: /Diagram, zoomed/ })
+  await expect(zoom).toBeVisible()
+  await zoom.press("Escape")
+  await expect(zoom).toBeHidden()
+
+  await page.getByRole("button", { name: "Copy as Markdown" }).click()
+  await expect(page.getByText("Markdown copied")).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("The keeper lights the lamp at dusk")
+  // The frame follows the app theme.
+  await page.getByRole("button", { name: "Menu: theme, pages and log out" }).click()
+  await page.getByRole("menuitemradio", { name: "Dark" }).click()
+  await expect(plan.locator("html")).toHaveClass(/dark/)
 })
 
 test("a doc the served copy lacks says so, and every doc route needs a login", async ({ page, browser }) => {
   await page.goto("/r/web/notes/missing.md")
   await expect(page.getByText("No doc here")).toBeVisible()
-  // The plan is kept as both md and html, and the html is the doc.
+  // The plan is kept as both md and html, and the html is the doc, whether the server or the app is asked.
   await page.goto("/r/web/plans/lighthouse.md")
   await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
-  expect((await page.request.get("/r/web/plans%2f..%2f..%2fapi%2frunbook.html", { maxRedirects: 0 })).status()).toBe(404)
+  expect((await page.request.get("/r/web/plans%2f..%2f..%2fapi%2frunbook.png", { maxRedirects: 0 })).status()).toBe(404)
+  expect((await page.request.get("/api/docs/view?repo=web&path=plans/../../api/runbook.html")).status()).toBe(404)
+  expect((await page.request.get("/raw/web/plans%2f..%2f..%2fapi%2frunbook.html", { maxRedirects: 0 })).status()).toBe(404)
+  const md = await page.request.get("/raw/web/plans/lighthouse.html?format=md")
+  expect([md.status(), md.headers()["content-type"]]).toEqual([200, "text/markdown; charset=utf-8"])
 
   const stranger = await browser.newContext()
-  for (const path of ["/r/web/notes/harbour.md", "/r/web/plans/lighthouse.html", "/api/docs/view?repo=web&path=notes/harbour.md", "/shared"]) {
+  for (const path of ["/r/web/notes/harbour.md", "/r/web/plans/lighthouse.html", "/raw/web/plans/lighthouse.html", "/api/docs/view?repo=web&path=notes/harbour.md", "/shared"]) {
     const res = await stranger.request.get(path, { maxRedirects: 0 })
     expect([path, res.status()]).toEqual([path, path.startsWith("/api") ? 401 : 302])
   }
@@ -90,7 +144,7 @@ test("the item panel lists every group doc, and relative links in a body open th
   await page.getByRole("tab", { name: "Preview" }).click()
   await page.getByRole("link", { name: "the notes" }).click()
   await expect(page).toHaveURL(/\/r\/web\/notes\/harbour\.md$/)
-  await expect(page.getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+  await expect(page.frameLocator("iframe").getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
 })
 
 test("a search result opens its doc", async ({ page }) => {
@@ -104,7 +158,7 @@ test.describe("at phone width", () => {
 
   test("a doc and Shared fit without sideways scrolling, and the menu reaches Shared", async ({ page }) => {
     await page.goto("/r/web/notes/harbour.md")
-    await expect(page.getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
+    await expect(page.frameLocator("iframe").getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
     await page.getByRole("button", { name: "Menu: theme, pages and log out" }).click()
     await page.getByRole("menuitem", { name: "Shared" }).click()

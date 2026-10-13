@@ -15,7 +15,7 @@ export type DocsStatus = {
   mega: { state: "unknown" | "ok" | "syncing" | "failed"; checked: string | null; last_pull: string | null; pairs: MegaPair[]; detail?: string; pull_requested?: string | null }
 }
 export type Share = { token: string; repo_id: string; path: string; created_at: string; revoked_at: string | null }
-export type DocPage = { repo: string; path: string; title: string; html: string; mtime: string; todos: { open: number; groups: number[] } | null; share: Share | null }
+export type DocPage = { repo: string; path: string; kind: "md" | "html"; title: string; type: string | null; markdown: boolean; twin: string | null; mtime: string; todos: { open: number; groups: number[] } | null; share: Share | null }
 export type Option = { value: string; label: string; count: number }
 
 export const DOC_VIEWS = [
@@ -35,8 +35,11 @@ export const folderLabel = (f: string) => (f === "." ? "Top level" : f)
 export const docPath = (d: { path: string }) => `atlas/${d.path}`
 export const docKey = (d: { repo: string; path: string }) => `${d.repo}/${d.path}`
 
-/** The doc's page: markdown renders in the app, html is served as is. Each segment is encoded, so spaces and # survive. */
-export const docHref = (d: { repo: string; path: string }) => `/r/${[d.repo, ...d.path.split("/")].map(encodeURIComponent).join("/")}`
+const segments = (d: { repo: string; path: string }) => [d.repo, ...d.path.split("/")].map(encodeURIComponent).join("/")
+/** The doc's page in the frame. Each segment is encoded, so spaces and # survive. */
+export const docHref = (d: { repo: string; path: string }) => `/r/${segments(d)}`
+/** The doc itself, as the frame's iframe loads it. */
+export const rawHref = (d: { repo: string; path: string }) => `/raw/${segments(d)}`
 
 /**
  * ReactMarkdown's urlTransform for a todo body: a relative link opens that doc in /r/, read from

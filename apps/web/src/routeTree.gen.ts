@@ -41,6 +41,7 @@ import { Route as ApiSharesTokenRouteImport } from './routes/api/shares.$token'
 import { Route as ApiTodosIdRouteImport } from './routes/api/todos.$id'
 import { Route as ApiTokensIdRouteImport } from './routes/api/tokens.$id'
 import { Route as RRepoSplatRouteImport } from './routes/r.$repo.$'
+import { Route as RawRepoSplatRouteImport } from './routes/raw.$repo.$'
 import { Route as ApiTodosIdArchiveRouteImport } from './routes/api/todos.$id.archive'
 import { Route as ApiTodosIdMoveRouteImport } from './routes/api/todos.$id.move'
 import { Route as ApiTodosIdUnarchiveRouteImport } from './routes/api/todos.$id.unarchive'
@@ -205,6 +206,11 @@ const RRepoSplatRoute = RRepoSplatRouteImport.update({
   path: '/r/$repo/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RawRepoSplatRoute = RawRepoSplatRouteImport.update({
+  id: '/raw/$repo/$',
+  path: '/raw/$repo/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTodosIdArchiveRoute = ApiTodosIdArchiveRouteImport.update({
   id: '/archive',
   path: '/archive',
@@ -254,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
   '/r/$repo/$': typeof RRepoSplatRoute
+  '/raw/$repo/$': typeof RawRepoSplatRoute
   '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
   '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
   '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
   '/r/$repo/$': typeof RRepoSplatRoute
+  '/raw/$repo/$': typeof RawRepoSplatRoute
   '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
   '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
   '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
@@ -329,6 +337,7 @@ export interface FileRoutesById {
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
   '/r/$repo/$': typeof RRepoSplatRoute
+  '/raw/$repo/$': typeof RawRepoSplatRoute
   '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
   '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
   '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
@@ -368,6 +377,7 @@ export interface FileRouteTypes {
     | '/api/todos/$id'
     | '/api/tokens/$id'
     | '/r/$repo/$'
+    | '/raw/$repo/$'
     | '/api/todos/$id/archive'
     | '/api/todos/$id/move'
     | '/api/todos/$id/unarchive'
@@ -405,6 +415,7 @@ export interface FileRouteTypes {
     | '/api/todos/$id'
     | '/api/tokens/$id'
     | '/r/$repo/$'
+    | '/raw/$repo/$'
     | '/api/todos/$id/archive'
     | '/api/todos/$id/move'
     | '/api/todos/$id/unarchive'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/api/todos/$id'
     | '/api/tokens/$id'
     | '/r/$repo/$'
+    | '/raw/$repo/$'
     | '/api/todos/$id/archive'
     | '/api/todos/$id/move'
     | '/api/todos/$id/unarchive'
@@ -468,6 +480,7 @@ export interface RootRouteChildren {
   ApiTokensRoute: typeof ApiTokensRouteWithChildren
   STokenRoute: typeof STokenRoute
   RRepoSplatRoute: typeof RRepoSplatRoute
+  RawRepoSplatRoute: typeof RawRepoSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -696,6 +709,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRepoSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/raw/$repo/$': {
+      id: '/raw/$repo/$'
+      path: '/raw/$repo/$'
+      fullPath: '/raw/$repo/$'
+      preLoaderRoute: typeof RawRepoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/todos/$id/archive': {
       id: '/api/todos/$id/archive'
       path: '/archive'
@@ -840,6 +860,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTokensRoute: ApiTokensRouteWithChildren,
   STokenRoute: STokenRoute,
   RRepoSplatRoute: RRepoSplatRoute,
+  RawRepoSplatRoute: RawRepoSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

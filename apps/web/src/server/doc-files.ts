@@ -6,6 +6,8 @@ import sanitizeHtml from "sanitize-html"
 /** Logged in, an HTML doc runs its scripts in an opaque origin: no cookie, no API (spec section 8). Shares run none. */
 export const CSP_DOC = "sandbox allow-scripts allow-popups"
 export const CSP_SHARE = "sandbox"
+/** `/raw`, the frame's iframe: the same sandbox, and only the app may frame it. */
+export const CSP_RAW = `${CSP_DOC}; frame-ancestors 'self'`
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

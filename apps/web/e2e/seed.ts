@@ -40,14 +40,23 @@ export const SEED = {
   ],
 }
 
-// The shape of an html-docs page: the same copy and theme scripts, made-up words.
+// The shape of an html-docs page: the same copy and theme scripts, made-up words. Like 18 real docs,
+// its theme script reads localStorage unguarded, which throws in the sandbox without the frame's stand-in.
 const HTML_DOC = `<!doctype html><html><head><title>Lighthouse plan</title></head><body>
+<header data-atlas-chrome>Old top bar</header>
 <button id="theme">Theme</button> <button id="copy-md">Copy as Markdown</button>
 <script type="text/plain" id="md-source"># Lighthouse plan</script>
 <p>The keeper lights the lamp at dusk and logs every passing ship.</p>
-<p><a href="../notes/harbour.md">Harbour notes</a></p>
+<p><a href="../notes/harbour.md">Harbour notes</a> <a href="../index.html">All web docs</a> <a href="#log">Jump to the log</a></p>
+<p><a href="lamp.svg">Lamp sketch</a></p>
+<figure data-atlas-diagram><svg width="200" height="80" viewBox="0 0 200 80"><rect width="200" height="80" fill="#ccc"/></svg><figcaption>The lamp room</figcaption></figure>
+<h2 id="log" style="margin-top:120vh">Log</h2>
 <script>
-document.getElementById('theme').addEventListener('click', function () { document.body.classList.toggle('dark'); });
+if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+document.getElementById('theme').addEventListener('click', function () {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+});
 document.getElementById('copy-md').addEventListener('click', async function () {
   const text = document.getElementById('md-source').textContent.trim() + '\\n';
   const btn = this;
@@ -60,6 +69,7 @@ document.getElementById('copy-md').addEventListener('click', async function () {
 export const DOCS: Record<string, string> = {
   "web/plans/lighthouse.md": "---\ntitle: Lighthouse plan\ntags: plans\n---\n\n# Lighthouse plan\n\nThe keeper lights the lamp at dusk and logs every passing ship.",
   "web/plans/lighthouse.html": HTML_DOC,
+  "web/plans/lamp.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="16" fill="#f59e0b"/></svg>',
   "web/notes/harbour.md": "# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.\n\nRead [the keeper's plan](../plans/lighthouse.html).\n\n| tide | wait |\n|---|---|\n| low | two hours |",
   "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
   "api/backups/old.md": "# Skipped\n\nThe lamp in a backup is never indexed.",

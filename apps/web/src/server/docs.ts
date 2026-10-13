@@ -1,11 +1,12 @@
-import { DocIndex, watchDocs, type SearchHit } from "@atlas/indexer"
+import { frontmatter } from "@atlas/doc-render"
+import { DocIndex, htmlText, mdText, watchDocs, type SearchHit } from "@atlas/indexer"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { basename, join, posix } from "node:path"
 import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
 import { listDocEvents, recordDocChanges } from "./doc-activity"
-import { docFile, renderMarkdown } from "./doc-files"
+import { docFile } from "./doc-files"
 import { readMega, readSource, sourceRoot, writeSource, type Source } from "./docs-source"
 import { HttpError } from "./http"
 import { createShare, listShares, type Share } from "./shares"
@@ -175,13 +176,21 @@ export function findDoc(repo: string, path: string) {
   return file
 }
 
-/** A markdown doc for `/r/<repo>/<path>`: rendered and cleaned, with its open todos and live share. */
+/** What the frame's toolbar needs for `/r/<repo>/<path>`; the page itself loads from `/raw` (spec section 6). */
 export async function viewDoc(repo: string, path: string) {
-  if (!path.endsWith(".md")) throw new HttpError(400, "not_markdown", "Only markdown docs render here; html is served as is")
   const file = findDoc(repo, path)
-  const { title, html } = renderMarkdown(await Bun.file(file).text(), basename(path))
+  const kind = path.endsWith(".md") ? "md" : path.endsWith(".html") ? "html" : null
+  if (!kind) throw new HttpError(400, "not_a_doc", "Only md and html files open as docs")
+  const text = await Bun.file(file).text()
+  const name = basename(path)
+  const title = kind === "md" ? mdText(text, name).title : htmlText(text, name).title
+  const type = (kind === "md" ? frontmatter(text).front["doc-type"] : /<meta\s+name="doc-type"\s+content="([^"]*)"/i.exec(text)?.[1]) || null
+  const markdown = kind === "md" || !!docFile(getIndex().root, repo, `${path.slice(0, -5)}.md`)
+  // An md twin's page is its html (spec D25). The app moves there, since links inside the app skip the server's redirect.
+  const html = kind === "md" ? `${path.slice(0, -3)}.html` : null
+  const htmlTwin = html && docFile(getIndex().root, repo, html) ? html : null
   const share = listShares(getDb()).find((s) => s.repo_id === repo && s.path === path) ?? null
-  return { repo, path, title, html, mtime: statSync(file).mtime.toISOString(), todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null, share }
+  return { repo, path, kind, title, type, markdown, twin: htmlTwin, mtime: statSync(file).mtime.toISOString(), todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null, share }
 }
 
 export function shareDoc(repo: string, path: string): Share {
