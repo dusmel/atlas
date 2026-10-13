@@ -347,6 +347,7 @@ function TodosPage() {
           view: setView,
           shortcuts: () => setShortcuts(true),
           settings: () => navigate({ to: "/settings" }),
+          go: (to) => navigate({ to }),
           openDoc: (doc, q) => navigate({ to: "/docs", search: { q: q || undefined, doc } }),
           theme: setTheme,
         }}

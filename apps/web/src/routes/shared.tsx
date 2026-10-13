@@ -12,7 +12,8 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, send } from "@/lib/api"
-import { docHref, type Share } from "@/lib/docs"
+import { DOC_TABS, docHref, type Share } from "@/lib/docs"
+import { ViewNav } from "@/components/todos/view-tabs"
 import { ago, exact } from "@/lib/format"
 
 export const Route = createFileRoute("/shared")({ component: Shared })
@@ -38,6 +39,9 @@ function Shared() {
     <>
       <AppHeader onCommand={() => setPalette(true)} />
       <DocPalette open={palette} onOpenChange={setPalette} page="/shared" />
+      <div className="mx-auto flex w-full max-w-6xl justify-end px-4 pt-3 sm:px-6">
+        <ViewNav to="/docs" views={DOC_TABS} view="shared" className="-mx-1" />
+      </div>
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-1">
           <h1 className="text-lg font-medium">Shared</h1>

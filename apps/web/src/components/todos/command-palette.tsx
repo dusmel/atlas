@@ -2,6 +2,8 @@ import {
   ArchiveIcon,
   ArrowRightLeftIcon,
   ClockIcon,
+  FileTextIcon,
+  GlobeIcon,
   KeyboardIcon,
   ListFilterIcon,
   MonitorIcon,
@@ -33,6 +35,7 @@ export type PaletteActions = {
   view: (v: View) => void
   shortcuts: () => void
   settings: () => void
+  go: (to: "/docs" | "/shared") => void
   openDoc: (doc: string, q: string) => void
   theme: (t: "light" | "dark" | "system") => void
 }
@@ -196,6 +199,14 @@ function Palette({ page: startPage, view, items, selected, filters, doneAll, opt
           </CommandItem>
         </CommandGroup>
         <CommandGroup heading="General">
+          <CommandItem onSelect={close(() => run.go("/docs"))}>
+            <FileTextIcon />
+            Go to Docs
+          </CommandItem>
+          <CommandItem onSelect={close(() => run.go("/shared"))}>
+            <GlobeIcon />
+            Go to Shared
+          </CommandItem>
           <CommandItem value="theme light" onSelect={close(() => run.theme("light"))}>
             <SunIcon />
             Light theme

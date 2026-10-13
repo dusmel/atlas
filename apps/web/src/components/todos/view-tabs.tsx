@@ -17,15 +17,16 @@ export type View = (typeof VIEWS)[number]["id"]
  * View tabs for Todos and Docs. Links, not buttons, so a view opens in a new tab too. Phones show
  * the icons only. The first view is the page's default and leaves `view` out of the URL.
  */
-export function ViewNav<V extends string>({ to, views, view, extra, className }: { to: "/todos" | "/docs"; views: readonly { id: V; label: string; icon: LucideIcon }[]; view: V; extra?: (id: V) => ReactNode; className?: string }) {
+/** A view with its own `to` is a page of its own, linked as it is. */
+export function ViewNav<V extends string>({ to, views, view, extra, className }: { to: "/todos" | "/docs"; views: readonly { id: V; label: string; icon: LucideIcon; to?: "/shared" }[]; view: V; extra?: (id: V) => ReactNode; className?: string }) {
   return (
     <nav aria-label="Views" className={cn("flex items-center gap-1 overflow-x-auto", className)}>
       {views.map((v, i) => (
         <Link
           key={v.id}
-          to={to}
+          to={v.to ?? to}
           // Each page types its own search; both keep the filters and change only `view`.
-          search={((s: Record<string, unknown>) => ({ ...s, view: i === 0 ? undefined : v.id })) as never}
+          search={v.to ? undefined : (((s: Record<string, unknown>) => ({ ...s, view: i === 0 ? undefined : v.id })) as never)}
           aria-current={view === v.id ? "page" : undefined}
           title={v.label}
           className={cn(

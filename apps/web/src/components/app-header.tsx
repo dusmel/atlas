@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { GlobeIcon, KeyboardIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, SunIcon } from "lucide-react"
+import { KeyboardIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SettingsIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { DocsSourcePill } from "@/components/docs/source-pill"
 import { cn } from "cn"
@@ -11,7 +11,6 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 const NAV = [
   { to: "/todos", label: "Todos", wide: false },
   { to: "/docs", label: "Docs", wide: false },
-  { to: "/shared", label: "Shared", wide: true },
   { to: "/settings", label: "Settings", wide: true },
 ] as const
 
@@ -81,12 +80,6 @@ export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; 
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup className="sm:hidden">
-              <DropdownMenuItem asChild>
-                <Link to="/shared">
-                  <GlobeIcon />
-                  Shared
-                </Link>
-              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link to="/settings">
                   <SettingsIcon />

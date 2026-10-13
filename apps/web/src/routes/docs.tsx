@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
 import { repoColor } from "@/lib/doc-colors"
-import { DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
+import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
 type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; since?: string; doc?: string }
@@ -111,8 +111,8 @@ function DocsPage() {
   return (
     <>
       <AppHeader onCommand={() => setPalette(true)} />
-      <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6">
-        <ViewNav to="/docs" views={DOC_VIEWS} view={view} className="-mx-1" />
+      <div className="mx-auto flex w-full max-w-6xl justify-end px-4 pt-3 sm:px-6">
+        <ViewNav to="/docs" views={DOC_TABS} view={view} className="-mx-1" />
       </div>
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-5 sm:px-6 md:grid-cols-[15rem_minmax(0,1fr)]">
         <DocsSidebar summary={summary.data} repoOptions={repoOptions} repos={repos} onToggle={toggleRepo} onAll={() => set({ repo: undefined })} />

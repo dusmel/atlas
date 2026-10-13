@@ -1,5 +1,5 @@
 import { defaultUrlTransform } from "react-markdown"
-import { ActivityIcon, ChartColumnIcon, SearchIcon } from "lucide-react"
+import { ActivityIcon, ChartColumnIcon, GlobeIcon, SearchIcon } from "lucide-react"
 
 export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; todos?: { open: number; groups: number[] } }
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number> }
@@ -43,6 +43,8 @@ export const DOC_VIEWS = [
   { id: "overview", label: "Overview", icon: ChartColumnIcon },
 ] as const
 export type DocView = (typeof DOC_VIEWS)[number]["id"]
+/** The tabs over Docs: its views, then Shared, which is a page of its own. */
+export const DOC_TABS = [...DOC_VIEWS, { id: "shared", label: "Shared", icon: GlobeIcon, to: "/shared" }] as const
 
 // Several repos or folders sit in the URL comma-separated, as on Todos.
 export const list = (v?: string) => (v ? v.split(",").filter(Boolean) : [])

@@ -56,7 +56,7 @@ test("over an html doc, ⌘K opens the palette, an index link opens Docs for the
   await expect(page.locator("circle")).toBeVisible()
 })
 
-test("⌘K on a doc acts on it, and ⌘K works on Shared too", async ({ page, context }) => {
+test("⌘K on a doc acts on it, and ⌘K on Shared, Settings and Todos goes to the other pages", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"])
   await page.goto("/r/web/notes/harbour.md")
   await docFrame(page, "Harbour notes")
@@ -85,6 +85,21 @@ test("⌘K on a doc acts on it, and ⌘K works on Shared too", async ({ page, co
   await palette.getByRole("combobox").fill("keeper")
   await palette.getByRole("option", { name: /Lighthouse plan/ }).click()
   await expect(page).toHaveURL(/\/r\/web\/plans\/lighthouse\.html$/)
+
+  // Every page's ⌘K reaches the others.
+  await page.goto("/settings")
+  await expect(async () => {
+    if (!(await palette.isVisible())) await page.keyboard.press("ControlOrMeta+k")
+    await expect(palette).toBeVisible({ timeout: 1000 })
+  }).toPass()
+  await palette.getByRole("option", { name: "Go to Todos" }).click()
+  await expect(page).toHaveURL(/\/todos/)
+  await expect(async () => {
+    if (!(await palette.isVisible())) await page.keyboard.press("ControlOrMeta+k")
+    await expect(palette).toBeVisible({ timeout: 1000 })
+  }).toPass()
+  await palette.getByRole("option", { name: "Go to Docs" }).click()
+  await expect(page).toHaveURL(/\/docs/)
 })
 
 test("a diagram zooms on click and closes on Escape, and the toolbar copies the markdown", async ({ page, context }) => {
@@ -168,7 +183,9 @@ test("make public, open the share logged out with scripts blocked, then revoke i
   await reader.goto(link)
   await expect(reader.getByRole("link", { name: "the keeper's plan" })).toHaveAttribute("href", "/s/elsewhere")
 
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Shared" }).click()
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Docs" }).click()
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Shared" }).click()
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Shared" })).toHaveCount(0)
   const rows = page.getByRole("list", { name: "Shared docs" }).locator("[data-share]")
   await expect(rows).toHaveCount(2)
   await rows.filter({ hasText: "web/notes/harbour.md" }).getByRole("button", { name: "Revoke" }).click()
@@ -236,12 +253,12 @@ test("a search result opens its doc", async ({ page }) => {
 test.describe("at phone width", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 
-  test("a doc and Shared fit without sideways scrolling, and the menu reaches Shared", async ({ page }) => {
+  test("a doc and Shared fit without sideways scrolling, and the Docs tabs reach Shared", async ({ page }) => {
     await page.goto("/r/web/notes/harbour.md")
     await expect(page.frameLocator("iframe").getByRole("heading", { level: 1, name: "Harbour notes" })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
-    await page.getByRole("button", { name: "Menu: theme, pages and log out" }).click()
-    await page.getByRole("menuitem", { name: "Shared" }).click()
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Docs" }).click()
+    await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Shared" }).click()
     await expect(page).toHaveURL(/\/shared$/)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
   })
