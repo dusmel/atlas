@@ -13,7 +13,8 @@ import type { Option } from "@/lib/docs"
  * Checkboxes with a count each. A thin bar under every row shows its share of the largest count, so
  * the sidebar reads as a chart of where the matches are.
  */
-export function CheckList({ name, legend, options, picked, onToggle, touch, action }: { name: string; legend: string; options: Option[]; picked: string[]; onToggle: (v: string) => void; touch?: boolean; action?: React.ReactNode }) {
+/** `color` gives each option its own colour, which fills its checkbox and its count bar. */
+export function CheckList({ name, legend, options, picked, onToggle, touch, action, color }: { name: string; legend: string; options: Option[]; picked: string[]; onToggle: (v: string) => void; touch?: boolean; action?: React.ReactNode; color?: (value: string) => string }) {
   const max = Math.max(1, ...options.map((o) => o.count))
   return (
     <FieldSet className="gap-1">
@@ -28,8 +29,8 @@ export function CheckList({ name, legend, options, picked, onToggle, touch, acti
           const on = picked.includes(o.value)
           const id = `${name}-${o.value}`
           return (
-            <Field key={o.value} orientation="horizontal" className={cn("gap-2.5 rounded-md px-2 hover:bg-muted/60", touch ? "min-h-11" : "min-h-8")}>
-              <Checkbox id={id} name={name} value={o.value} checked={on} onCheckedChange={() => onToggle(o.value)} />
+            <Field key={o.value} orientation="horizontal" className={cn("gap-2.5 rounded-md px-2 hover:bg-muted/60", touch ? "min-h-11" : "min-h-8")} style={color && ({ "--primary": color(o.value) } as React.CSSProperties)}>
+              <Checkbox id={id} name={name} value={o.value} checked={on} onCheckedChange={() => onToggle(o.value)} className={cn(color && "border-primary/60 data-checked:text-white")} />
               <div className="relative flex min-w-0 flex-1 items-center gap-2 self-stretch">
                 <span aria-hidden className={cn("absolute bottom-1 left-0 h-0.5 rounded-full transition-[width]", on ? "bg-primary/70" : "bg-primary/20")} style={{ width: `${(o.count / max) * 100}%` }} />
                 <FieldLabel htmlFor={id} className={cn("relative min-w-0 flex-1 cursor-pointer truncate font-normal", on && "font-medium", !o.count && !on && "text-muted-foreground")} translate="no">

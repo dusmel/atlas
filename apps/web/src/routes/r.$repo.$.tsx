@@ -14,6 +14,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, ApiError } from "@/lib/api"
+import { repoColor, typeColor } from "@/lib/doc-colors"
 import { docHref, rawHref, type DocPage } from "@/lib/docs"
 import { getIndex } from "@/server/docs"
 import { CSP_DOC, docFile, fileResponse } from "@/server/doc-files"
@@ -80,7 +81,8 @@ function DocView() {
             Docs
           </Link>
           <span aria-hidden>/</span>
-          <Link to="/docs" search={{ repo }} className="hover:text-foreground" translate="no">
+          <Link to="/docs" search={{ repo }} className="flex items-center gap-1.5 hover:text-foreground" translate="no">
+            <span aria-hidden className="size-2 rounded-full" style={{ background: repoColor(repo) }} />
             {repo}
           </Link>
           <span aria-hidden>/</span>
@@ -89,7 +91,7 @@ function DocView() {
           </span>
         </nav>
         {doc.data?.type && (
-          <Badge variant="secondary" className="font-mono text-[10.5px] uppercase">
+          <Badge className="rounded-sm font-mono text-[10.5px] text-white uppercase" style={{ background: typeColor(doc.data.type) }}>
             {doc.data.type}
           </Badge>
         )}

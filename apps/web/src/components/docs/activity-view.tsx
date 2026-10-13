@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
+import { repoColor } from "@/lib/doc-colors"
 import type { DocEvent } from "@/lib/docs"
 import { exact } from "@/lib/format"
 import { CopyPath } from "./hits"
@@ -95,7 +96,7 @@ export function DocActivity({ params }: { params: URLSearchParams }) {
                     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                       <span>{verb}</span>
                       <span className="flex items-center gap-1" translate="no">
-                        <BoxIcon aria-hidden className="size-3" />
+                        <BoxIcon aria-hidden className="size-3" style={{ color: repoColor(e.repo) }} />
                         {e.repo}
                       </span>
                       <CopyPath doc={e} />

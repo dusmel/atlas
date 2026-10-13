@@ -21,6 +21,7 @@ import { Kbd } from "@/components/ui/kbd"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
+import { repoColor } from "@/lib/doc-colors"
 import { DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
@@ -180,7 +181,7 @@ function DocsPage() {
                       <SinceControl value={since} onChange={(s) => set({ since: s })} />
                     </section>
                   )}
-                  <CheckList name="repo" legend="Repos" options={repoOptions} picked={repos} onToggle={toggleRepo} touch />
+                  <CheckList name="repo" legend="Repos" options={repoOptions} picked={repos} onToggle={toggleRepo} color={repoColor} touch />
                   {view !== "overview" && <CheckList name="folder" legend="Folders" options={folderOptions} picked={folders} onToggle={(v) => set({ folder: joined(flip(folders, v)) })} touch />}
                   {summary.data && (
                     <p className="px-2 text-xs text-muted-foreground tabular-nums">

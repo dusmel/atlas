@@ -3,6 +3,7 @@ import { BoxIcon, CopyIcon, ListTodoIcon } from "lucide-react"
 import { Fragment } from "react"
 import { cn } from "cn"
 import { copy } from "@/components/todos/copy-id"
+import { ageTone, repoColor } from "@/lib/doc-colors"
 import { docHref, docKey, docPath, type Hit } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
@@ -27,13 +28,13 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
             className={cn(
               "group/hit relative -mx-3 flex min-w-0 flex-col gap-1 rounded-lg px-3 py-3 transition-colors outline-none",
               "before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-transparent",
-              on ? "bg-muted before:bg-primary" : "hover:bg-muted/50",
+              on ? "bg-muted before:bg-link" : "hover:bg-muted/50",
             )}
           >
             <div className="flex min-w-0 items-start gap-3">
               <h3 className="min-w-0 flex-1 font-medium text-pretty">
                 {/* A plain link: html docs are served raw, outside the app's router. */}
-                <a href={docHref(h)} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="underline-offset-3 hover:underline">
+                <a href={docHref(h)} tabIndex={-1} onClick={(e) => e.stopPropagation()} className="underline-offset-3 hover:text-link hover:underline">
                   {h.title}
                 </a>
               </h3>
@@ -41,11 +42,11 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
               <span className="flex items-center gap-1" translate="no">
-                <BoxIcon aria-hidden className="size-3" />
+                <BoxIcon aria-hidden className="size-3" style={{ color: repoColor(h.repo) }} />
                 {h.repo}
               </span>
               <CopyPath doc={h} />
-              <time dateTime={h.mtime} title={exact(h.mtime)} className="tabular-nums">
+              <time dateTime={h.mtime} title={exact(h.mtime)} className={cn("tabular-nums", ageTone(h.mtime))}>
                 {ago(h.mtime)}
               </time>
             </div>

@@ -4,11 +4,12 @@ import { BoxIcon, FileWarningIcon, FolderXIcon, ListTodoIcon, TriangleAlertIcon 
 import { cn } from "cn"
 import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
+import { ageTone, repoColor } from "@/lib/doc-colors"
 import { docHref, folderLabel, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 
 const card = "rounded-xl border bg-card"
-const link = "rounded underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+const link = "rounded underline-offset-4 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 
 /** A card per repo, the most recently changed first, under the totals and what needs attention. */
 export function DocOverview({ repos }: { repos: string[] }) {
@@ -100,12 +101,12 @@ function NeedsAttention({ attention }: { attention: Attention }) {
 
 function RepoCard({ r }: { r: RepoOverview }) {
   return (
-    <section data-repo={r.repo} aria-labelledby={`docs-${r.repo}`} className={cn(card, "flex min-w-0 flex-col gap-4 p-4")}>
+    <section data-repo={r.repo} aria-labelledby={`docs-${r.repo}`} className={cn(card, "flex min-w-0 flex-col gap-4 border-t-[3px] p-4")} style={{ borderTopColor: repoColor(r.repo) }}>
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 id={`docs-${r.repo}`} className="font-medium">
             <Link to="/docs" search={{ repo: r.repo }} className={cn(link, "flex items-center gap-2")} translate="no">
-              <BoxIcon className="size-4 text-muted-foreground" aria-hidden />
+              <BoxIcon className="size-4" style={{ color: repoColor(r.repo) }} aria-hidden />
               {r.repo}
             </Link>
           </h2>
@@ -114,7 +115,7 @@ function RepoCard({ r }: { r: RepoOverview }) {
               {r.docs}
             </span>{" "}
             docs · {r.md} md, {r.html} html · changed{" "}
-            <time dateTime={r.last} title={exact(r.last)}>
+            <time dateTime={r.last} title={exact(r.last)} className={ageTone(r.last)}>
               {ago(r.last)}
             </time>
           </p>
@@ -142,7 +143,7 @@ function Days({ days, repo }: { days: number[]; repo: string }) {
     <figure className="flex flex-col gap-1">
       <div aria-hidden className="flex h-10 items-end gap-0.5">
         {days.map((n, i) => (
-          <span key={i} title={`${n} on ${new Date(Date.now() - (29 - i) * 864e5).toLocaleDateString()}`} className={cn("flex-1 rounded-sm", n ? "bg-primary/70" : "bg-muted")} style={{ height: n ? `${Math.max(12, (n / max) * 100)}%` : "3px" }} />
+          <span key={i} title={`${n} on ${new Date(Date.now() - (29 - i) * 864e5).toLocaleDateString()}`} className={cn("flex-1 rounded-sm", !n && "bg-muted")} style={{ height: n ? `${Math.max(12, (n / max) * 100)}%` : "3px", background: n ? repoColor(repo) : undefined }} />
         ))}
       </div>
       <figcaption className="text-xs text-muted-foreground">
@@ -169,7 +170,7 @@ function DocList({ title, docs, empty }: { title: string; docs: (DocRef | Linked
                       {d.open}
                     </span>
                   )}
-                  <time dateTime={d.mtime} title={exact(d.mtime)}>
+                  <time dateTime={d.mtime} title={exact(d.mtime)} className={ageTone(d.mtime)}>
                     {ago(d.mtime)}
                   </time>
                 </span>

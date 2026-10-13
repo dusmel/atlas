@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import type { Option, Summary } from "@/lib/docs"
+import { repoColor } from "@/lib/doc-colors"
 import { CheckList } from "./filters"
 
 /** The repos with their counts. Wide screens only; phones get the Filters drawer. */
@@ -14,6 +15,7 @@ export function DocsSidebar({ summary, repoOptions, repos, onToggle, onAll }: { 
             options={repoOptions}
             picked={repos}
             onToggle={onToggle}
+            color={repoColor}
             action={
               repos.length > 0 && (
                 <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs text-muted-foreground" onClick={onAll}>
