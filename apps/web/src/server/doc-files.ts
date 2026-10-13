@@ -2,7 +2,7 @@ import { realpathSync, statSync } from "node:fs"
 import { extname, join, sep } from "node:path"
 import { marked } from "marked"
 import sanitizeHtml from "sanitize-html"
-import { LOST_MAP_CSS, LOST_MAP_SVG } from "@/lib/lost-map"
+import { LOST_FOG_CSS, LOST_FOG_HTML, LOST_MAP_CSS, LOST_MAP_SVG } from "@/lib/lost-map"
 
 /** Logged in, an HTML doc runs its scripts in an opaque origin: no cookie, no API (spec section 8). Shares run none. */
 export const CSP_DOC = "sandbox allow-scripts allow-popups"
@@ -128,87 +128,31 @@ export async function shareView(res: Response): Promise<Response> {
   return new Response(html, { status: res.status, headers })
 }
 
-/**
- * The share 404: the app's map under a fog of dots that the reader wipes away, and an X that stamps "404" when found.
- * No script, since shares run none (spec section 8): CSS does it all, so no search, no doc names and no links.
- */
+/** The share 404: the app's fogged map, which the reader wipes clear to find the X. No search, no doc names, no links. */
 export function lostSharePage(): string {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>Not found</title>
 <style>
-:root { color-scheme: light dark; --fg: #1c1c1e; --muted: #6b6b70; --line: #e4e4e7; --sea: color-mix(in oklab, #b4532f 9%, #fff); --fog: #fff; --dot: rgb(180 83 47 / .32); --brand: #b4532f; }
-@media (prefers-color-scheme: dark) { :root { --fg: #ececee; --muted: #a1a1aa; --line: #2e2e33; --sea: color-mix(in oklab, #e8906e 10%, #111113); --fog: #131315; --dot: rgb(232 144 110 / .38); --brand: #e8906e; } body { background: #111113; } }
+:root { color-scheme: light dark; --fg: #1c1c1e; --muted: #6b6b70; --line: #e4e4e7; --lost-fg: var(--fg); --lost-sea: color-mix(in oklab, #b4532f 9%, #fff); --lost-fog: #fff; --lost-dot: rgb(180 83 47 / .32); --lost-ink: #b4532f; }
+@media (prefers-color-scheme: dark) { :root { --fg: #ececee; --muted: #a1a1aa; --line: #2e2e33; --lost-sea: color-mix(in oklab, #e8906e 10%, #111113); --lost-fog: #131315; --lost-dot: rgb(232 144 110 / .38); --lost-ink: #e8906e; } body { background: #111113; } }
 body { margin: 0; color: var(--fg); font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; }
 h1 { font-size: 1.25rem; margin: 1.5rem 0 0.4rem; } p { margin: 0; color: var(--muted); font-size: 0.9rem; }
-.map { position: relative; aspect-ratio: 2; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--sea); color: var(--fg); }
-.map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map { aspect-ratio: 2; border: 1px solid var(--line); border-radius: 16px; }
 ${LOST_MAP_CSS}
-.lost-map .route, .lost-map .x { stroke: var(--brand); stroke-opacity: 1; }
-.lost-map .needle { transform-box: fill-box; transform-origin: center; animation: lost-search 7s ease-in-out infinite; }
-.lost-map .drift { animation: lost-drift 0.8s cubic-bezier(.2,.7,.3,1) both, lost-bob 3.2s ease-in-out 0.8s infinite alternate; }
-@keyframes lost-search { 0%, 100% { rotate: 0deg; } 20% { rotate: 130deg; } 32% { rotate: 95deg; } 55% { rotate: -150deg; } 70% { rotate: -110deg; } 85% { rotate: 40deg; } }
-@keyframes lost-bob { to { transform: translateY(-5px) rotate(3deg); } }
-.fog { position: absolute; inset: 0; display: grid; grid-template: repeat(${FOG_ROWS}, 1fr) / repeat(${FOG_COLS}, 1fr); }
-.fog i { opacity: var(--a); background: radial-gradient(circle, var(--dot) 0 2px, transparent 2.5px) var(--fog); box-shadow: 0 0 0 0.5px var(--fog); animation: lost-wipe 0.15s ease-out forwards paused; }
-@keyframes lost-wipe { to { opacity: 0; } }
-/* A paused animation keeps its progress when hover ends, so wiped fog stays wiped and a found X stays found. */
-.fog i:hover, ${FOG_BRUSH} { animation-play-state: running; }
-.stamp { pointer-events: none; opacity: 0; }
+${LOST_FOG_CSS}
 .hint { display: grid; margin-top: 1rem; font-size: 0.8rem; } .hint > * { grid-area: 1 / 1; }
-.hint .found { opacity: 0; color: var(--brand); }
-.stamp, .hint .found { animation: lost-show 1ms forwards paused; }
+.hint .found { opacity: 0; color: var(--lost-ink); animation: lost-show 1ms forwards paused; }
 .hint .look { animation: lost-hide 1ms forwards paused; }
-main:has(.dig:hover) :is(.stamp, .hint > *) { animation-play-state: running; }
-@keyframes lost-show { to { opacity: 1; } }
+main:has(.dig:hover) .hint > * { animation-play-state: running; }
 @keyframes lost-hide { to { opacity: 0; } }
-/* Fingers can't hover, so the fog burns off by itself, outward from the X. */
-@media (hover: none) {
-  .fog i { animation-duration: 0.6s; animation-delay: calc(0.5s + var(--d) * 60ms); animation-play-state: running; }
-  .stamp, .hint > * { animation-delay: 1.2s; animation-play-state: running; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lost-map .drift, .lost-map .needle { animation: none; }
-  .fog i { animation-delay: 0s; animation-duration: 0.01s; }
-  .stamp, .hint > * { animation-delay: 0s; }
-}
+@media (hover: none) { .hint > * { animation-delay: 1.2s; animation-play-state: running; } }
+@media (prefers-reduced-motion: reduce) { .hint > * { animation-delay: 0s; } }
 </style></head>
-<body><main><div class="map">${LOST_MAP_SVG}
-<div class="fog" aria-hidden="true">${FOG}</div>
-<svg class="stamp" viewBox="0 0 720 360" aria-hidden="true"><g transform="translate(470 110) rotate(-12)" fill="none" stroke="var(--brand)">
-<circle r="50" stroke-width="3" fill="var(--sea)"/><circle r="42" stroke-width="1.5" stroke-dasharray="3 5"/>
-<text y="9" text-anchor="middle" fill="var(--brand)" stroke="none" font-size="28" font-weight="700">404</text>
-<text y="26" text-anchor="middle" fill="var(--brand)" stroke="none" font-size="9" letter-spacing="1">not here</text>
-</g></svg></div>
+<body><main><div class="map lost-sea">${LOST_MAP_SVG}
+${LOST_FOG_HTML}</div>
 <h1>This doc drifted off the map</h1>
 <p>The link was revoked, or it never pointed to a doc.</p>
 <p class="hint" aria-hidden="true"><span class="look">Wipe the fog away to look for it.</span><span class="found">Found the X. The doc isn't there any more.</span></p></main></body></html>`
 }
-
-// The fog over the share 404's map: one cell per 30 by 30 square of its 720 by 360 box.
-const FOG_COLS = 24
-const FOG_ROWS = 12
-// The cursor wipes its cell and the four around it: the cells beside it, and the ones a row (FOG_COLS cells) above and below.
-const FOG_BRUSH = [".fog i:hover + i", ".fog i:has(+ i:hover)", `.fog i:hover${" + i".repeat(FOG_COLS)}`, `.fog i:has(${"+ i ".repeat(FOG_COLS - 1)}+ i:hover)`].join(", ")
-const FOG = (() => {
-  // Seeded, so the fog is the same on every visit.
-  let seed = 404
-  const rand = () => {
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-  let out = ""
-  for (let row = 0; row < FOG_ROWS; row++)
-    for (let col = 0; col < FOG_COLS; col++) {
-      // The X sits at (470, 110): column 15, row 3. Its fog stays thick, and the drifting page at the right edge peeks through.
-      const dig = Math.abs(col - 15) <= 1 && Math.abs(row - 3) <= 1
-      const peek = !dig && ((col >= 20 && row >= 5 && row <= 9 && rand() < 0.5) || rand() < 0.06)
-      const a = dig ? 1 : peek ? 0.3 + rand() * 0.25 : 0.94 + rand() * 0.06
-      const d = Math.round(Math.hypot(col - 15, row - 3))
-      out += `<i${dig ? ' class="dig"' : ""} style="--a:${a.toFixed(2)};--d:${d}"></i>`
-    }
-  return out
-})()
