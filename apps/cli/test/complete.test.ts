@@ -56,5 +56,6 @@ describe("complete", () => {
     expect(ZSH_SCRIPT).toStartWith("#compdef atlas");
     expect(ZSH_SCRIPT).toContain('atlas __complete "${(@)words[2,CURRENT]}"');
     expect(ZSH_SCRIPT).toContain("_files -g '*.(md|html)'");
+    expect(ZSH_SCRIPT).toContain('atlas __pick-doc "$PREFIX" <$TTY 2>$TTY');
   });
 });

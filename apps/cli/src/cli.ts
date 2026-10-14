@@ -19,6 +19,7 @@ import { cmdTodo } from "./todo/commands.ts";
 import { cmdPush } from "./push.ts";
 import { cmdDoc } from "./doc.ts";
 import { complete, ZSH_SCRIPT } from "./complete.ts";
+import { cmdPickDoc } from "./pick.ts";
 
 /**
  * Git-first resolution with plain-directory fallback.
@@ -279,6 +280,9 @@ export async function main(): Promise<void> {
       break;
     case "__complete":
       await out((await complete(args)).join("\n"));
+      break;
+    case "__pick-doc":
+      process.exitCode = await cmdPickDoc(args);
       break;
     case "-h":
     case "--help":
