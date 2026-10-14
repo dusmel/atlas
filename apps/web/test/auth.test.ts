@@ -95,6 +95,16 @@ describe("login throttle", () => {
   test("reads the address Traefik saw", () => {
     expect(clientIp(req({ "x-real-ip": "9.9.9.9", "x-forwarded-for": "6.6.6.6" }))).toBe("9.9.9.9")
     expect(clientIp(req({ "x-forwarded-for": "6.6.6.6, 9.9.9.9" }))).toBe("9.9.9.9")
+    expect(clientIp(req({}))).toBe("local")
+  })
+
+  test("behind Cloudflare, takes the visitor's address only from a Cloudflare edge", () => {
+    expect(clientIp(req({ "x-real-ip": "172.70.1.2", "cf-connecting-ip": "41.186.0.7" }))).toBe("41.186.0.7")
+    expect(clientIp(req({ "x-real-ip": "2606:4700:10::ac43:1", "cf-connecting-ip": "2c0f:eb58::1" }))).toBe("2c0f:eb58::1")
+    // Straight to the box, the header is whatever the client wrote.
+    expect(clientIp(req({ "x-real-ip": "9.9.9.9", "cf-connecting-ip": "1.2.3.4" }))).toBe("9.9.9.9")
+    expect(clientIp(req({ "x-real-ip": "172.70.1.2", "cf-connecting-ip": "not an ip" }))).toBe("172.70.1.2")
+    expect(clientIp(req({ "x-real-ip": "172.70.1.2" }))).toBe("172.70.1.2")
   })
 })
 
