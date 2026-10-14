@@ -6,7 +6,7 @@ import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { htmlText } from "@atlas/indexer";
 import { reposDir } from "./config.ts";
-import { parseArgs } from "./todo/args.ts";
+import { parseArgs, type FlagSpec } from "./todo/args.ts";
 import { api, CliError, loadConfig } from "./todo/client.ts";
 import { err, out } from "./util.ts";
 
@@ -37,12 +37,15 @@ export function docPlace(file: string, repos = reposDir()): { repo: string; path
 /** An md file as written, or an html doc's markdown block; null when an html doc has none. */
 export const markdownOf = (file: string, text: string): string | null => (file.endsWith(".md") ? text : htmlText(text, file).contract.md);
 
+export const DOC_COMMANDS: Record<string, string> = { publish: "Send the doc to the server now", md: "Print the doc's markdown" };
+export const DOC_FLAGS: FlagSpec = { json: "boolean" };
+
 export async function cmdDoc(args: string[]): Promise<void> {
   try {
     const [sub, ...words] = args;
-    const { flags, rest } = parseArgs(words, { json: "boolean", help: "boolean" });
+    const { flags, rest } = parseArgs(words, { ...DOC_FLAGS, help: "boolean" });
     if (!sub || sub === "--help" || sub === "-h" || flags.help) return console.log(DOC_USAGE);
-    if (sub !== "publish" && sub !== "md") throw new CliError(2, `Unknown command: doc ${sub}\n\n${DOC_USAGE}`);
+    if (!(sub in DOC_COMMANDS)) throw new CliError(2, `Unknown command: doc ${sub}\n\n${DOC_USAGE}`);
     if (rest.length !== 1) throw new CliError(2, DOC_USAGE);
     const file = rest[0]!;
     const text = await Bun.file(file)

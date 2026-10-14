@@ -6,6 +6,7 @@
 
 import { parseArgs, type FlagSpec } from "./todo/args.ts";
 import { api, loadConfig, type Config } from "./todo/client.ts";
+import { DOC_COMMANDS, DOC_FLAGS } from "./doc.ts";
 import { PUSH_FLAGS } from "./push.ts";
 import { TODO_COMMANDS } from "./todo/commands.ts";
 import type { Item } from "./todo/format.ts";
@@ -106,6 +107,15 @@ export async function complete(words: string[]): Promise<string[]> {
   const [cmd, ...rest] = typed;
   if (!cmd) return Object.entries(TOP).map(([name, c]) => line(name, c.about));
 
+  if (cmd === "doc") {
+    const [sub, ...more] = rest;
+    if (!sub) return Object.entries(DOC_COMMANDS).map(([name, about]) => line(name, about));
+    if (!(sub in DOC_COMMANDS)) return [];
+    if (current.startsWith("-")) return sub === "publish" ? flagLines(DOC_FLAGS, more) : [];
+    // One file per call: md and html docs, and folders to reach them.
+    return positionals(more, DOC_FLAGS).length ? [] : ["!docs"];
+  }
+
   if (cmd !== "todo") {
     const spec = TOP[cmd]?.flags;
     if (!spec) return [];
@@ -136,6 +146,8 @@ _atlas() {
   lines=("\${(@f)$(atlas __complete "\${(@)words[2,CURRENT]}" 2>/dev/null)}")
   if [[ $lines[1] == '!dirs' ]]; then
     _files -/
+  elif [[ $lines[1] == '!docs' ]]; then
+    _files -g '*.(md|html)'
   elif [[ -n $lines[1] ]]; then
     _describe -V 'atlas' lines
   fi
