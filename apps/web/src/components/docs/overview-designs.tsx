@@ -4,7 +4,7 @@ import { ArrowDownRightIcon, ArrowUpRightIcon, ListTodoIcon, MinusIcon } from "l
 import { cn } from "cn"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, folderLabel, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
-import { ago, exact } from "@/lib/format"
+import { ago, exact, stamp } from "@/lib/format"
 
 const link = "rounded underline-offset-4 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" })
@@ -69,7 +69,7 @@ function Docs({ title, docs, empty }: { title: string; docs: (DocRef | LinkedDoc
                     </span>
                   )}
                   <time dateTime={d.mtime} title={exact(d.mtime)} className={ageTone(d.mtime)}>
-                    {ago(d.mtime)}
+                    {stamp(d.mtime)}
                   </time>
                 </span>
               </a>

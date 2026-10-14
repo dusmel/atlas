@@ -1,8 +1,8 @@
 import { renderMarkdownPage } from "@atlas/doc-render"
 import { createFileRoute } from "@tanstack/react-router"
 import { basename } from "node:path"
-import { withBridge } from "@/server/bridge"
-import { CSP_RAW, fileResponse } from "@/server/doc-files"
+import { BRIDGE_VERSION, withBridge } from "@/server/bridge"
+import { CSP_RAW, docValidators, fileResponse, notModified } from "@/server/doc-files"
 import { docMarkdown, servedFile } from "@/server/docs"
 
 const missing = (what: string) => new Response(`No doc ${what}`, { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } })
@@ -21,9 +21,13 @@ export const Route = createFileRoute("/raw/$repo/$")({
           return md === null ? missing(`markdown for ${params.repo}/${path}`) : new Response(md, { headers: headers("text/markdown; charset=utf-8") })
         }
         if (!file) return missing(`${params.repo}/${path}`)
-        if (path.endsWith(".html")) return new Response(withBridge(await Bun.file(file).text()), { headers: headers("text/html; charset=utf-8") })
-        if (path.endsWith(".md")) return new Response(withBridge(renderMarkdownPage(await Bun.file(file).text(), basename(path)).html), { headers: headers("text/html; charset=utf-8") })
-        return fileResponse(file, CSP_RAW)
+        if (!/\.(html|md)$/.test(path)) return fileResponse(file, CSP_RAW)
+        // The doc stays in the browser between opens; a new deploy can change the bridge or the md renderer, hence the version.
+        const { etag, lastModified } = docValidators(file, `${__ATLAS_VERSION__}.${BRIDGE_VERSION}`)
+        const page = { ...headers("text/html; charset=utf-8"), etag, "last-modified": lastModified }
+        if (notModified(request, etag)) return new Response(null, { status: 304, headers: page })
+        const text = await Bun.file(file).text()
+        return new Response(withBridge(path.endsWith(".md") ? renderMarkdownPage(text, basename(path)).html : text), { headers: page })
       },
     },
   },

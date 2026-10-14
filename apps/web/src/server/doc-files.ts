@@ -75,6 +75,22 @@ export function renderMarkdown(text: string, fallback: string): { title: string;
   return { title: title ?? fallback, html }
 }
 
+/**
+ * What `/raw` hands the browser so it keeps a doc between opens: the file's size and save time, plus `salt` for
+ * what the server adds to it (the bridge, the md renderer). A doc that has not changed then costs one round trip, not a download.
+ */
+export function docValidators(file: string, salt: string): { etag: string; lastModified: string } {
+  const { size, mtimeMs } = statSync(file)
+  return { etag: `"${size.toString(36)}-${Math.floor(mtimeMs).toString(36)}-${salt}"`, lastModified: new Date(mtimeMs).toUTCString() }
+}
+
+/** True when the browser already holds this version of the doc. */
+export const notModified = (request: Request, etag: string) =>
+  (request.headers.get("if-none-match") ?? "").split(",").some((t) => {
+    const tag = t.trim()
+    return tag === "*" || tag.replace(/^W\//, "") === etag
+  })
+
 /** A file as is, under a sandbox CSP, never sniffed into another type. */
 export const fileResponse = (file: string, csp: string, status = 200) =>
   new Response(Bun.file(file), {
