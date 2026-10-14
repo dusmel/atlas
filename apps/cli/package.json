@@ -8,6 +8,7 @@
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "@atlas/todos": "workspace:*",
-    "@atlas/indexer": "workspace:*"
+    "@atlas/indexer": "workspace:*",
+    "@atlas/doc-render": "workspace:*"
   }
 }

@@ -25,12 +25,12 @@ describe("complete", () => {
     expect(await complete(["nope", ""])).toEqual([]);
   });
 
-  test("doc offers publish and md, then one md or html file, and --json only for publish", async () => {
+  test("doc offers publish and md, then one md or html file, --json for publish and --plain for md", async () => {
     expect(await complete(["doc", ""])).toEqual(["publish:Send the doc to the server now", "md:Print the doc's markdown"]);
     expect(await complete(["doc", "publish", ""])).toEqual(["!docs"]);
-    expect(await complete(["doc", "md", "--json", ""])).toEqual(["!docs"]);
+    expect(await complete(["doc", "md", "--plain", ""])).toEqual(["!docs"]);
     expect(await complete(["doc", "publish", "-"])).toEqual(["--json"]);
-    expect(await complete(["doc", "md", "-"])).toEqual([]);
+    expect(await complete(["doc", "md", "-"])).toEqual(["--plain"]);
     expect(await complete(["doc", "publish", "atlas/a.md", ""])).toEqual([]);
     expect(await complete(["doc", "nope", ""])).toEqual([]);
   });

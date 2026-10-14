@@ -8,6 +8,7 @@ import { Database } from "bun:sqlite";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { renderMd } from "../src/doc.ts";
 import { resolveRepo } from "../src/git.ts";
 import { socketPath } from "../src/todo/agent.ts";
 import { run } from "../src/util.ts";
@@ -253,6 +254,13 @@ describe("atlas doc", () => {
     expect((await doc(["md", join(dir, "plain.md")])).out).toBe("# Plain\n\nAs written\n");
     expect((await doc(["md", join(dir, "old.html")])).out).toBe("# Old block\n");
     expect((await doc(["md", join(dir, "none.html")])).code).toBe(1);
+    // A pipe, as here, and --plain both get the markdown as written; only a terminal gets it rendered.
+    expect((await doc(["md", "--plain", join(dir, "plain.md")])).out).toBe("# Plain\n\nAs written\n");
+    const table = "# Plain\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
+    expect(renderMd(table, 40, true)).toContain("\x1b[");
+    expect(renderMd(table, 40, true)).toContain("│");
+    expect(renderMd(table, 40, false)).not.toContain("\x1b");
+    expect(renderMd(`---\ntitle: Plain\n---\n${table}`, 40, false)).not.toContain("title:");
     writeFileSync(join(tmp, "outside.md"), "# Outside");
     const outside = await doc(["publish", join(tmp, "outside.md")]);
     expect([outside.code, outside.err]).toEqual([2, expect.stringContaining("is not in a repo's atlas/ folder")]);

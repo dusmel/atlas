@@ -6,7 +6,7 @@
 
 import { parseArgs, type FlagSpec } from "./todo/args.ts";
 import { api, loadConfig, type Config } from "./todo/client.ts";
-import { DOC_COMMANDS, DOC_FLAGS } from "./doc.ts";
+import { DOC_COMMANDS } from "./doc.ts";
 import { PUSH_FLAGS } from "./push.ts";
 import { TODO_COMMANDS } from "./todo/commands.ts";
 import type { Item } from "./todo/format.ts";
@@ -109,11 +109,12 @@ export async function complete(words: string[]): Promise<string[]> {
 
   if (cmd === "doc") {
     const [sub, ...more] = rest;
-    if (!sub) return Object.entries(DOC_COMMANDS).map(([name, about]) => line(name, about));
-    if (!(sub in DOC_COMMANDS)) return [];
-    if (current.startsWith("-")) return sub === "publish" ? flagLines(DOC_FLAGS, more) : [];
+    if (!sub) return Object.entries(DOC_COMMANDS).map(([name, c]) => line(name, c.about));
+    const spec = DOC_COMMANDS[sub]?.flags;
+    if (!spec) return [];
+    if (current.startsWith("-")) return flagLines(spec, more);
     // One file per call: md and html docs, and folders to reach them.
-    return positionals(more, DOC_FLAGS).length ? [] : ["!docs"];
+    return positionals(more, spec).length ? [] : ["!docs"];
   }
 
   if (cmd !== "todo") {
