@@ -6,6 +6,7 @@
 
 import { parseArgs, type FlagSpec } from "./todo/args.ts";
 import { api, loadConfig, type Config } from "./todo/client.ts";
+import { DOC_COMMANDS } from "./doc.ts";
 import { PUSH_FLAGS } from "./push.ts";
 import { TODO_COMMANDS } from "./todo/commands.ts";
 import type { Item } from "./todo/format.ts";
@@ -106,6 +107,16 @@ export async function complete(words: string[]): Promise<string[]> {
   const [cmd, ...rest] = typed;
   if (!cmd) return Object.entries(TOP).map(([name, c]) => line(name, c.about));
 
+  if (cmd === "doc") {
+    const [sub, ...more] = rest;
+    if (!sub) return Object.entries(DOC_COMMANDS).map(([name, c]) => line(name, c.about));
+    const spec = DOC_COMMANDS[sub]?.flags;
+    if (!spec) return [];
+    if (current.startsWith("-")) return flagLines(spec, more);
+    // One file per call: md and html docs, and folders to reach them.
+    return positionals(more, spec).length ? [] : ["!docs"];
+  }
+
   if (cmd !== "todo") {
     const spec = TOP[cmd]?.flags;
     if (!spec) return [];
@@ -136,6 +147,17 @@ _atlas() {
   lines=("\${(@f)$(atlas __complete "\${(@)words[2,CURRENT]}" 2>/dev/null)}")
   if [[ $lines[1] == '!dirs' ]]; then
     _files -/
+  elif [[ $lines[1] == '!docs' ]]; then
+    # The fuzzy finder, seeded with what was typed. Esc leaves the line alone; no terminal falls back to files.
+    # It opens $TTY, the device itself: Bun gets no input from /dev/tty on macOS.
+    local pick="" code=2
+    [[ -n $TTY ]] && { pick=$(COLUMNS=$COLUMNS LINES=$LINES atlas __pick-doc "$PREFIX" <$TTY 2>$TTY); code=$? }
+    case $code in
+      0) [[ -n $pick ]] && compadd -U -- "$pick" || _files -g '*.(md|html)' ;;
+      # Hand back the word as typed: returning 1 makes zsh try its next completer, which reopens the finder.
+      1) compadd -U -Q -S '' -- "$PREFIX" ;;
+      *) _files -g '*.(md|html)' ;;
+    esac
   elif [[ -n $lines[1] ]]; then
     _describe -V 'atlas' lines
   fi

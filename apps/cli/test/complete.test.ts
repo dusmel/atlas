@@ -25,6 +25,16 @@ describe("complete", () => {
     expect(await complete(["nope", ""])).toEqual([]);
   });
 
+  test("doc offers publish and md, then one md or html file, --json for publish and --plain for md", async () => {
+    expect(await complete(["doc", ""])).toEqual(["publish:Send the doc to the server now", "md:Print the doc's markdown"]);
+    expect(await complete(["doc", "publish", ""])).toEqual(["!docs"]);
+    expect(await complete(["doc", "md", "--plain", ""])).toEqual(["!docs"]);
+    expect(await complete(["doc", "publish", "-"])).toEqual(["--json"]);
+    expect(await complete(["doc", "md", "-"])).toEqual(["--plain"]);
+    expect(await complete(["doc", "publish", "atlas/a.md", ""])).toEqual([]);
+    expect(await complete(["doc", "nope", ""])).toEqual([]);
+  });
+
   test("without a server config, server lookups give nothing instead of failing", async () => {
     const saved = { HOME: process.env.HOME, ATLAS_URL: process.env.ATLAS_URL, ATLAS_TOKEN: process.env.ATLAS_TOKEN };
     process.env.HOME = "/nonexistent";
@@ -45,5 +55,7 @@ describe("complete", () => {
   test("the zsh script asks atlas for its candidates", () => {
     expect(ZSH_SCRIPT).toStartWith("#compdef atlas");
     expect(ZSH_SCRIPT).toContain('atlas __complete "${(@)words[2,CURRENT]}"');
+    expect(ZSH_SCRIPT).toContain("_files -g '*.(md|html)'");
+    expect(ZSH_SCRIPT).toContain('atlas __pick-doc "$PREFIX" <$TTY 2>$TTY');
   });
 });
