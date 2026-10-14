@@ -10,18 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TodosRouteImport } from './routes/todos'
 import { Route as ApiAuthorsRouteImport } from './routes/api/authors'
+import { Route as ApiDocsRouteImport } from './routes/api/docs'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
 import { Route as ApiGroupsRouteImport } from './routes/api/groups'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiImportsRouteImport } from './routes/api/imports'
 import { Route as ApiReposRouteImport } from './routes/api/repos'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiTodosRouteImport } from './routes/api/todos'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
+import { Route as ApiDocsReindexRouteImport } from './routes/api/docs.reindex'
 import { Route as ApiGroupsIdRouteImport } from './routes/api/groups.$id'
 import { Route as ApiImportsIdRouteImport } from './routes/api/imports.$id'
 import { Route as ApiTodosIdRouteImport } from './routes/api/todos.$id'
@@ -33,6 +37,11 @@ import { Route as ApiTodosIdUnarchiveRouteImport } from './routes/api/todos.$id.
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -60,6 +69,11 @@ const ApiAuthorsRoute = ApiAuthorsRouteImport.update({
   path: '/api/authors',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDocsRoute = ApiDocsRouteImport.update({
+  id: '/api/docs',
+  path: '/api/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiEventsRoute = ApiEventsRouteImport.update({
   id: '/api/events',
   path: '/api/events',
@@ -85,6 +99,11 @@ const ApiReposRoute = ApiReposRouteImport.update({
   path: '/api/repos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTodosRoute = ApiTodosRouteImport.update({
   id: '/api/todos',
   path: '/api/todos',
@@ -94,6 +113,11 @@ const ApiTokensRoute = ApiTokensRouteImport.update({
   id: '/api/tokens',
   path: '/api/tokens',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDocsReindexRoute = ApiDocsReindexRouteImport.update({
+  id: '/reindex',
+  path: '/reindex',
+  getParentRoute: () => ApiDocsRoute,
 } as any)
 const ApiGroupsIdRoute = ApiGroupsIdRouteImport.update({
   id: '/$id',
@@ -133,18 +157,22 @@ const ApiTodosIdUnarchiveRoute = ApiTodosIdUnarchiveRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
+  '/api/docs': typeof ApiDocsRouteWithChildren
   '/api/events': typeof ApiEventsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
   '/api/repos': typeof ApiReposRoute
+  '/api/search': typeof ApiSearchRoute
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
@@ -155,18 +183,22 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
+  '/api/docs': typeof ApiDocsRouteWithChildren
   '/api/events': typeof ApiEventsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
   '/api/repos': typeof ApiReposRoute
+  '/api/search': typeof ApiSearchRoute
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
@@ -178,18 +210,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
+  '/api/docs': typeof ApiDocsRouteWithChildren
   '/api/events': typeof ApiEventsRoute
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
   '/api/repos': typeof ApiReposRoute
+  '/api/search': typeof ApiSearchRoute
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
+  '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
@@ -202,18 +238,22 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/login'
     | '/logout'
     | '/settings'
     | '/todos'
     | '/api/authors'
+    | '/api/docs'
     | '/api/events'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
     | '/api/repos'
+    | '/api/search'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/docs/reindex'
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/todos/$id'
@@ -224,18 +264,22 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/docs'
     | '/login'
     | '/logout'
     | '/settings'
     | '/todos'
     | '/api/authors'
+    | '/api/docs'
     | '/api/events'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
     | '/api/repos'
+    | '/api/search'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/docs/reindex'
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/todos/$id'
@@ -246,18 +290,22 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/docs'
     | '/login'
     | '/logout'
     | '/settings'
     | '/todos'
     | '/api/authors'
+    | '/api/docs'
     | '/api/events'
     | '/api/groups'
     | '/api/health'
     | '/api/imports'
     | '/api/repos'
+    | '/api/search'
     | '/api/todos'
     | '/api/tokens'
+    | '/api/docs/reindex'
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/todos/$id'
@@ -269,16 +317,19 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
   SettingsRoute: typeof SettingsRoute
   TodosRoute: typeof TodosRoute
   ApiAuthorsRoute: typeof ApiAuthorsRoute
+  ApiDocsRoute: typeof ApiDocsRouteWithChildren
   ApiEventsRoute: typeof ApiEventsRoute
   ApiGroupsRoute: typeof ApiGroupsRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   ApiImportsRoute: typeof ApiImportsRouteWithChildren
   ApiReposRoute: typeof ApiReposRoute
+  ApiSearchRoute: typeof ApiSearchRoute
   ApiTodosRoute: typeof ApiTodosRouteWithChildren
   ApiTokensRoute: typeof ApiTokensRouteWithChildren
 }
@@ -290,6 +341,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -327,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthorsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/docs': {
+      id: '/api/docs'
+      path: '/api/docs'
+      fullPath: '/api/docs'
+      preLoaderRoute: typeof ApiDocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/events': {
       id: '/api/events'
       path: '/api/events'
@@ -362,6 +427,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiReposRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/todos': {
       id: '/api/todos'
       path: '/api/todos'
@@ -375,6 +447,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/tokens'
       preLoaderRoute: typeof ApiTokensRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/docs/reindex': {
+      id: '/api/docs/reindex'
+      path: '/reindex'
+      fullPath: '/api/docs/reindex'
+      preLoaderRoute: typeof ApiDocsReindexRouteImport
+      parentRoute: typeof ApiDocsRoute
     }
     '/api/groups/$id': {
       id: '/api/groups/$id'
@@ -427,6 +506,17 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface ApiDocsRouteChildren {
+  ApiDocsReindexRoute: typeof ApiDocsReindexRoute
+}
+
+const ApiDocsRouteChildren: ApiDocsRouteChildren = {
+  ApiDocsReindexRoute: ApiDocsReindexRoute,
+}
+
+const ApiDocsRouteWithChildren =
+  ApiDocsRoute._addFileChildren(ApiDocsRouteChildren)
 
 interface ApiGroupsRouteChildren {
   ApiGroupsIdRoute: typeof ApiGroupsIdRoute
@@ -494,16 +584,19 @@ const ApiTokensRouteWithChildren = ApiTokensRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,
   SettingsRoute: SettingsRoute,
   TodosRoute: TodosRoute,
   ApiAuthorsRoute: ApiAuthorsRoute,
+  ApiDocsRoute: ApiDocsRouteWithChildren,
   ApiEventsRoute: ApiEventsRoute,
   ApiGroupsRoute: ApiGroupsRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   ApiImportsRoute: ApiImportsRouteWithChildren,
   ApiReposRoute: ApiReposRoute,
+  ApiSearchRoute: ApiSearchRoute,
   ApiTodosRoute: ApiTodosRouteWithChildren,
   ApiTokensRoute: ApiTokensRouteWithChildren,
 }

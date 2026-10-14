@@ -39,3 +39,12 @@ export const SEED = {
     item(web, "In the long-named group", "P3", "todo", { group: "A group name long enough to push a filter badge past the edge of a phone" }),
   ],
 }
+
+/** Made-up docs under data/docs/<repo>/, as MEGA would leave them. */
+export const DOCS: Record<string, string> = {
+  "web/plans/lighthouse.md": "---\ntitle: Lighthouse plan\ntags: plans\n---\n\n# Lighthouse plan\n\nThe keeper lights the lamp at dusk and logs every passing ship.",
+  "web/plans/lighthouse.html": "<title>Lighthouse plan</title><p>The keeper lights the lamp at dusk and logs every passing ship.</p>",
+  "web/notes/harbour.md": "# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.",
+  "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
+  "api/backups/old.md": "# Skipped\n\nThe lamp in a backup is never indexed.",
+}
