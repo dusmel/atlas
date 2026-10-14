@@ -6,6 +6,7 @@
 
 import { parseArgs, type FlagSpec } from "./todo/args.ts";
 import { api, loadConfig, type Config } from "./todo/client.ts";
+import { PUSH_FLAGS } from "./push.ts";
 import { TODO_COMMANDS } from "./todo/commands.ts";
 import type { Item } from "./todo/format.ts";
 import { repoParam, scopeOf } from "./todo/scope.ts";
@@ -18,6 +19,7 @@ const TOP: Record<string, { about: string; flags: FlagSpec }> = {
   promote: { about: "Force-promote the repo", flags: REPO_PATH },
   observe: { about: "Score repo engagement from a command", flags: { cmd: "string", exit: "string", repo: "string" } },
   todo: { about: "Todos on the Atlas server", flags: {} },
+  push: { about: "Send this Mac's docs to the server", flags: PUSH_FLAGS },
   completion: { about: "Print the zsh completion script", flags: {} },
 };
 const NEEDS_ID = new Set(["show", "set", "move", "start", "done", "archive"]);

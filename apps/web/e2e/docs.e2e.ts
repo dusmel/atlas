@@ -93,7 +93,7 @@ test("the API checks limit, reindexes, and health counts the docs", async ({ pag
   expect((await (await page.request.get("/api/search?q=lamp&folder=plans")).json()).facets).toEqual({ total: 1, repo: { web: 1 }, folder: { plans: 1, notes: 1 } })
   const reindex = await page.request.post("/api/docs/reindex", { headers: { "x-atlas": "1" } })
   expect(await reindex.json()).toMatchObject({ docs: 4, md: 2, html: 2 })
-  expect((await (await page.request.get("/api/health")).json()).docs).toEqual({ count: 4 })
+  expect((await (await page.request.get("/api/health")).json()).docs).toEqual({ source: "mega", last_pull: expect.any(String), count: 4 })
 })
 
 test("j and k select a result, Enter copies its path, and a linked group's open todos show", async ({ page, context }) => {

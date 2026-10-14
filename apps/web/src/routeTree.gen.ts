@@ -26,8 +26,11 @@ import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as ApiTodosRouteImport } from './routes/api/todos'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
 import { Route as ApiDocsActivityRouteImport } from './routes/api/docs.activity'
+import { Route as ApiDocsHoldRouteImport } from './routes/api/docs.hold'
 import { Route as ApiDocsOverviewRouteImport } from './routes/api/docs.overview'
+import { Route as ApiDocsPullRouteImport } from './routes/api/docs.pull'
 import { Route as ApiDocsReindexRouteImport } from './routes/api/docs.reindex'
+import { Route as ApiDocsStatusRouteImport } from './routes/api/docs.status'
 import { Route as ApiGroupsIdRouteImport } from './routes/api/groups.$id'
 import { Route as ApiImportsIdRouteImport } from './routes/api/imports.$id'
 import { Route as ApiTodosIdRouteImport } from './routes/api/todos.$id'
@@ -121,14 +124,29 @@ const ApiDocsActivityRoute = ApiDocsActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => ApiDocsRoute,
 } as any)
+const ApiDocsHoldRoute = ApiDocsHoldRouteImport.update({
+  id: '/hold',
+  path: '/hold',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
 const ApiDocsOverviewRoute = ApiDocsOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
   getParentRoute: () => ApiDocsRoute,
 } as any)
+const ApiDocsPullRoute = ApiDocsPullRouteImport.update({
+  id: '/pull',
+  path: '/pull',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
 const ApiDocsReindexRoute = ApiDocsReindexRouteImport.update({
   id: '/reindex',
   path: '/reindex',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
+const ApiDocsStatusRoute = ApiDocsStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
   getParentRoute: () => ApiDocsRoute,
 } as any)
 const ApiGroupsIdRoute = ApiGroupsIdRouteImport.update({
@@ -185,8 +203,11 @@ export interface FileRoutesByFullPath {
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
+  '/api/docs/status': typeof ApiDocsStatusRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
@@ -213,8 +234,11 @@ export interface FileRoutesByTo {
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
+  '/api/docs/status': typeof ApiDocsStatusRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
@@ -242,8 +266,11 @@ export interface FileRoutesById {
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
+  '/api/docs/status': typeof ApiDocsStatusRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
@@ -272,8 +299,11 @@ export interface FileRouteTypes {
     | '/api/todos'
     | '/api/tokens'
     | '/api/docs/activity'
+    | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/pull'
     | '/api/docs/reindex'
+    | '/api/docs/status'
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/todos/$id'
@@ -300,8 +330,11 @@ export interface FileRouteTypes {
     | '/api/todos'
     | '/api/tokens'
     | '/api/docs/activity'
+    | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/pull'
     | '/api/docs/reindex'
+    | '/api/docs/status'
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/todos/$id'
@@ -328,8 +361,11 @@ export interface FileRouteTypes {
     | '/api/todos'
     | '/api/tokens'
     | '/api/docs/activity'
+    | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/pull'
     | '/api/docs/reindex'
+    | '/api/docs/status'
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/todos/$id'
@@ -479,6 +515,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDocsActivityRouteImport
       parentRoute: typeof ApiDocsRoute
     }
+    '/api/docs/hold': {
+      id: '/api/docs/hold'
+      path: '/hold'
+      fullPath: '/api/docs/hold'
+      preLoaderRoute: typeof ApiDocsHoldRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
     '/api/docs/overview': {
       id: '/api/docs/overview'
       path: '/overview'
@@ -486,11 +529,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDocsOverviewRouteImport
       parentRoute: typeof ApiDocsRoute
     }
+    '/api/docs/pull': {
+      id: '/api/docs/pull'
+      path: '/pull'
+      fullPath: '/api/docs/pull'
+      preLoaderRoute: typeof ApiDocsPullRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
     '/api/docs/reindex': {
       id: '/api/docs/reindex'
       path: '/reindex'
       fullPath: '/api/docs/reindex'
       preLoaderRoute: typeof ApiDocsReindexRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
+    '/api/docs/status': {
+      id: '/api/docs/status'
+      path: '/status'
+      fullPath: '/api/docs/status'
+      preLoaderRoute: typeof ApiDocsStatusRouteImport
       parentRoute: typeof ApiDocsRoute
     }
     '/api/groups/$id': {
@@ -547,14 +604,20 @@ declare module '@tanstack/react-router' {
 
 interface ApiDocsRouteChildren {
   ApiDocsActivityRoute: typeof ApiDocsActivityRoute
+  ApiDocsHoldRoute: typeof ApiDocsHoldRoute
   ApiDocsOverviewRoute: typeof ApiDocsOverviewRoute
+  ApiDocsPullRoute: typeof ApiDocsPullRoute
   ApiDocsReindexRoute: typeof ApiDocsReindexRoute
+  ApiDocsStatusRoute: typeof ApiDocsStatusRoute
 }
 
 const ApiDocsRouteChildren: ApiDocsRouteChildren = {
   ApiDocsActivityRoute: ApiDocsActivityRoute,
+  ApiDocsHoldRoute: ApiDocsHoldRoute,
   ApiDocsOverviewRoute: ApiDocsOverviewRoute,
+  ApiDocsPullRoute: ApiDocsPullRoute,
   ApiDocsReindexRoute: ApiDocsReindexRoute,
+  ApiDocsStatusRoute: ApiDocsStatusRoute,
 }
 
 const ApiDocsRouteWithChildren =

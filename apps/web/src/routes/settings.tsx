@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { AppHeader } from "@/components/app-header"
+import { DocsSourceDetails, useDocsStatus } from "@/components/docs/source-pill"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +22,7 @@ function Settings() {
   const [name, setName] = useState("")
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const docs = useDocsStatus()
 
   const load = async () => {
     const res = await api("/api/tokens")
@@ -114,6 +116,14 @@ function Settings() {
               </ul>
             )}
           </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Docs source</CardTitle>
+            <CardDescription>Where the server&apos;s copy of the docs comes from: MEGA, or a Mac through <code className="font-mono">atlas push</code>.</CardDescription>
+          </CardHeader>
+          <CardContent>{docs.data ? <DocsSourceDetails status={docs.data} /> : <p className="text-sm text-muted-foreground">Loading…</p>}</CardContent>
         </Card>
       </main>
     </>

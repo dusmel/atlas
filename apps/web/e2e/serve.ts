@@ -1,11 +1,11 @@
 // Starts the production server on a throwaway database of made-up items, for the Playwright tests.
 // The repo is public: never seed real todos here.
-import { mkdtempSync, utimesSync } from "node:fs"
+import { cpSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createGroup, createTodo } from "../src/server/todos"
 import { freshDb } from "../test/helpers"
-import { DOCS, PASSWORD, SEED } from "./seed"
+import { DOCS, MEGA_SYNCED, PASSWORD, PUSHED_ONLY, SEED } from "./seed"
 
 const dir = mkdtempSync(join(tmpdir(), "atlas-e2e-"))
 const db = freshDb(join(dir, "atlas.db"))
@@ -32,3 +32,16 @@ await import("../server")
 const health = `http://localhost:${process.env.PORT ?? 3000}/api/health`
 while ((await (await fetch(health)).json()).docs?.count !== 4) await Bun.sleep(100)
 await Bun.write(join(dir, "docs", "api/runbook.html"), DOCS["api/runbook.html"] + "\n")
+
+// What `atlas push` would have sent: the same docs, plus one that only this "Mac" has.
+cpSync(join(dir, "docs"), join(dir, "docs-manual"), { recursive: true, preserveTimestamps: true })
+await Bun.write(join(dir, "docs-manual", PUSHED_ONLY.path), PUSHED_ONLY.text)
+
+// Stands in for the megacmd loop (deploy/megacmd/start.sh): a fresh report with both pairs synced.
+mkdirSync(join(dir, "state"), { recursive: true })
+const report = () => {
+  writeFileSync(join(dir, "state", "mega-sync.txt"), MEGA_SYNCED)
+  writeFileSync(join(dir, "state", "mega-synced"), "")
+}
+report()
+setInterval(report, 30_000)

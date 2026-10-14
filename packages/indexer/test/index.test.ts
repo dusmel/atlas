@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { mkdtemp, rename, rm, unlink, utimes } from "node:fs/promises"
+import { cp, mkdtemp, rename, rm, unlink, utimes } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DocIndex, ftsPhrase, ftsQuery, htmlText, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
@@ -162,6 +162,24 @@ describe("DocIndex", () => {
     expect(index.files()).toHaveLength(4)
     const [alpha] = index.overview()
     expect(alpha).toMatchObject({ repo: "alpha", docs: 3, md: 3, html: 1, week: 2, stale: 1, folders: [{ folder: "plans", docs: 2 }, { folder: ".", docs: 1 }] })
+  })
+
+  test("moveTo indexes another folder in place and keeps unchanged files", async () => {
+    await write("alpha/same.md", "# Same\n\nthe heron")
+    await write("alpha/only-mega.md", "# Mega\n\nthe stork")
+    await index.sync()
+    const other = await mkdtemp(join(tmpdir(), "atlas-index-"))
+    try {
+      await cp(root, other, { recursive: true, preserveTimestamps: true })
+      await unlink(join(other, "alpha/only-mega.md"))
+      await Bun.write(join(other, "alpha/only-pushed.md"), "# Pushed\n\nthe crane")
+      expect(await index.moveTo(other)).toMatchObject({ docs: 2, added: 1, changed: 0, removed: 1 })
+      expect(index.root).toBe(other)
+      expect(index.search("crane").map((h) => h.path)).toEqual(["only-pushed.md"])
+      expect(index.search("stork")).toEqual([])
+    } finally {
+      await rm(other, { recursive: true, force: true })
+    }
   })
 
   test("the watcher picks up a new file", async () => {

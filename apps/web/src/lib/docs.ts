@@ -5,6 +5,13 @@ export type Facets = { total: number; repo: Record<string, number>; folder: Reco
 export type Summary = { docs: number; md: number; html: number; repos: { name: string; docs: number }[] }
 export type DocEvent = { id: number; at: string; change: "added" | "changed" | "removed"; repo: string; path: string; kind: string; kinds: string[]; title: string }
 export type RepoOverview = { repo: string; docs: number; md: number; html: number; week: number; stale: number; last: string; folders: { folder: string; docs: number }[] }
+export type MegaPair = { path: string; run: string; status: string; error: string }
+export type DocsStatus = {
+  source: "mega" | "manual"
+  since: string | null
+  count: number
+  mega: { state: "unknown" | "ok" | "syncing" | "failed"; checked: string | null; last_pull: string | null; pairs: MegaPair[]; detail?: string; pull_requested?: string | null }
+}
 export type Option = { value: string; label: string; count: number }
 
 export const DOC_VIEWS = [

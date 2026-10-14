@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router"
 import { KeyboardIcon, LogOutIcon, MonitorIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
+import { DocsSourcePill } from "@/components/docs/source-pill"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
@@ -11,14 +12,15 @@ const NAV = [
   { to: "/settings", label: "Settings" },
 ] as const
 
-/** The header on every page. Shared and the docs pill join it in the phases that build them. */
+/** The header on every page. Shared joins it in Phase 5. */
 export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; onShortcuts?: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b bg-background/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur supports-backdrop-filter:bg-background/80 sm:gap-4 sm:px-6">
-      <Link to="/todos" className="mr-1 flex items-center gap-2 text-[15px] font-semibold tracking-tight">
+      <Link to="/todos" aria-label="Atlas" className="mr-1 flex shrink-0 items-center gap-2 text-[15px] font-semibold tracking-tight">
         <img src="/icon.png" alt="" width={24} height={24} className="size-6" />
-        Atlas
+        {/* On a phone the icon alone leaves room for the docs pill. */}
+        <span className="hidden sm:inline">Atlas</span>
       </Link>
       <nav aria-label="Main" className="flex items-center gap-1">
         {NAV.map((n) => (
@@ -32,7 +34,8 @@ export function AppHeader({ onCommand, onShortcuts }: { onCommand?: () => void; 
           </Link>
         ))}
       </nav>
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+        <DocsSourcePill />
         {onCommand && (
           <Button variant="outline" onClick={onCommand} className="h-9 gap-2 text-muted-foreground sm:w-60 sm:justify-start" aria-label="Open the command palette">
             <SearchIcon data-icon="inline-start" />

@@ -50,3 +50,9 @@ export const DOCS: Record<string, string> = {
   // Ties the folder to its todo repo, so docs linked from a group show their open todos.
   "web/meta.json": JSON.stringify({ id: web.id }),
 }
+
+// mega-sync's table as the megacmd loop writes it, with both pairs synced.
+export const MEGA_SYNCED = "LOCALPATH|RUN_STATE|STATUS|ERROR\n/data/docs|Running|Synced|NO\n/data/backups|Running|Synced|NO\n"
+
+// A doc in the pushed copy only, so holding and resuming show up in search.
+export const PUSHED_ONLY = { path: "api/pushed/ferry-timetable.md", text: "# Ferry timetable\n\nThe albatross sailing leaves at noon." }
