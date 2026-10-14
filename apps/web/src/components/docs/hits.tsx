@@ -10,7 +10,7 @@ import { plainTitle } from "@/components/todos/rich-title"
 import { Badge } from "@/components/ui/badge"
 import { ageTone, tagColor, typeColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, docKey, docPath, tagList, type DocPage, type Hit } from "@/lib/docs"
-import { ago, exact } from "@/lib/format"
+import { exact, stamp } from "@/lib/format"
 
 export const copyPath = (d: { path: string }) => copy(docPath(d), `Copied ${docPath(d)}`)
 
@@ -53,7 +53,7 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
               </span>
               <CopyPath doc={h} />
               <time dateTime={h.mtime} title={exact(h.mtime)} className={cn("tabular-nums", ageTone(h.mtime))}>
-                {ago(h.mtime)}
+                {stamp(h.mtime)}
               </time>
               <TypeBadge type={h.type} />
               <Details hit={h} />

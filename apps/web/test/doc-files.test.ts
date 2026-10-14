@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, symlinkSync, utimesSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { docLinks } from "../src/lib/docs"
-import { docFile, renderMarkdown, sharePage } from "../src/server/doc-files"
+import { docFile, docValidators, notModified, renderMarkdown, sharePage } from "../src/server/doc-files"
 import { HttpError } from "../src/server/http"
 import { createShare, listShares, liveShare, revokeShare } from "../src/server/shares"
 import { freshDb, tempDir } from "./helpers"
@@ -83,5 +83,35 @@ describe("docLinks", () => {
     expect(link("../outside.md")).toBe("../outside.md")
     expect(link("javascript:alert(1)")).toBe("")
     expect(docLinks(null)("plans/a.md")).toBe("plans/a.md")
+  })
+})
+
+describe("docValidators", () => {
+  const root = tempDir()
+  const file = join(root, "a.html")
+  writeFileSync(file, "<p>a</p>")
+  utimesSync(file, new Date("2026-10-14T10:00:00Z"), new Date("2026-10-14T10:00:00Z"))
+
+  test("the ETag follows the file and what the server adds to it", () => {
+    const first = docValidators(file, "v1")
+    expect(first.etag).toMatch(/^"[^"]+"$/)
+    expect(first.lastModified).toBe("Wed, 14 Oct 2026 10:00:00 GMT")
+    expect(docValidators(file, "v1").etag).toBe(first.etag)
+    expect(docValidators(file, "v2").etag).not.toBe(first.etag)
+    utimesSync(file, new Date("2026-10-14T10:00:05Z"), new Date("2026-10-14T10:00:05Z"))
+    expect(docValidators(file, "v1").etag).not.toBe(first.etag)
+    writeFileSync(file, "<p>a, longer</p>")
+    utimesSync(file, new Date("2026-10-14T10:00:00Z"), new Date("2026-10-14T10:00:00Z"))
+    expect(docValidators(file, "v1").etag).not.toBe(first.etag)
+  })
+
+  test("notModified matches If-None-Match, weak or in a list, and nothing else", () => {
+    const req = (h?: string) => new Request("http://x/raw/a", { headers: h ? { "if-none-match": h } : {} })
+    expect(notModified(req('"abc"'), '"abc"')).toBe(true)
+    expect(notModified(req('W/"abc"'), '"abc"')).toBe(true)
+    expect(notModified(req('"x", "abc"'), '"abc"')).toBe(true)
+    expect(notModified(req("*"), '"abc"')).toBe(true)
+    expect(notModified(req('"abd"'), '"abc"')).toBe(false)
+    expect(notModified(req(), '"abc"')).toBe(false)
   })
 })

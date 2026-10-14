@@ -110,6 +110,16 @@ const script = String.raw`(function () {
 
   window.addEventListener("hashchange", function () { post({ type: "atlas:hash", hash: location.hash }); });
 
+  // The app's loader leaves on the first paint, so a long doc shows while the rest of it downloads. Checked every
+  // frame: a PerformanceObserver heard of the paint up to 0.5 s late. Without paint timing, atlas:ready does it.
+  if (framed) {
+    var painted = function () {
+      if (performance.getEntriesByName("first-contentful-paint").length) post({ type: "atlas:painted" });
+      else if (document.readyState !== "complete") requestAnimationFrame(painted);
+    };
+    requestAnimationFrame(painted);
+  }
+
   var zoom = function (fig) {
     var art = fig.querySelector("svg, img");
     if (!art) return;
@@ -166,6 +176,8 @@ const script = String.raw`(function () {
 })();`
 
 export const BRIDGE = `<script>${script}</script>`
+/** Changes whenever the bridge does, so a browser's copy of a doc from an older bridge is not reused. */
+export const BRIDGE_VERSION = Bun.hash(BRIDGE).toString(36)
 
 /** The page with the bridge first in its <head>, before any of the doc's own scripts. */
 export function withBridge(html: string): string {

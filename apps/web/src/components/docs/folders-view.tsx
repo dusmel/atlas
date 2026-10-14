@@ -10,7 +10,7 @@ import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, docKey, tagList, type FolderListing } from "@/lib/docs"
-import { ago, exact } from "@/lib/format"
+import { ago, exact, stamp } from "@/lib/format"
 import { TagPills, TypeBadge } from "./hits"
 
 const link = "underline-offset-3 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none rounded"
@@ -144,7 +144,7 @@ export function DocFolders({ path, params, filtered }: { path: string; params: U
                     <TypeBadge type={d.type} />
                     <TagPills tags={tagList(d.tags)} />
                     <time dateTime={d.mtime} title={exact(d.mtime)} className={cn("min-w-16 text-right text-xs whitespace-nowrap tabular-nums", ageTone(d.mtime))}>
-                      {ago(d.mtime)}
+                      {stamp(d.mtime)}
                     </time>
                   </div>
                 </div>

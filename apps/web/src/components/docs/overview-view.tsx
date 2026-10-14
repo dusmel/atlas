@@ -8,7 +8,7 @@ import { DesignReport, DesignTrends } from "./overview-designs"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
 import { docHref, docKey, type Attention, type DocRef, type LinkedDoc, type RepoOverview } from "@/lib/docs"
-import { ago, exact } from "@/lib/format"
+import { exact, stamp } from "@/lib/format"
 
 const card = "rounded-2xl border bg-card p-5 shadow-xs"
 const link = "rounded underline-offset-4 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -345,7 +345,7 @@ function DocList({ label, docs, empty }: { label: string; docs: (DocRef | Linked
                 </span>
               )}
               <time dateTime={d.mtime} title={exact(d.mtime)} className={ageTone(d.mtime)}>
-                {ago(d.mtime)}
+                {stamp(d.mtime)}
               </time>
             </span>
           </a>

@@ -25,6 +25,18 @@ export const shortDate = (at: string, now = new Date()) => {
 
 export const exact = (at: string) => dateTime.format(new Date(at))
 
+const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" })
+
+/** When a doc changed, to the minute: "12 min. ago" within the hour, then "Today, 09:05", "11 Oct, 14:05", "31 Dec 2025, 23:59". */
+export function stamp(at: string, now = Date.now()): string {
+  if (now - Date.parse(at) < 3600_000) return ago(at, now)
+  const d = new Date(at)
+  const today = new Date(now)
+  // Joined by hand: engines word a combined date and time differently ("11 Oct, 14:05" or "11 Oct at 14:05").
+  const day = d.toDateString() === today.toDateString() ? "Today" : (d.getFullYear() === today.getFullYear() ? dayMonth : date).format(d)
+  return `${day}, ${time.format(d)}`
+}
+
 const QUIET = new Set(["rank", "done_at", "updated_at", "archived_at"])
 const label = (p: unknown) => (p === null ? "Inbox" : String(p))
 
