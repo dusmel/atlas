@@ -18,6 +18,13 @@ jobs:
       - run: bun run check
       - run: bun run build:web
 
+  # The Dockerfile copies each workspace's package.json by name; a missing one fails only the deploy.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -f apps/web/Dockerfile .
+
   e2e:
     runs-on: ubuntu-latest
     steps:
