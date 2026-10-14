@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 COPY packages/todos/package.json packages/todos/
 COPY packages/indexer/package.json packages/indexer/
+COPY packages/doc-render/package.json packages/doc-render/
 COPY apps/cli/package.json apps/cli/
 COPY apps/web/package.json apps/web/
 
