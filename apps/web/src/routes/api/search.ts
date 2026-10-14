@@ -9,7 +9,9 @@ export const Route = createFileRoute("/api/search")({
     handlers: {
       GET: ({ request }) => {
         const url = new URL(request.url)
-        return handle(() => searchDocs({ q: url.searchParams.get("q") ?? "", repo: many(url, "repo"), limit: url.searchParams.get("limit") ?? undefined }))
+        return handle(() =>
+          searchDocs({ q: url.searchParams.get("q") ?? "", repo: many(url, "repo"), folder: many(url, "folder"), since: url.searchParams.get("since") ?? undefined, limit: url.searchParams.get("limit") ?? undefined }),
+        )
       },
     },
   },

@@ -2,7 +2,7 @@ import { LinkIcon } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "cn"
 
-const copy = async (text: string, message: string) => {
+export const copy = async (text: string, message: string) => {
   try {
     await navigator.clipboard.writeText(text)
     toast.success(message)

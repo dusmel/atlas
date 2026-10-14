@@ -7,6 +7,14 @@ import { scanDocs, type DocFile } from "./scan.ts"
 export type Counts = { docs: number; md: number; html: number }
 export type SyncResult = Counts & { added: number; changed: number; removed: number; ms: number }
 export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; title: string; snippet: string; mtime: string; tags: string }
+/** `folder` is the first folder inside the repo, "." for a doc at its top. `after` is a time in ms: only docs changed since. */
+export type DocFilters = { repo?: string[]; folder?: string[]; after?: number }
+/** Matching docs per repo and per folder, each counted with the other filters applied. Twins count once. */
+export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number> }
+/** One row of the index, without its text. */
+export type DocMeta = { repo: string; path: string; kind: DocFile["kind"]; title: string; mtime: number; size: number }
+/** Per repo: docs (twins once), files by kind, docs changed in the last week, docs untouched for 60 days, and the biggest folders. */
+export type RepoOverview = { repo: string; docs: number; md: number; html: number; week: number; stale: number; last: string; folders: { folder: string; docs: number }[] }
 
 /** Snippets wrap each match in these, so a client can mark them up without trusting the doc's text as HTML. */
 export const MATCH_START = "\u0002"
@@ -14,7 +22,7 @@ export const MATCH_END = "\u0003"
 
 const SCHEMA = `
   CREATE TABLE docs (
-    id INTEGER PRIMARY KEY, repo TEXT NOT NULL, path TEXT NOT NULL, kind TEXT NOT NULL,
+    id INTEGER PRIMARY KEY, repo TEXT NOT NULL, path TEXT NOT NULL, folder TEXT NOT NULL, kind TEXT NOT NULL,
     title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL,
     UNIQUE (repo, path)
   );
@@ -50,6 +58,8 @@ type Read = { file: DocFile; id?: number; mtime: number; size: number; text: Doc
 export class DocIndex {
   readonly db = new Database(":memory:")
   private queue: Promise<unknown> = Promise.resolve()
+  /** Called after every sync that finished, with the index already updated. */
+  onSync?: (result: SyncResult) => void
 
   constructor(readonly root: string) {
     this.db.exec(SCHEMA)
@@ -111,8 +121,8 @@ export class DocIndex {
         let rowid = id
         if (rowid === undefined) {
           rowid = this.db
-            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, kind, title, mtime, size, tags) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id")
-            .get(file.repo, file.path, ...values)!.id
+            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, kind, title, mtime, size, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
+            .get(file.repo, file.path, folderOf(file.path), ...values)!.id
         } else {
           this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ? WHERE id = ?", [...values, rowid])
           this.db.run("DELETE FROM docs_fts WHERE rowid = ?", [rowid])
@@ -121,7 +131,28 @@ export class DocIndex {
       }
     })()
     const changed = reads.filter((r) => r.id !== undefined).length
-    return { ...this.counts(), added: reads.length - changed, changed, removed: removed.length, ms: Math.round(performance.now() - started) }
+    const result = { ...this.counts(), added: reads.length - changed, changed, removed: removed.length, ms: Math.round(performance.now() - started) }
+    this.onSync?.(result)
+    return result
+  }
+
+  files(): DocMeta[] {
+    return this.db.query<DocMeta, []>("SELECT repo, path, kind, title, mtime, size FROM docs").all()
+  }
+
+  overview(now = Date.now()): RepoOverview[] {
+    const week = now - 7 * 864e5
+    const stale = now - 60 * 864e5
+    const rows = this.db
+      .query<Omit<RepoOverview, "folders" | "last"> & { last: number }, [number, number]>(
+        `SELECT d.repo, ${TWINS} AS docs, sum(d.kind = 'md') AS md, sum(d.kind = 'html') AS html,
+                count(DISTINCT CASE WHEN d.mtime >= ? THEN ${TWIN} END) AS week,
+                count(DISTINCT CASE WHEN d.mtime < ? THEN ${TWIN} END) AS stale, max(d.mtime) AS last
+           FROM docs d GROUP BY d.repo ORDER BY d.repo`,
+      )
+      .all(week, stale)
+    const folders = this.db.query<{ repo: string; folder: string; docs: number }, []>(`SELECT d.repo, d.folder, ${TWINS} AS docs FROM docs d GROUP BY d.repo, d.folder ORDER BY docs DESC, d.folder`).all()
+    return rows.map((r) => ({ ...r, last: new Date(r.last).toISOString(), folders: folders.filter((f) => f.repo === r.repo).map(({ folder, docs }) => ({ folder, docs })) }))
   }
 
   counts(): Counts {
@@ -135,41 +166,57 @@ export class DocIndex {
    * Docs holding the exact phrase come first, then docs holding every word, each ranked by bm25
    * with the title weighted 5x. A doc kept as both x.md and x.html shows once, as whichever ranks higher.
    */
-  search(q: string, opts: { repo?: string[]; limit?: number } = {}): SearchHit[] {
+  search(q: string, opts: DocFilters & { limit?: number } = {}): SearchHit[] {
     const match = ftsQuery(q)
     if (!match) return []
     const limit = opts.limit ?? 20
-    const repos = opts.repo?.length ? opts.repo : null
     const phrase = ftsPhrase(q)
-    return hits([...(phrase ? this.query(phrase, repos, limit * 2) : []), ...this.query(match, repos, limit * 2)], limit)
+    return hits([...(phrase ? this.query(phrase, opts, limit * 2) : []), ...this.query(match, opts, limit * 2)], limit)
   }
 
   /** The most recently changed docs, newest first, with no snippet. Twins show once, as in search. */
-  recent(opts: { repo?: string[]; limit?: number } = {}): SearchHit[] {
+  recent(opts: DocFilters & { limit?: number } = {}): SearchHit[] {
     const limit = opts.limit ?? 20
-    const repos = opts.repo?.length ? opts.repo : null
+    const w = where(opts)
     const rows = this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
-        `SELECT repo, path, kind, title, mtime, tags, '' AS snippet FROM docs
-          ${repos ? `WHERE repo IN (${repos.map(() => "?").join(", ")})` : ""}
-          ORDER BY mtime DESC, repo, path
+        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags, '' AS snippet FROM docs d
+          WHERE 1 = 1 ${w.sql}
+          ORDER BY d.mtime DESC, d.repo, d.path
           LIMIT ?`,
       )
-      .all(...(repos ?? []), limit * 2)
+      .all(...w.params, limit * 2)
     return hits(rows, limit)
   }
 
-  private query(match: string, repos: string[] | null, limit: number) {
+  /** Counts for the filters: every doc matching `q` (or every doc, when it is empty), not only the first page. */
+  facets(q: string, opts: DocFilters = {}): Facets {
+    const match = q.trim() ? ftsQuery(q) : null
+    if (q.trim() && !match) return { total: 0, repo: {}, folder: {} }
+    // Phrase hits are a subset of all-words hits, so counting the all-words query covers both.
+    const from = match ? "FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid WHERE docs_fts MATCH ?" : "FROM docs d WHERE 1 = 1"
+    const count = (by: string | null, skip?: keyof DocFilters) => {
+      const w = where(opts, skip)
+      return this.db
+        .query<{ v: string; n: number }, (string | number)[]>(`SELECT ${by ?? "''"} AS v, ${TWINS} AS n ${from} ${w.sql} ${by ? `GROUP BY ${by}` : ""}`)
+        .all(...(match ? [match] : []), ...w.params)
+    }
+    const map = (rows: { v: string; n: number }[]) => Object.fromEntries(rows.map((r) => [r.v, r.n]))
+    return { total: count(null)[0]?.n ?? 0, repo: map(count("d.repo", "repo")), folder: map(count("d.folder", "folder")) }
+  }
+
+  private query(match: string, opts: DocFilters, limit: number) {
+    const w = where(opts)
     return this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
         `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags,
                 snippet(docs_fts, 1, char(2), char(3), '…', 16) AS snippet
            FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid
-          WHERE docs_fts MATCH ? ${repos ? `AND d.repo IN (${repos.map(() => "?").join(", ")})` : ""}
+          WHERE docs_fts MATCH ? ${w.sql}
           ORDER BY bm25(docs_fts, 5.0, 1.0)
           LIMIT ?`,
       )
-      .all(match, ...(repos ?? []), limit)
+      .all(match, ...w.params, limit)
   }
 }
 
@@ -184,4 +231,26 @@ function hits(rows: (Omit<SearchHit, "mtime"> & { mtime: number })[], limit: num
     out.push({ ...r, mtime: new Date(r.mtime).toISOString() })
   }
   return out.slice(0, limit)
+}
+
+export const folderOf = (path: string) => (path.includes("/") ? path.slice(0, path.indexOf("/")) : ".")
+
+// x.md and x.html are one doc for counting: the path without its extension, which is the kind.
+const TWIN = "d.repo || '/' || substr(d.path, 1, length(d.path) - length(d.kind) - 1)"
+const TWINS = `count(DISTINCT ${TWIN})`
+
+function where(f: DocFilters, skip?: keyof DocFilters): { sql: string; params: (string | number)[] } {
+  const parts: string[] = []
+  const params: (string | number)[] = []
+  for (const key of ["repo", "folder"] as const) {
+    const values = f[key]
+    if (key === skip || !values?.length) continue
+    parts.push(`AND d.${key} IN (${values.map(() => "?").join(", ")})`)
+    params.push(...values)
+  }
+  if (f.after !== undefined && skip !== "after") {
+    parts.push("AND d.mtime >= ?")
+    params.push(f.after)
+  }
+  return { sql: parts.join(" "), params }
 }

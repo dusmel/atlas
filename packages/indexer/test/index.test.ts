@@ -129,6 +129,41 @@ describe("DocIndex", () => {
     expect(index.recent()[0]!.snippet).toBe("")
   })
 
+  test("filters by folder and change time, and counts matches per repo and folder", async () => {
+    await write("alpha/plans/a.md", "# A\n\nthe ibis")
+    await write("alpha/plans/a.html", "<title>A</title><p>the ibis</p>")
+    await write("alpha/top.md", "# Top\n\nthe ibis")
+    await write("beta/notes/old.md", "# Old\n\nthe ibis")
+    const old = new Date(Date.now() - 3 * 86_400_000)
+    await utimes(join(root, "beta/notes/old.md"), old, old)
+    await index.sync()
+    expect(index.facets("ibis")).toEqual({ total: 3, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1, notes: 1 } })
+    // Each facet is counted with the other filters, so a picked repo still shows the other repo's count.
+    expect(index.facets("ibis", { repo: ["alpha"] })).toEqual({ total: 2, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1 } })
+    expect(index.search("ibis", { folder: ["."] }).map((h) => h.path)).toEqual(["top.md"])
+    const day = Date.now() - 86_400_000
+    expect(index.search("ibis", { after: day }).map((h) => h.repo)).toEqual(["alpha", "alpha"])
+    expect(index.recent({ folder: ["notes"] }).map((h) => h.path)).toEqual(["notes/old.md"])
+    expect(index.facets("", { after: day }).total).toBe(2)
+    expect(index.facets("- *")).toEqual({ total: 0, repo: {}, folder: {} })
+  })
+
+  test("overview counts per repo, twins once, and calls onSync after each sync", async () => {
+    const synced: number[] = []
+    index.onSync = (r) => synced.push(r.added)
+    await write("alpha/plans/a.md", "# A")
+    await write("alpha/plans/a.html", "<title>A</title>")
+    await write("alpha/plans/b.md", "# B")
+    await write("alpha/top.md", "# Top")
+    const old = new Date(Date.now() - 90 * 86_400_000)
+    await utimes(join(root, "alpha/top.md"), old, old)
+    await index.sync()
+    expect(synced).toEqual([4])
+    expect(index.files()).toHaveLength(4)
+    const [alpha] = index.overview()
+    expect(alpha).toMatchObject({ repo: "alpha", docs: 3, md: 3, html: 1, week: 2, stale: 1, folders: [{ folder: "plans", docs: 2 }, { folder: ".", docs: 1 }] })
+  })
+
   test("the watcher picks up a new file", async () => {
     await index.sync()
     const stop = watchDocs(index, { debounceMs: 50 })
