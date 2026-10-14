@@ -1,11 +1,14 @@
 import { ArchiveIcon, BoxIcon, FolderIcon, PanelRightOpenIcon, SkipForwardIcon, Undo2Icon } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import ReactMarkdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { Command, CommandDialog, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Kbd } from "@/components/ui/kbd"
 import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
+import { api } from "@/lib/api"
+import { docLinks, type Summary } from "@/lib/docs"
 import { ago, exact } from "@/lib/format"
 import { authorOf, PRIORITIES, PRIORITY_NAME, useActions, type Group, type Item, type Priority } from "@/lib/todos"
 import { AuthorAvatar } from "./author-avatar"
@@ -33,6 +36,8 @@ const chip = "inline-flex h-6 min-w-0 items-center gap-1.5 rounded-full border p
 /** The Inbox one item at a time: one key gives it a priority, and the next one shows. */
 export function TriageView({ inbox, all, groups, onOpen, onCurrent, keys }: Props) {
   const actions = useActions()
+  // Relative links in a body open the doc view, so the body needs its repo's docs folder.
+  const folders = useQuery({ queryKey: ["docs"], queryFn: () => api<Summary>("/docs"), staleTime: 60_000 }).data?.folders ?? {}
   const [skipped, setSkipped] = useState<Set<number>>(() => new Set())
   const [last, setLast] = useState<Step | null>(null)
   const [picking, setPicking] = useState(false)
@@ -132,7 +137,7 @@ export function TriageView({ inbox, all, groups, onOpen, onCurrent, keys }: Prop
         </h2>
         {item.body.trim() && (
           <div className="markdown max-h-72 overflow-y-auto text-sm leading-relaxed break-words text-muted-foreground">
-            <ReactMarkdown>{dedent(item.body)}</ReactMarkdown>
+            <ReactMarkdown urlTransform={docLinks(folders[item.repo_id] ?? null)}>{dedent(item.body)}</ReactMarkdown>
           </div>
         )}
       </article>

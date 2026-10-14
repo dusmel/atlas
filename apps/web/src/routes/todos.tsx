@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ActivityView } from "@/components/todos/activity-view"
+import { YearGrid } from "@/components/year-grid"
 import { Board } from "@/components/todos/board"
 import { CommandPalette } from "@/components/todos/command-palette"
 import { MoveDialog, NewItemDialog, ShortcutsDialog } from "@/components/todos/dialogs"
@@ -20,6 +21,7 @@ import { VIEWS, ViewTabs, type View } from "@/components/todos/view-tabs"
 import { useHotkeys, type Hotkeys } from "@/hooks/use-hotkeys"
 import { useIsDesktop } from "@/hooks/use-media-query"
 import { layout, step } from "@/lib/board"
+import { docHref } from "@/lib/docs"
 import { matches, sinceMs, STATUSES, useActions, useGroups, useItemDetail, useItems, useRepos, type Filters, type Row, type Status } from "@/lib/todos"
 
 // Filters live in the URL as comma lists, so a bookmark is a saved view: /todos?view=list&repo=sem&priority=P0,P1
@@ -253,7 +255,12 @@ function TodosPage() {
           shown={view === "board" || view === "list" ? visible.length : view === "triage" ? inbox.length : view === "overview" ? overviewItems.length : undefined}
         />
         {view === "activity" ? (
-          <ActivityView repo={filters.repo} by={filters.by} since={filters.since} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
+          <>
+            <div className="mx-auto w-full max-w-3xl px-4 pt-4 sm:px-6">
+              <YearGrid source="/events/days" params={new URLSearchParams([...(filters.repo?.length ? [["repo", filters.repo.join(",")]] : []), ...(filters.by?.length ? [["by", filters.by.join(",")]] : [])])} noun={["change", "changes"]} />
+            </div>
+            <ActivityView repo={filters.repo} by={filters.by} since={filters.since} otherFilters={!!(filters.group?.length || filters.priority?.length || filters.status?.length || filters.q)} onOpen={open} />
+          </>
         ) : itemsQuery.isPending ? (
           <BoardSkeleton />
         ) : itemsQuery.isError ? (
@@ -347,7 +354,8 @@ function TodosPage() {
           view: setView,
           shortcuts: () => setShortcuts(true),
           settings: () => navigate({ to: "/settings" }),
-          openDoc: (doc, q) => navigate({ to: "/docs", search: { q: q || undefined, doc } }),
+          go: (to) => navigate({ to }),
+          openDoc: (doc) => navigate({ href: docHref(doc) }),
           theme: setTheme,
         }}
       />

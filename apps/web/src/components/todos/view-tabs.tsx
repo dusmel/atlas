@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
-import { ActivityIcon, ChartColumnIcon, InboxIcon, ListIcon, SquareKanbanIcon } from "lucide-react"
+import { ActivityIcon, ChartColumnIcon, InboxIcon, ListIcon, SquareKanbanIcon, type LucideIcon } from "lucide-react"
+import type { ReactNode } from "react"
 import { cn } from "cn"
 
 export const VIEWS = [
@@ -12,15 +13,20 @@ export const VIEWS = [
 
 export type View = (typeof VIEWS)[number]["id"]
 
-/** Links, not buttons, so a view opens in a new tab too. Phones show the icons only. */
-export function ViewTabs({ view, inbox }: { view: View; inbox: number }) {
+/**
+ * View tabs for Todos and Docs. Links, not buttons, so a view opens in a new tab too. Phones show
+ * the icons only. The first view is the page's default and leaves `view` out of the URL.
+ */
+/** A view with its own `to` is a page of its own, linked as it is. */
+export function ViewNav<V extends string>({ to, views, view, extra, className }: { to: "/todos" | "/docs"; views: readonly { id: V; label: string; icon: LucideIcon; to?: "/shared" }[]; view: V; extra?: (id: V) => ReactNode; className?: string }) {
   return (
-    <nav aria-label="Views" className="flex items-center gap-1 overflow-x-auto px-4 pt-3 sm:px-6">
-      {VIEWS.map((v) => (
+    <nav aria-label="Views" className={cn("flex items-center gap-1 overflow-x-auto", className)}>
+      {views.map((v, i) => (
         <Link
           key={v.id}
-          to="/todos"
-          search={(s) => ({ ...s, view: v.id === "board" ? undefined : v.id })}
+          to={v.to ?? to}
+          // Each page types its own search; both keep the filters and change only `view`.
+          search={v.to ? undefined : (((s: Record<string, unknown>) => ({ ...s, view: i === 0 ? undefined : v.id })) as never)}
           aria-current={view === v.id ? "page" : undefined}
           title={v.label}
           className={cn(
@@ -30,9 +36,21 @@ export function ViewTabs({ view, inbox }: { view: View; inbox: number }) {
         >
           <v.icon className="size-4" aria-hidden />
           <span className="max-sm:sr-only">{v.label}</span>
-          {v.id === "triage" && inbox > 0 && <span className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{inbox}</span>}
+          {extra?.(v.id)}
         </Link>
       ))}
     </nav>
+  )
+}
+
+export function ViewTabs({ view, inbox }: { view: View; inbox: number }) {
+  return (
+    <ViewNav
+      to="/todos"
+      views={VIEWS}
+      view={view}
+      className="px-4 pt-3 sm:px-6"
+      extra={(id) => id === "triage" && inbox > 0 && <span className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{inbox}</span>}
+    />
   )
 }

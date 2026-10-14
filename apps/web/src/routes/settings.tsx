@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { AppHeader } from "@/components/app-header"
+import { DocPalette } from "@/components/docs/doc-palette"
 import { DocsSourceDetails, useDocsStatus } from "@/components/docs/source-pill"
+import { useHotkeys } from "@/hooks/use-hotkeys"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +25,8 @@ function Settings() {
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const docs = useDocsStatus()
+  const [palette, setPalette] = useState(false)
+  useHotkeys({ "mod+k": () => setPalette((o) => !o) })
 
   const load = async () => {
     const res = await api("/api/tokens")
@@ -54,7 +58,8 @@ function Settings() {
 
   return (
     <>
-      <AppHeader />
+      <AppHeader onCommand={() => setPalette(true)} />
+      <DocPalette open={palette} onOpenChange={setPalette} page="/settings" />
       <main className="mx-auto flex max-w-2xl flex-col gap-6 p-4 sm:p-6">
         <h1 className="text-lg font-medium">Settings</h1>
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { DocMeta } from "@atlas/indexer"
-import { listDocEvents, recordDocChanges } from "../src/server/doc-activity"
+import { docEventDays, listDocEvents, recordDocChanges } from "../src/server/doc-activity"
 import { freshDb } from "./helpers"
 
 const doc = (path: string, mtime: number, size = 10, repo = "web"): DocMeta => ({ repo, path, kind: path.endsWith(".html") ? "html" : "md", title: path, mtime, size })
@@ -21,6 +21,9 @@ describe("doc activity", () => {
     ])
     expect(listDocEvents(db, { folder: ["plans"] }).map((e) => e.path)).toEqual(["plans/a.md"])
     expect(listDocEvents(db, { after: new Date(t(15)).toISOString() }).map((e) => e.path)).toEqual(["b.md", "c.md"])
+    // The type and tag filters reach the log as the matching docs' paths.
+    expect(listDocEvents(db, { paths: ["web/c.md", "api/c.md"] }).map((e) => e.path)).toEqual(["c.md"])
+    expect(listDocEvents(db, { paths: [] })).toEqual([])
     expect(recordDocChanges(db, [doc("plans/a.md", t(10), 12), doc("c.md", t(20))])).toBe(0)
   })
 
@@ -31,5 +34,19 @@ describe("doc activity", () => {
     recordDocChanges(db, [doc("x.md", t(0)), doc("plan.md", t(40)), doc("plan.html", t(41))])
     expect(listDocEvents(db).map((e) => [e.path, e.kinds])).toEqual([["plan.html", ["html", "md"]]])
     expect(listDocEvents(db, { repo: ["api"] })).toEqual([])
+  })
+
+  test("days count docs changed per day in the viewer's timezone, an md and html pair once, and skip what is over a year old", () => {
+    const db = freshDb()
+    const midnight = Math.floor(Date.now() / 864e5) * 864e5 - 3 * 864e5
+    const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+    const late = midnight + 23.5 * 36e5
+    recordDocChanges(db, [doc("old.md", 0)])
+    recordDocChanges(db, [doc("old.md", midnight - 400 * 864e5), doc("plan.md", late), doc("plan.html", late + 1000), doc("api.md", late, 10, "api")])
+    expect(docEventDays(db, {}).days).toEqual({ [day(midnight)]: 2 })
+    expect(docEventDays(db, { tz: "120" }).days).toEqual({ [day(midnight + 864e5)]: 2 })
+    expect(docEventDays(db, { repo: ["api"], tz: "-60" }).days).toEqual({ [day(midnight)]: 1 })
+    expect(docEventDays(db, { paths: ["web/plan.html"] }).days).toEqual({ [day(midnight)]: 1 })
+    expect(() => docEventDays(db, { tz: "1.5" })).toThrow("tz must be")
   })
 })

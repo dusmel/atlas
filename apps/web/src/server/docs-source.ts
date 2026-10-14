@@ -23,6 +23,8 @@ const mtime = (path: string) => {
 }
 
 export const sourceRoot = (source: Source) => join(dataDir(), source === "manual" ? "docs-manual" : "docs")
+/** Docs sent by `atlas doc publish`, served until the copy above catches up (spec section 9, fast publish). Never synced to MEGA. */
+export const fastRoot = () => join(dataDir(), "docs-fast")
 
 /** The copy the server serves. `since` is when it last switched, which for `manual` is the last `atlas push`. */
 export function readSource(): { source: Source; since: string | null } {

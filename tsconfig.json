@@ -1,5 +1,5 @@
 {
-  "include": ["packages"],
+  "include": ["packages", "scripts"],
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext"],

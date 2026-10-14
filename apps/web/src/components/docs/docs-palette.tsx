@@ -1,4 +1,4 @@
-import { CopyIcon, ListTodoIcon, SettingsIcon, XIcon } from "lucide-react"
+import { CopyIcon, FileTextIcon, GlobeIcon, ListTodoIcon, SettingsIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { DOC_VIEWS, docPath, type DocView, type Hit } from "@/lib/docs"
@@ -10,7 +10,7 @@ type Props = {
   view: DocView
   selected?: Hit
   filtered: boolean
-  run: { pick: (hit: Hit, query: string) => void; view: (v: DocView) => void; copy: () => void; clear: () => void; go: (to: "/todos" | "/settings") => void }
+  run: { pick: (hit: Hit) => void; view: (v: DocView) => void; copy: () => void; open: () => void; clear: () => void; go: (to: "/todos" | "/shared" | "/settings") => void }
 }
 
 /** ⌘K on the Docs page: find a doc by its words, switch view, or act on the selected doc. */
@@ -33,9 +33,14 @@ function Palette({ view, selected, filtered, onOpenChange, run }: Props) {
       <CommandInput autoFocus value={search} onValueChange={setSearch} placeholder="Type words to find a doc, or a command…" />
       <CommandList className="max-h-[min(65vh,28rem)]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
-        <DocCommandGroup query={search} onPick={(h) => close(() => run.pick(h, search))()} />
+        <DocCommandGroup query={search} onPick={(h) => close(() => run.pick(h))()} />
         {selected && (
           <CommandGroup heading={selected.title.slice(0, 60)}>
+            <CommandItem value="open doc" onSelect={close(run.open)}>
+              <FileTextIcon />
+              Open the doc
+              <CommandShortcut>O</CommandShortcut>
+            </CommandItem>
             <CommandItem value="copy path" onSelect={close(run.copy)}>
               <CopyIcon />
               Copy {docPath(selected)}
@@ -62,6 +67,10 @@ function Palette({ view, selected, filtered, onOpenChange, run }: Props) {
           <CommandItem onSelect={close(() => run.go("/todos"))}>
             <ListTodoIcon />
             Go to Todos
+          </CommandItem>
+          <CommandItem onSelect={close(() => run.go("/shared"))}>
+            <GlobeIcon />
+            Go to Shared
           </CommandItem>
           <CommandItem onSelect={close(() => run.go("/settings"))}>
             <SettingsIcon />

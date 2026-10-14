@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { cp, mkdtemp, rename, rm, unlink, utimes } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { DocIndex, ftsPhrase, ftsQuery, htmlText, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
+import { DocIndex, ftsPhrase, ftsQuery, htmlText, lowWeight, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
+
+const NONE = { version: null, id: null, status: null, supersededBy: null, todo: null, repo: null, branch: null, pr: null, ticket: null, md: null }
 
 describe("htmlText", () => {
   test("takes the title and tags, drops scripts, styles and svg, and decodes entities", () => {
@@ -11,18 +13,58 @@ describe("htmlText", () => {
        <body><script>var hidden = 1</script><svg><text>chart label</text></svg><p>First</p><p>second&nbsp;line &lt;ok&gt; &#x2192; done</p></body></html>`,
       "plan.html",
     )
-    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", body: "First second line <ok> → done" })
+    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", type: "", body: "First second line <ok> → done", contract: NONE })
   })
 
   test("falls back to the file name for a title", () => {
     expect(htmlText("<p>hi</p>", "page.html").title).toBe("page.html")
+  })
+
+  test("reads the doc type from its meta tag, lower-cased", () => {
+    expect(htmlText('<head><meta name="doc-type" content="Plan"></head><p>hi</p>', "page.html").type).toBe("plan")
+  })
+})
+
+describe("the doc contract", () => {
+  test("an html doc's meta tags and atlas-md block; search reads the block instead of the page text", () => {
+    const doc = htmlText(
+      `<head><meta name="atlas-contract" content="1"><meta name="atlas-id" content="d_8f3k2q7m1x"><meta name="atlas-status" content="Superseded">
+       <meta name="atlas-superseded-by" content="d_aaaaaaaaaa"><meta name="atlas-todo" content="510"><meta name="atlas-repo" content="atlas">
+       <meta name="atlas-branch" content="phase-5"><meta name="atlas-pr" content="14"><meta name="atlas-ticket" content="ATL-3"></head>
+       <body><p>Rendered words</p><script type="text/markdown" id="atlas-md">
+# Plan
+
+Uses </b> & <i> as written
+</script></body>`,
+      "plan.html",
+    )
+    expect(doc.contract).toEqual({ version: 1, id: "d_8f3k2q7m1x", status: "superseded", supersededBy: "d_aaaaaaaaaa", todo: 510, repo: "atlas", branch: "phase-5", pr: "14", ticket: "ATL-3", md: "# Plan\n\nUses </b> & <i> as written" })
+    expect(doc.body).toBe(doc.contract.md!)
+  })
+
+  test("reads the older markdown block ids, and atlas-md wins over them", () => {
+    for (const id of ["md-source", "md", "source-md", "mdSource"]) expect(htmlText(`<script type="text/plain" id="${id}"># Old</script>`, "x.html").contract.md).toBe("# Old")
+    expect(htmlText(`<script id="md-source"># Old</script><script type="text/markdown" id="atlas-md"># New</script>`, "x.html").contract.md).toBe("# New")
+    expect(htmlText(`<script type="text/markdown" id="atlas-md">Use <\\/script> to end it</script>`, "x.html").contract.md).toBe("Use </script> to end it")
+    expect(htmlText(`<script id="other"># Not it</script><p>Page</p>`, "x.html")).toMatchObject({ body: "Page", contract: { md: null } })
+  })
+
+  test("drops values the contract does not allow", () => {
+    const doc = htmlText(`<meta name="atlas-id" content="d_SHORT"><meta name="atlas-status" content="maybe"><meta name="atlas-todo" content="#0"><meta name="atlas-contract" content="v1">`, "x.html")
+    expect(doc.contract).toEqual(NONE)
+  })
+
+  test("markdown frontmatter carries the same fields", () => {
+    const md = "---\natlas-id: d_harbour001\nstatus: active\nsuperseded-by: 'd_bbbbbbbbbb'\ntodo: \"#42\"\nrepo: atlas\nbranch: main\npr: 7\nticket: ATL-9\n---\n\n# Notes"
+    expect(mdText(md, "n.md").contract).toEqual({ version: null, id: "d_harbour001", status: "active", supersededBy: "d_bbbbbbbbbb", todo: 42, repo: "atlas", branch: "main", pr: "7", ticket: "ATL-9", md: null })
   })
 })
 
 describe("mdText", () => {
   test("reads the title and tags from frontmatter and leaves it out of the body", () => {
     const doc = mdText("---\ntitle: The runbook\ntags: atlas, deploy\n---\n\n# Heading\n\nBody text", "runbook.md")
-    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", body: "# Heading\n\nBody text" })
+    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", type: "", body: "# Heading\n\nBody text", contract: NONE })
+    expect(mdText("---\ndoc-type: reference\n---\n\n# R", "r.md").type).toBe("reference")
   })
 
   test("uses the first heading, then the file name", () => {
@@ -88,6 +130,28 @@ describe("DocIndex", () => {
     expect(ftsPhrase('say "hi" there')).toBe('"say ""hi"" there"*')
   })
 
+  test("a doc whose title or path holds every word beats docs that only link to it", async () => {
+    // The 2026-10-13 case: "web v1 spec" ranked the spec 7th, behind docs linking atlas-web-v1-spec.html.
+    await write("atlas/atlas-web-v1-spec.html", "<title>Atlas Web v1: build spec</title><p>Data model and API.</p>")
+    await write("atlas/atlas-web-v1/report.md", "# Run report\n\nRead [the spec](../atlas-web-v1-spec.html) and the web v1 spec again.")
+    await write("atlas/notes/paths.md", "# Notes\n\nNothing here.")
+    await index.sync()
+    expect(index.search("web v1 spec").map((h) => h.path)).toEqual(["atlas-web-v1-spec.html", "atlas-web-v1/report.md"])
+    expect(index.search("notes paths").map((h) => h.path)).toEqual(["notes/paths.md"])
+  })
+
+  test("docs in evidence, trash, legacy and similar folders rank after the rest in each tier", async () => {
+    await write("alpha/evidence/phase-5/plover.md", "# Plover plan\n\nthe plover")
+    await write("alpha/legacy-notes/plover.md", "# Plover plan\n\nthe plover")
+    await write("alpha/plans/plover.md", "# Plover plan\n\nthe plover")
+    await index.sync()
+    const paths = index.search("plover plan").map((h) => h.path)
+    expect(paths[0]).toBe("plans/plover.md")
+    expect(paths.slice(1).sort()).toEqual(["evidence/phase-5/plover.md", "legacy-notes/plover.md"])
+    expect(lowWeight("trash/notes/a.md")).toBe(true)
+    expect(lowWeight("evidence.md")).toBe(false)
+  })
+
   test("matches the last word as a prefix and never errors on FTS syntax", async () => {
     await write("alpha/a.md", "# Indexer\n\nWatches the folder")
     await index.sync()
@@ -110,6 +174,18 @@ describe("DocIndex", () => {
     await index.sync()
     expect(index.counts()).toEqual({ docs: 2, md: 1, html: 1 })
     expect(index.search("heron")).toHaveLength(1)
+  })
+
+  test("a doc kept as both md and html shows as the html, even when the md ranks higher", async () => {
+    // The md holds the words in its title, the html only in its text, so the md ranks first.
+    await write("alpha/heron-notes.md", "# Heron survey\n\nCounts by month.")
+    await write("alpha/heron-notes.html", "<title>Wading birds</title><p>heron survey counts</p>")
+    await write("alpha/other.md", "# Other\n\nheron survey mentioned once")
+    await index.sync()
+    const hits = index.search("heron survey")
+    expect(hits.map((h) => [h.path, h.kind, h.title])).toEqual([["heron-notes.html", "html", "Wading birds"], ["other.md", "md", "Other"]])
+    expect(index.htmlTwin("alpha", "heron-notes.md")?.path).toBe("heron-notes.html")
+    expect(index.htmlTwin("alpha", "other.md")).toBeNull()
   })
 
   test("recent lists the newest docs first, filters by repo and shows twins once", async () => {
@@ -137,15 +213,37 @@ describe("DocIndex", () => {
     const old = new Date(Date.now() - 3 * 86_400_000)
     await utimes(join(root, "beta/notes/old.md"), old, old)
     await index.sync()
-    expect(index.facets("ibis")).toEqual({ total: 3, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1, notes: 1 } })
+    expect(index.facets("ibis")).toMatchObject({ total: 3, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1, notes: 1 } })
     // Each facet is counted with the other filters, so a picked repo still shows the other repo's count.
-    expect(index.facets("ibis", { repo: ["alpha"] })).toEqual({ total: 2, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1 } })
+    expect(index.facets("ibis", { repo: ["alpha"] })).toMatchObject({ total: 2, repo: { alpha: 2, beta: 1 }, folder: { plans: 1, ".": 1 } })
     expect(index.search("ibis", { folder: ["."] }).map((h) => h.path)).toEqual(["top.md"])
     const day = Date.now() - 86_400_000
     expect(index.search("ibis", { after: day }).map((h) => h.repo)).toEqual(["alpha", "alpha"])
     expect(index.recent({ folder: ["notes"] }).map((h) => h.path)).toEqual(["notes/old.md"])
     expect(index.facets("", { after: day }).total).toBe(2)
-    expect(index.facets("- *")).toEqual({ total: 0, repo: {}, folder: {} })
+    expect(index.facets("- *")).toEqual({ total: 0, repo: {}, folder: {}, type: {}, tag: {} })
+  })
+
+  test("filters by type and tag, counts both, and keeps tags current when a doc changes", async () => {
+    await write("alpha/plan.md", "---\ndoc-type: plan\ntags: Atlas, search\n---\n\n# Plan\n\nthe ibis")
+    await write("alpha/plan.html", '<title>Plan</title><meta name="doc-type" content="plan"><meta name="tags" content="atlas, search"><p>the ibis</p>')
+    await write("alpha/ref.html", '<title>Ref</title><meta name="doc-type" content="reference"><meta name="tags" content="atlas"><p>the ibis</p>')
+    await write("beta/note.md", "# Note\n\nthe ibis")
+    await index.sync()
+    // Twins count once; a doc without a doc-type counts under "none"; tags are lower-cased.
+    expect(index.facets("ibis")).toMatchObject({ total: 3, type: { plan: 1, reference: 1, none: 1 }, tag: { atlas: 2, search: 1 } })
+    expect(index.search("ibis", { type: ["reference", "none"] }).map((h) => h.path).sort()).toEqual(["note.md", "ref.html"])
+    expect(index.recent({ tag: ["search"] }).map((h) => h.path)).toEqual(["plan.html"])
+    // Type and tag together must both match.
+    expect(index.recent({ type: ["plan"], tag: ["atlas"] }).map((h) => h.path)).toEqual(["plan.html"])
+    expect(index.facets("", { tag: ["atlas"] })).toMatchObject({ total: 2, type: { plan: 1, reference: 1 }, tag: { atlas: 2, search: 1 } })
+    expect(index.list({ type: ["plan"] }).map((d) => `${d.path} ${d.type} ${d.tags}`).sort()).toEqual(["plan.html plan atlas, search", "plan.md plan Atlas, search"])
+    expect(index.overview(Date.now(), { type: ["reference"] })).toMatchObject([{ repo: "alpha", docs: 1 }])
+
+    await write("alpha/ref.html", '<title>Ref</title><meta name="doc-type" content="reference"><meta name="tags" content="ops"><p>the ibis</p>')
+    await utimes(join(root, "alpha/ref.html"), new Date(), new Date(Date.now() + 5000))
+    await index.sync()
+    expect(index.facets("").tag).toEqual({ atlas: 1, search: 1, ops: 1 })
   })
 
   test("overview counts per repo, twins once, and calls onSync after each sync", async () => {
@@ -180,6 +278,52 @@ describe("DocIndex", () => {
     } finally {
       await rm(other, { recursive: true, force: true })
     }
+  })
+
+  test("finds a doc by its id after a move, and counts an id two docs hold as none", async () => {
+    await write("alpha/plan.html", '<meta name="atlas-id" content="d_aaaaaaaaaa"><title>Plan</title>')
+    await write("alpha/plan.md", "---\natlas-id: d_aaaaaaaaaa\n---\n# Plan")
+    await write("alpha/notes.md", "---\natlas-id: d_bbbbbbbbbb\n---\n# Notes")
+    await index.sync()
+    expect(index.byId("d_aaaaaaaaaa")).toMatchObject({ repo: "alpha", path: "plan.html" })
+    await rename(join(root, "alpha/notes.md"), join(root, "alpha/kept-notes.md"))
+    await index.sync()
+    expect(index.byId("d_bbbbbbbbbb")).toMatchObject({ path: "kept-notes.md" })
+    expect(index.byId("d_cccccccccc")).toBeNull()
+    expect(index.duplicateIds()).toEqual([])
+
+    await write("beta/copy.md", "---\natlas-id: d_bbbbbbbbbb\n---\n# Copy")
+    await index.sync()
+    expect(index.byId("d_bbbbbbbbbb")).toBeNull()
+    expect(index.duplicateIds()).toEqual([{ id: "d_bbbbbbbbbb", docs: [{ repo: "alpha", path: "kept-notes.md", title: "Notes" }, { repo: "beta", path: "copy.md", title: "Copy" }] }])
+    expect(index.ids().sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { repo: "alpha", path: "plan.html", id: "d_aaaaaaaaaa" },
+      { repo: "alpha", path: "plan.md", id: "d_aaaaaaaaaa" },
+    ])
+  })
+
+  test("a fast copy is served while it is newer, to the second, and deleted once the served copy catches up", async () => {
+    const fast = await mkdtemp(join(tmpdir(), "atlas-fast-"))
+    const quick = new DocIndex(root, fast)
+    const at = (s: number) => new Date(s * 1000)
+    await write("alpha/plan.md", "# Old plan")
+    await utimes(join(root, "alpha/plan.md"), at(1000), at(1000))
+    await Bun.write(join(fast, "alpha/plan.md"), "# New plan")
+    await utimes(join(fast, "alpha/plan.md"), at(2000), at(2000))
+    await Bun.write(join(fast, "alpha/fresh.md"), "# Fresh")
+    expect(await quick.sync()).toMatchObject({ docs: 2 })
+    expect(quick.files().map((f) => f.title).sort()).toEqual(["Fresh", "New plan"])
+
+    // MEGA brings the same file, with its mtime a fraction of a second off: the fast copy is done.
+    await write("alpha/plan.md", "# New plan")
+    await utimes(join(root, "alpha/plan.md"), at(2000.4), at(2000.4))
+    await quick.sync()
+    expect(quick.files().map((f) => f.title).sort()).toEqual(["Fresh", "New plan"])
+    expect(await Bun.file(join(fast, "alpha/plan.md")).exists()).toBe(false)
+    expect(await Bun.file(join(fast, "alpha/fresh.md")).exists()).toBe(true)
+    // An index with no fast folder yet works as before.
+    expect(await new DocIndex(root, join(fast, "missing")).sync()).toMatchObject({ docs: 1 })
+    await rm(fast, { recursive: true, force: true })
   })
 
   test("the watcher picks up a new file", async () => {

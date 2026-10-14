@@ -20,3 +20,10 @@ for (const [name, viewport] of [["desktop", { width: 1280, height: 900 }], ["pho
     })
   })
 }
+
+test("an unknown page shows the 404", async ({ page }) => {
+  await login(page)
+  await page.goto("/no-such-page")
+  await expect(page.getByRole("heading", { name: "Nothing here." })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Back home" })).toHaveAttribute("href", "/")
+})

@@ -8,7 +8,7 @@ import { err, out, page } from "../util.ts";
 import { itemId, itemIds, parseArgs, textFlag, type FlagSpec } from "./args.ts";
 import { serveAgent } from "./agent.ts";
 import { api, CliError, loadConfig, type Config } from "./client.ts";
-import { itemLines, showLines, type Item } from "./format.ts";
+import { docFlag, docList, itemLines, showLines, type GroupDoc, type Item } from "./format.ts";
 import { importTodos } from "./import.ts";
 import { listView, MIN_WIDTH, showView, type Style } from "./pretty.ts";
 import { repoParam, scopeOf, type Scope } from "./scope.ts";
@@ -26,7 +26,7 @@ export const TODO_COMMANDS: Record<string, { about: string; flags: FlagSpec }> =
   done: { about: "Set status to done", flags: SCOPE },
   archive: { about: "Archive a todo", flags: SCOPE },
   groups: { about: "List groups", flags: { ...SCOPE, by: "string" } },
-  group: { about: "Add a group: group add NAME", flags: { ...SCOPE, doc: "string", note: "string" } },
+  group: { about: "Add a group: group add NAME", flags: { ...SCOPE, doc: "strings", note: "string" } },
   import: { about: "Import TODO.md files", flags: { apply: "boolean", repo: "string", json: "boolean" } },
 };
 const flagsOf = (command: string) => TODO_COMMANDS[command]!.flags;
@@ -42,7 +42,7 @@ export const TODO_USAGE = `atlas todo — todos on the Atlas server, for the rep
   atlas todo done    42        status done
   atlas todo archive 42
   atlas todo groups  [--by me|agent|NAME]
-  atlas todo group add "name" [--doc plan.html] [--note TEXT|-]
+  atlas todo group add "name" [--doc [label=]path ...] [--note TEXT|-]   --doc repeats; a bare path is the plan
   atlas todo import  [--apply] [--repo NAME]
 
 Every command takes --repo NAME, --personal or --all (list only), and --json.
@@ -206,23 +206,24 @@ async function run(args: string[]): Promise<number> {
       const q = new URLSearchParams();
       if (scope !== "all") q.set("repo", repoParam(scope));
       if (typeof flags.by === "string") q.set("by", flags.by);
-      const groups = await api<{ id: number; name: string; repo_name: string; doc_path: string | null; open: number }[]>(
+      const groups = await api<{ id: number; name: string; repo_name: string; docs: GroupDoc[]; open: number }[]>(
         cfg,
         "GET",
         `/groups?${q}`,
       );
       await print(!!flags.json, groups, () =>
-        groups.length ? groups.map((g) => `${String(g.open).padStart(3)} open  ${scope === "all" ? `${g.repo_name}  ` : ""}${g.name}${g.doc_path ? `  → ${g.doc_path}` : ""}`) : ["No groups."],
+        groups.length ? groups.map((g) => `${String(g.open).padStart(3)} open  ${scope === "all" ? `${g.repo_name}  ` : ""}${g.name}${g.docs.length ? `  → ${docList(g.docs)}` : ""}`) : ["No groups."],
       );
       return 0;
     }
     case "group": {
       const [action, ...more] = rest;
-      if (action !== "add") throw new CliError(2, 'Usage: atlas todo group add "name" [--doc plan.html] [--note TEXT|-]');
-      const { flags, rest: words } = parseArgs(more, flagsOf("group"));
+      if (action !== "add") throw new CliError(2, 'Usage: atlas todo group add "name" [--doc [label=]path ...] [--note TEXT|-]');
+      const { flags, lists, rest: words } = parseArgs(more, flagsOf("group"));
       if (!words[0]) throw new CliError(2, 'Usage: atlas todo group add "name"');
       const repo = requireRepo(await scopeOf(flags));
-      const group = await api<{ id: number; name: string }>(cfg, "POST", "/groups", { repo, name: words.join(" "), doc_path: flags.doc, note: await textFlag(flags.note) });
+      const docs = lists.doc?.map(docFlag);
+      const group = await api<{ id: number; name: string }>(cfg, "POST", "/groups", { repo, name: words.join(" "), docs, note: await textFlag(flags.note) });
       await print(!!flags.json, group, () => [`Added group ${group.name}`]);
       return 0;
     }

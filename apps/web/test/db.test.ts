@@ -28,6 +28,16 @@ describe("migrations", () => {
     ])
   })
 
+  test("004 moves each group's doc_path into group_docs as its plan, and drops the column", () => {
+    const db = openDb(":memory:")
+    migrate(db, realMigrations().slice(0, 3))
+    db.run("INSERT INTO repos (id, name, updated_at) VALUES ('r', 'r', 'now')")
+    db.run("INSERT INTO groups (id, repo_id, name, doc_path, created_at) VALUES (1, 'r', 'With', 'plans/a.html', 'now'), (2, 'r', 'Without', NULL, 'now'), (3, 'r', 'Empty', '', 'now')")
+    migrate(db, realMigrations().slice(0, 4))
+    expect(db.query("SELECT * FROM group_docs").all()).toEqual([{ group_id: 1, label: "plan", path: "plans/a.html" }])
+    expect(db.query<{ name: string }, []>("SELECT name FROM pragma_table_info('groups')").all().map((c) => c.name)).not.toContain("doc_path")
+  })
+
   test("running again applies nothing", () => {
     const db = freshDb()
     expect(migrate(db, realMigrations())).toEqual([])

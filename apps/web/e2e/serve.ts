@@ -1,11 +1,11 @@
 // Starts the production server on a throwaway database of made-up items, for the Playwright tests.
 // The repo is public: never seed real todos here.
-import { cpSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs"
+import { cpSync, mkdirSync, mkdtempSync, renameSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createGroup, createTodo } from "../src/server/todos"
 import { freshDb } from "../test/helpers"
-import { DOCS, MEGA_SYNCED, PASSWORD, PUSHED_ONLY, SEED } from "./seed"
+import { DOCS, MEGA_SYNCED, PASSWORD, PUSHED_ONLY, RENAMED, SEED } from "./seed"
 
 const dir = mkdtempSync(join(tmpdir(), "atlas-e2e-"))
 const db = freshDb(join(dir, "atlas.db"))
@@ -36,6 +36,8 @@ await Bun.write(join(dir, "docs", "api/runbook.html"), DOCS["api/runbook.html"] 
 // What `atlas push` would have sent: the same docs, plus one that only this "Mac" has.
 cpSync(join(dir, "docs"), join(dir, "docs-manual"), { recursive: true, preserveTimestamps: true })
 await Bun.write(join(dir, "docs-manual", PUSHED_ONLY.path), PUSHED_ONLY.text)
+// The Mac renamed the harbour notes, so holding shows a doc that moved but kept its id.
+renameSync(join(dir, "docs-manual", "web/notes/harbour.md"), join(dir, "docs-manual", RENAMED.path))
 
 // Stands in for the megacmd loop (deploy/megacmd/start.sh): a fresh report with both pairs synced.
 mkdirSync(join(dir, "state"), { recursive: true })

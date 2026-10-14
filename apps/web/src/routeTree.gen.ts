@@ -14,6 +14,7 @@ import { Route as DocsRouteImport } from './routes/docs'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SharedRouteImport } from './routes/shared'
 import { Route as TodosRouteImport } from './routes/todos'
 import { Route as ApiAuthorsRouteImport } from './routes/api/authors'
 import { Route as ApiDocsRouteImport } from './routes/api/docs'
@@ -23,18 +24,28 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiImportsRouteImport } from './routes/api/imports'
 import { Route as ApiReposRouteImport } from './routes/api/repos'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiSharesRouteImport } from './routes/api/shares'
 import { Route as ApiTodosRouteImport } from './routes/api/todos'
 import { Route as ApiTokensRouteImport } from './routes/api/tokens'
+import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as ApiDocsActivityRouteImport } from './routes/api/docs.activity'
+import { Route as ApiDocsFoldersRouteImport } from './routes/api/docs.folders'
 import { Route as ApiDocsHoldRouteImport } from './routes/api/docs.hold'
 import { Route as ApiDocsOverviewRouteImport } from './routes/api/docs.overview'
+import { Route as ApiDocsPublishRouteImport } from './routes/api/docs.publish'
 import { Route as ApiDocsPullRouteImport } from './routes/api/docs.pull'
 import { Route as ApiDocsReindexRouteImport } from './routes/api/docs.reindex'
 import { Route as ApiDocsStatusRouteImport } from './routes/api/docs.status'
+import { Route as ApiDocsViewRouteImport } from './routes/api/docs.view'
+import { Route as ApiEventsDaysRouteImport } from './routes/api/events.days'
 import { Route as ApiGroupsIdRouteImport } from './routes/api/groups.$id'
 import { Route as ApiImportsIdRouteImport } from './routes/api/imports.$id'
+import { Route as ApiSharesTokenRouteImport } from './routes/api/shares.$token'
 import { Route as ApiTodosIdRouteImport } from './routes/api/todos.$id'
 import { Route as ApiTokensIdRouteImport } from './routes/api/tokens.$id'
+import { Route as RRepoSplatRouteImport } from './routes/r.$repo.$'
+import { Route as RawRepoSplatRouteImport } from './routes/raw.$repo.$'
+import { Route as ApiDocsActivityDaysRouteImport } from './routes/api/docs.activity.days'
 import { Route as ApiTodosIdArchiveRouteImport } from './routes/api/todos.$id.archive'
 import { Route as ApiTodosIdMoveRouteImport } from './routes/api/todos.$id.move'
 import { Route as ApiTodosIdUnarchiveRouteImport } from './routes/api/todos.$id.unarchive'
@@ -62,6 +73,11 @@ const LogoutRoute = LogoutRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SharedRoute = SharedRouteImport.update({
+  id: '/shared',
+  path: '/shared',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TodosRoute = TodosRouteImport.update({
@@ -109,6 +125,11 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSharesRoute = ApiSharesRouteImport.update({
+  id: '/api/shares',
+  path: '/api/shares',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTodosRoute = ApiTodosRouteImport.update({
   id: '/api/todos',
   path: '/api/todos',
@@ -119,9 +140,19 @@ const ApiTokensRoute = ApiTokensRouteImport.update({
   path: '/api/tokens',
   getParentRoute: () => rootRouteImport,
 } as any)
+const STokenRoute = STokenRouteImport.update({
+  id: '/s/$token',
+  path: '/s/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDocsActivityRoute = ApiDocsActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
+const ApiDocsFoldersRoute = ApiDocsFoldersRouteImport.update({
+  id: '/folders',
+  path: '/folders',
   getParentRoute: () => ApiDocsRoute,
 } as any)
 const ApiDocsHoldRoute = ApiDocsHoldRouteImport.update({
@@ -132,6 +163,11 @@ const ApiDocsHoldRoute = ApiDocsHoldRouteImport.update({
 const ApiDocsOverviewRoute = ApiDocsOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
+const ApiDocsPublishRoute = ApiDocsPublishRouteImport.update({
+  id: '/publish',
+  path: '/publish',
   getParentRoute: () => ApiDocsRoute,
 } as any)
 const ApiDocsPullRoute = ApiDocsPullRouteImport.update({
@@ -149,6 +185,16 @@ const ApiDocsStatusRoute = ApiDocsStatusRouteImport.update({
   path: '/status',
   getParentRoute: () => ApiDocsRoute,
 } as any)
+const ApiDocsViewRoute = ApiDocsViewRouteImport.update({
+  id: '/view',
+  path: '/view',
+  getParentRoute: () => ApiDocsRoute,
+} as any)
+const ApiEventsDaysRoute = ApiEventsDaysRouteImport.update({
+  id: '/days',
+  path: '/days',
+  getParentRoute: () => ApiEventsRoute,
+} as any)
 const ApiGroupsIdRoute = ApiGroupsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -159,6 +205,11 @@ const ApiImportsIdRoute = ApiImportsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiImportsRoute,
 } as any)
+const ApiSharesTokenRoute = ApiSharesTokenRouteImport.update({
+  id: '/$token',
+  path: '/$token',
+  getParentRoute: () => ApiSharesRoute,
+} as any)
 const ApiTodosIdRoute = ApiTodosIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -168,6 +219,21 @@ const ApiTokensIdRoute = ApiTokensIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ApiTokensRoute,
+} as any)
+const RRepoSplatRoute = RRepoSplatRouteImport.update({
+  id: '/r/$repo/$',
+  path: '/r/$repo/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RawRepoSplatRoute = RawRepoSplatRouteImport.update({
+  id: '/raw/$repo/$',
+  path: '/raw/$repo/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDocsActivityDaysRoute = ApiDocsActivityDaysRouteImport.update({
+  id: '/days',
+  path: '/days',
+  getParentRoute: () => ApiDocsActivityRoute,
 } as any)
 const ApiTodosIdArchiveRoute = ApiTodosIdArchiveRouteImport.update({
   id: '/archive',
@@ -191,27 +257,38 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/shared': typeof SharedRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
   '/api/docs': typeof ApiDocsRouteWithChildren
-  '/api/events': typeof ApiEventsRoute
+  '/api/events': typeof ApiEventsRouteWithChildren
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
   '/api/repos': typeof ApiReposRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/shares': typeof ApiSharesRouteWithChildren
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
-  '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/s/$token': typeof STokenRoute
+  '/api/docs/activity': typeof ApiDocsActivityRouteWithChildren
+  '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/publish': typeof ApiDocsPublishRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/docs/status': typeof ApiDocsStatusRoute
+  '/api/docs/view': typeof ApiDocsViewRoute
+  '/api/events/days': typeof ApiEventsDaysRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
+  '/api/shares/$token': typeof ApiSharesTokenRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
+  '/r/$repo/$': typeof RRepoSplatRoute
+  '/raw/$repo/$': typeof RawRepoSplatRoute
+  '/api/docs/activity/days': typeof ApiDocsActivityDaysRoute
   '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
   '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
   '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
@@ -222,27 +299,38 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/shared': typeof SharedRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
   '/api/docs': typeof ApiDocsRouteWithChildren
-  '/api/events': typeof ApiEventsRoute
+  '/api/events': typeof ApiEventsRouteWithChildren
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
   '/api/repos': typeof ApiReposRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/shares': typeof ApiSharesRouteWithChildren
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
-  '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/s/$token': typeof STokenRoute
+  '/api/docs/activity': typeof ApiDocsActivityRouteWithChildren
+  '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/publish': typeof ApiDocsPublishRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/docs/status': typeof ApiDocsStatusRoute
+  '/api/docs/view': typeof ApiDocsViewRoute
+  '/api/events/days': typeof ApiEventsDaysRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
+  '/api/shares/$token': typeof ApiSharesTokenRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
+  '/r/$repo/$': typeof RRepoSplatRoute
+  '/raw/$repo/$': typeof RawRepoSplatRoute
+  '/api/docs/activity/days': typeof ApiDocsActivityDaysRoute
   '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
   '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
   '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
@@ -254,27 +342,38 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
+  '/shared': typeof SharedRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
   '/api/docs': typeof ApiDocsRouteWithChildren
-  '/api/events': typeof ApiEventsRoute
+  '/api/events': typeof ApiEventsRouteWithChildren
   '/api/groups': typeof ApiGroupsRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/api/imports': typeof ApiImportsRouteWithChildren
   '/api/repos': typeof ApiReposRoute
   '/api/search': typeof ApiSearchRoute
+  '/api/shares': typeof ApiSharesRouteWithChildren
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
-  '/api/docs/activity': typeof ApiDocsActivityRoute
+  '/s/$token': typeof STokenRoute
+  '/api/docs/activity': typeof ApiDocsActivityRouteWithChildren
+  '/api/docs/folders': typeof ApiDocsFoldersRoute
   '/api/docs/hold': typeof ApiDocsHoldRoute
   '/api/docs/overview': typeof ApiDocsOverviewRoute
+  '/api/docs/publish': typeof ApiDocsPublishRoute
   '/api/docs/pull': typeof ApiDocsPullRoute
   '/api/docs/reindex': typeof ApiDocsReindexRoute
   '/api/docs/status': typeof ApiDocsStatusRoute
+  '/api/docs/view': typeof ApiDocsViewRoute
+  '/api/events/days': typeof ApiEventsDaysRoute
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
+  '/api/shares/$token': typeof ApiSharesTokenRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
+  '/r/$repo/$': typeof RRepoSplatRoute
+  '/raw/$repo/$': typeof RawRepoSplatRoute
+  '/api/docs/activity/days': typeof ApiDocsActivityDaysRoute
   '/api/todos/$id/archive': typeof ApiTodosIdArchiveRoute
   '/api/todos/$id/move': typeof ApiTodosIdMoveRoute
   '/api/todos/$id/unarchive': typeof ApiTodosIdUnarchiveRoute
@@ -287,6 +386,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/shared'
     | '/todos'
     | '/api/authors'
     | '/api/docs'
@@ -296,18 +396,28 @@ export interface FileRouteTypes {
     | '/api/imports'
     | '/api/repos'
     | '/api/search'
+    | '/api/shares'
     | '/api/todos'
     | '/api/tokens'
+    | '/s/$token'
     | '/api/docs/activity'
+    | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/publish'
     | '/api/docs/pull'
     | '/api/docs/reindex'
     | '/api/docs/status'
+    | '/api/docs/view'
+    | '/api/events/days'
     | '/api/groups/$id'
     | '/api/imports/$id'
+    | '/api/shares/$token'
     | '/api/todos/$id'
     | '/api/tokens/$id'
+    | '/r/$repo/$'
+    | '/raw/$repo/$'
+    | '/api/docs/activity/days'
     | '/api/todos/$id/archive'
     | '/api/todos/$id/move'
     | '/api/todos/$id/unarchive'
@@ -318,6 +428,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/shared'
     | '/todos'
     | '/api/authors'
     | '/api/docs'
@@ -327,18 +438,28 @@ export interface FileRouteTypes {
     | '/api/imports'
     | '/api/repos'
     | '/api/search'
+    | '/api/shares'
     | '/api/todos'
     | '/api/tokens'
+    | '/s/$token'
     | '/api/docs/activity'
+    | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/publish'
     | '/api/docs/pull'
     | '/api/docs/reindex'
     | '/api/docs/status'
+    | '/api/docs/view'
+    | '/api/events/days'
     | '/api/groups/$id'
     | '/api/imports/$id'
+    | '/api/shares/$token'
     | '/api/todos/$id'
     | '/api/tokens/$id'
+    | '/r/$repo/$'
+    | '/raw/$repo/$'
+    | '/api/docs/activity/days'
     | '/api/todos/$id/archive'
     | '/api/todos/$id/move'
     | '/api/todos/$id/unarchive'
@@ -349,6 +470,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/logout'
     | '/settings'
+    | '/shared'
     | '/todos'
     | '/api/authors'
     | '/api/docs'
@@ -358,18 +480,28 @@ export interface FileRouteTypes {
     | '/api/imports'
     | '/api/repos'
     | '/api/search'
+    | '/api/shares'
     | '/api/todos'
     | '/api/tokens'
+    | '/s/$token'
     | '/api/docs/activity'
+    | '/api/docs/folders'
     | '/api/docs/hold'
     | '/api/docs/overview'
+    | '/api/docs/publish'
     | '/api/docs/pull'
     | '/api/docs/reindex'
     | '/api/docs/status'
+    | '/api/docs/view'
+    | '/api/events/days'
     | '/api/groups/$id'
     | '/api/imports/$id'
+    | '/api/shares/$token'
     | '/api/todos/$id'
     | '/api/tokens/$id'
+    | '/r/$repo/$'
+    | '/raw/$repo/$'
+    | '/api/docs/activity/days'
     | '/api/todos/$id/archive'
     | '/api/todos/$id/move'
     | '/api/todos/$id/unarchive'
@@ -381,17 +513,22 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
   SettingsRoute: typeof SettingsRoute
+  SharedRoute: typeof SharedRoute
   TodosRoute: typeof TodosRoute
   ApiAuthorsRoute: typeof ApiAuthorsRoute
   ApiDocsRoute: typeof ApiDocsRouteWithChildren
-  ApiEventsRoute: typeof ApiEventsRoute
+  ApiEventsRoute: typeof ApiEventsRouteWithChildren
   ApiGroupsRoute: typeof ApiGroupsRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   ApiImportsRoute: typeof ApiImportsRouteWithChildren
   ApiReposRoute: typeof ApiReposRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  ApiSharesRoute: typeof ApiSharesRouteWithChildren
   ApiTodosRoute: typeof ApiTodosRouteWithChildren
   ApiTokensRoute: typeof ApiTokensRouteWithChildren
+  STokenRoute: typeof STokenRoute
+  RRepoSplatRoute: typeof RRepoSplatRoute
+  RawRepoSplatRoute: typeof RawRepoSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -429,6 +566,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shared': {
+      id: '/shared'
+      path: '/shared'
+      fullPath: '/shared'
+      preLoaderRoute: typeof SharedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/todos': {
@@ -494,6 +638,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shares': {
+      id: '/api/shares'
+      path: '/api/shares'
+      fullPath: '/api/shares'
+      preLoaderRoute: typeof ApiSharesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/todos': {
       id: '/api/todos'
       path: '/api/todos'
@@ -508,11 +659,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTokensRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$token': {
+      id: '/s/$token'
+      path: '/s/$token'
+      fullPath: '/s/$token'
+      preLoaderRoute: typeof STokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/docs/activity': {
       id: '/api/docs/activity'
       path: '/activity'
       fullPath: '/api/docs/activity'
       preLoaderRoute: typeof ApiDocsActivityRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
+    '/api/docs/folders': {
+      id: '/api/docs/folders'
+      path: '/folders'
+      fullPath: '/api/docs/folders'
+      preLoaderRoute: typeof ApiDocsFoldersRouteImport
       parentRoute: typeof ApiDocsRoute
     }
     '/api/docs/hold': {
@@ -527,6 +692,13 @@ declare module '@tanstack/react-router' {
       path: '/overview'
       fullPath: '/api/docs/overview'
       preLoaderRoute: typeof ApiDocsOverviewRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
+    '/api/docs/publish': {
+      id: '/api/docs/publish'
+      path: '/publish'
+      fullPath: '/api/docs/publish'
+      preLoaderRoute: typeof ApiDocsPublishRouteImport
       parentRoute: typeof ApiDocsRoute
     }
     '/api/docs/pull': {
@@ -550,6 +722,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDocsStatusRouteImport
       parentRoute: typeof ApiDocsRoute
     }
+    '/api/docs/view': {
+      id: '/api/docs/view'
+      path: '/view'
+      fullPath: '/api/docs/view'
+      preLoaderRoute: typeof ApiDocsViewRouteImport
+      parentRoute: typeof ApiDocsRoute
+    }
+    '/api/events/days': {
+      id: '/api/events/days'
+      path: '/days'
+      fullPath: '/api/events/days'
+      preLoaderRoute: typeof ApiEventsDaysRouteImport
+      parentRoute: typeof ApiEventsRoute
+    }
     '/api/groups/$id': {
       id: '/api/groups/$id'
       path: '/$id'
@@ -564,6 +750,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImportsIdRouteImport
       parentRoute: typeof ApiImportsRoute
     }
+    '/api/shares/$token': {
+      id: '/api/shares/$token'
+      path: '/$token'
+      fullPath: '/api/shares/$token'
+      preLoaderRoute: typeof ApiSharesTokenRouteImport
+      parentRoute: typeof ApiSharesRoute
+    }
     '/api/todos/$id': {
       id: '/api/todos/$id'
       path: '/$id'
@@ -577,6 +770,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/tokens/$id'
       preLoaderRoute: typeof ApiTokensIdRouteImport
       parentRoute: typeof ApiTokensRoute
+    }
+    '/r/$repo/$': {
+      id: '/r/$repo/$'
+      path: '/r/$repo/$'
+      fullPath: '/r/$repo/$'
+      preLoaderRoute: typeof RRepoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/raw/$repo/$': {
+      id: '/raw/$repo/$'
+      path: '/raw/$repo/$'
+      fullPath: '/raw/$repo/$'
+      preLoaderRoute: typeof RawRepoSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/docs/activity/days': {
+      id: '/api/docs/activity/days'
+      path: '/days'
+      fullPath: '/api/docs/activity/days'
+      preLoaderRoute: typeof ApiDocsActivityDaysRouteImport
+      parentRoute: typeof ApiDocsActivityRoute
     }
     '/api/todos/$id/archive': {
       id: '/api/todos/$id/archive'
@@ -602,26 +816,56 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ApiDocsActivityRouteChildren {
+  ApiDocsActivityDaysRoute: typeof ApiDocsActivityDaysRoute
+}
+
+const ApiDocsActivityRouteChildren: ApiDocsActivityRouteChildren = {
+  ApiDocsActivityDaysRoute: ApiDocsActivityDaysRoute,
+}
+
+const ApiDocsActivityRouteWithChildren = ApiDocsActivityRoute._addFileChildren(
+  ApiDocsActivityRouteChildren,
+)
+
 interface ApiDocsRouteChildren {
-  ApiDocsActivityRoute: typeof ApiDocsActivityRoute
+  ApiDocsActivityRoute: typeof ApiDocsActivityRouteWithChildren
+  ApiDocsFoldersRoute: typeof ApiDocsFoldersRoute
   ApiDocsHoldRoute: typeof ApiDocsHoldRoute
   ApiDocsOverviewRoute: typeof ApiDocsOverviewRoute
+  ApiDocsPublishRoute: typeof ApiDocsPublishRoute
   ApiDocsPullRoute: typeof ApiDocsPullRoute
   ApiDocsReindexRoute: typeof ApiDocsReindexRoute
   ApiDocsStatusRoute: typeof ApiDocsStatusRoute
+  ApiDocsViewRoute: typeof ApiDocsViewRoute
 }
 
 const ApiDocsRouteChildren: ApiDocsRouteChildren = {
-  ApiDocsActivityRoute: ApiDocsActivityRoute,
+  ApiDocsActivityRoute: ApiDocsActivityRouteWithChildren,
+  ApiDocsFoldersRoute: ApiDocsFoldersRoute,
   ApiDocsHoldRoute: ApiDocsHoldRoute,
   ApiDocsOverviewRoute: ApiDocsOverviewRoute,
+  ApiDocsPublishRoute: ApiDocsPublishRoute,
   ApiDocsPullRoute: ApiDocsPullRoute,
   ApiDocsReindexRoute: ApiDocsReindexRoute,
   ApiDocsStatusRoute: ApiDocsStatusRoute,
+  ApiDocsViewRoute: ApiDocsViewRoute,
 }
 
 const ApiDocsRouteWithChildren =
   ApiDocsRoute._addFileChildren(ApiDocsRouteChildren)
+
+interface ApiEventsRouteChildren {
+  ApiEventsDaysRoute: typeof ApiEventsDaysRoute
+}
+
+const ApiEventsRouteChildren: ApiEventsRouteChildren = {
+  ApiEventsDaysRoute: ApiEventsDaysRoute,
+}
+
+const ApiEventsRouteWithChildren = ApiEventsRoute._addFileChildren(
+  ApiEventsRouteChildren,
+)
 
 interface ApiGroupsRouteChildren {
   ApiGroupsIdRoute: typeof ApiGroupsIdRoute
@@ -645,6 +889,18 @@ const ApiImportsRouteChildren: ApiImportsRouteChildren = {
 
 const ApiImportsRouteWithChildren = ApiImportsRoute._addFileChildren(
   ApiImportsRouteChildren,
+)
+
+interface ApiSharesRouteChildren {
+  ApiSharesTokenRoute: typeof ApiSharesTokenRoute
+}
+
+const ApiSharesRouteChildren: ApiSharesRouteChildren = {
+  ApiSharesTokenRoute: ApiSharesTokenRoute,
+}
+
+const ApiSharesRouteWithChildren = ApiSharesRoute._addFileChildren(
+  ApiSharesRouteChildren,
 )
 
 interface ApiTodosIdRouteChildren {
@@ -693,17 +949,22 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,
   SettingsRoute: SettingsRoute,
+  SharedRoute: SharedRoute,
   TodosRoute: TodosRoute,
   ApiAuthorsRoute: ApiAuthorsRoute,
   ApiDocsRoute: ApiDocsRouteWithChildren,
-  ApiEventsRoute: ApiEventsRoute,
+  ApiEventsRoute: ApiEventsRouteWithChildren,
   ApiGroupsRoute: ApiGroupsRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   ApiImportsRoute: ApiImportsRouteWithChildren,
   ApiReposRoute: ApiReposRoute,
   ApiSearchRoute: ApiSearchRoute,
+  ApiSharesRoute: ApiSharesRouteWithChildren,
   ApiTodosRoute: ApiTodosRouteWithChildren,
   ApiTokensRoute: ApiTokensRouteWithChildren,
+  STokenRoute: STokenRoute,
+  RRepoSplatRoute: RRepoSplatRoute,
+  RawRepoSplatRoute: RawRepoSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

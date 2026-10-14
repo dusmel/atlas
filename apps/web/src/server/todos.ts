@@ -14,6 +14,7 @@ import {
 } from "@atlas/todos"
 import type { Who } from "./auth"
 import { now } from "./db"
+import { tzModifier, yearAgo } from "./days"
 import { HttpError } from "./http"
 
 export type Item = {
@@ -38,7 +39,9 @@ export type Item = {
   created_by: string | null
 }
 
-const SELECT = `SELECT items.*, repos.name AS repo_name, groups.name AS group_name, groups.doc_path AS group_doc
+// group_doc is the group's first doc, plan first, for the one line a list has room for.
+const SELECT = `SELECT items.*, repos.name AS repo_name, groups.name AS group_name,
+    (SELECT path FROM group_docs WHERE group_id = items.group_id ORDER BY label != 'plan', label LIMIT 1) AS group_doc
   FROM items JOIN repos ON repos.id = items.repo_id LEFT JOIN groups ON groups.id = items.group_id`
 // Inbox first, then P0 to P3, then the board's lane order.
 const ORDER = `ORDER BY items.priority IS NOT NULL, items.priority,
@@ -91,7 +94,57 @@ export function listRepos(db: Database) {
     .all()
 }
 
-type Group = { id: number; repo_id: string; name: string; doc_path: string | null; note: string; created_at: string }
+type Group = { id: number; repo_id: string; name: string; note: string; created_at: string }
+export type GroupDoc = { label: string; path: string }
+
+/** Each group's docs, plan first, then by label. */
+export function groupDocs(db: Database, ids: number[]): Map<number, GroupDoc[]> {
+  const out = new Map<number, GroupDoc[]>(ids.map((id) => [id, []]))
+  if (!ids.length) return out
+  const rows = db
+    .query<GroupDoc & { group_id: number }, number[]>(`SELECT * FROM group_docs WHERE group_id IN (${ids.map(() => "?").join(", ")}) ORDER BY label != 'plan', label`)
+    .all(...ids)
+  for (const r of rows) out.get(r.group_id)!.push({ label: r.label, path: r.path })
+  return out
+}
+
+const withDocs = <G extends { id: number }>(db: Database, groups: G[]) => {
+  const docs = groupDocs(db, groups.map((g) => g.id))
+  return groups.map((g) => ({ ...g, docs: docs.get(g.id)! }))
+}
+
+const LABEL = /^[a-z0-9][a-z0-9_-]{0,39}$/
+
+/**
+ * The docs a create or update sets, or undefined to leave them. `docs` is the list; `doc_path`,
+ * the field before Phase 5, still sets the plan so older CLIs keep working.
+ */
+function docsInput(input: Record<string, unknown>, current: GroupDoc[]): GroupDoc[] | undefined {
+  if (input.docs !== undefined) {
+    if (!Array.isArray(input.docs)) throw bad("bad_docs", "docs must be a list of {label, path}")
+    const seen = new Set<string>()
+    return input.docs.map((d: Record<string, unknown>) => {
+      const label = typeof d?.label === "string" ? d.label.trim().toLowerCase() : ""
+      const path = typeof d?.path === "string" ? d.path.trim() : ""
+      if (!LABEL.test(label)) throw bad("bad_label", `Doc label ${JSON.stringify(d?.label)} must be 1 to 40 lowercase letters, digits, - or _`)
+      if (!path) throw bad("bad_path", `Doc ${label} needs a path`)
+      if (seen.has(label)) throw bad("bad_docs", `Doc label ${label} appears twice`)
+      seen.add(label)
+      return { label, path }
+    })
+  }
+  if (input.doc_path === undefined) return undefined
+  const path = optText(input.doc_path, "doc_path")?.trim()
+  const rest = current.filter((d) => d.label !== "plan")
+  return path ? [{ label: "plan", path }, ...rest] : rest
+}
+
+// A doc whose label and path stay keeps its id, so it still follows the doc if the file moves later.
+function setDocs(db: Database, groupId: number, docs: GroupDoc[]) {
+  const ids = new Map(db.query<{ label: string; path: string; doc_id: string | null }, [number]>("SELECT label, path, doc_id FROM group_docs WHERE group_id = ?").all(groupId).map((d) => [`${d.label} ${d.path}`, d.doc_id]))
+  db.run("DELETE FROM group_docs WHERE group_id = ?", [groupId])
+  for (const d of docs) db.run("INSERT INTO group_docs (group_id, label, path, doc_id) VALUES (?, ?, ?, ?)", [groupId, d.label, d.path, ids.get(`${d.label} ${d.path}`) ?? null])
+}
 
 // A group is named within its repo; numbers are ids.
 function resolveGroup(db: Database, repoId: string, value: unknown): number | null {
@@ -131,14 +184,15 @@ function byFilter(by: string[], col = "items.created_by"): [string, string[]] {
 export function listGroups(db: Database, repo?: string, by: string[] = []) {
   const where = repo ? "WHERE groups.repo_id = ? OR repos.name = ?" : ""
   const [bySql, byArgs] = by.length ? byFilter(by) : ["1", []]
-  return db
-    .query(
+  const rows = db
+    .query<Group & { repo_name: string; open: number }, string[]>(
       `SELECT groups.*, repos.name AS repo_name,
          count(items.id) FILTER (WHERE items.status != 'done' AND items.archived_at IS NULL AND ${bySql}) AS open
        FROM groups JOIN repos ON repos.id = groups.repo_id LEFT JOIN items ON items.group_id = groups.id
        ${where} GROUP BY groups.id ${by.length ? "HAVING open > 0" : ""} ORDER BY repos.name, groups.id`,
     )
     .all(...byArgs, ...(repo ? [repo, repo] : []))
+  return withDocs(db, rows)
 }
 
 /** Every author with how many items they made, for completion and filters. */
@@ -160,18 +214,21 @@ const groupName = (v: unknown): string => {
   return name
 }
 
-export function createGroup(db: Database, input: Record<string, unknown>): Group {
+export function createGroup(db: Database, input: Record<string, unknown>) {
   return db.transaction(() => {
     const repoId = resolveRepo(db, input.repo)
     const name = groupName(input.name)
     if (db.query("SELECT 1 FROM groups WHERE repo_id = ? AND name = ?").get(repoId, name)) throw new HttpError(409, "name_taken", `Group ${name} already exists`)
-    return db
-      .query<Group, [string, string, string | null, string, string]>("INSERT INTO groups (repo_id, name, doc_path, note, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *")
-      .get(repoId, name, optText(input.doc_path, "doc_path"), optText(input.note, "note") ?? "", now())!
+    const docs = docsInput(input, []) ?? []
+    const group = db
+      .query<Group, [string, string, string, string]>("INSERT INTO groups (repo_id, name, note, created_at) VALUES (?, ?, ?, ?) RETURNING *")
+      .get(repoId, name, optText(input.note, "note") ?? "", now())!
+    setDocs(db, group.id, docs)
+    return withDocs(db, [group])[0]!
   })()
 }
 
-export function updateGroup(db: Database, id: number, input: Record<string, unknown>): Group {
+export function updateGroup(db: Database, id: number, input: Record<string, unknown>) {
   return db.transaction(() => {
     const group = db.query<Group, [number]>("SELECT * FROM groups WHERE id = ?").get(id)
     if (!group) throw notFound(`Group ${id}`)
@@ -179,9 +236,11 @@ export function updateGroup(db: Database, id: number, input: Record<string, unkn
     if (name !== group.name && db.query("SELECT 1 FROM groups WHERE repo_id = ? AND name = ?").get(group.repo_id, name)) {
       throw new HttpError(409, "name_taken", `Group ${name} already exists`)
     }
-    const doc = input.doc_path === undefined ? group.doc_path : optText(input.doc_path, "doc_path")
+    const docs = docsInput(input, groupDocs(db, [id]).get(id)!)
     const note = input.note === undefined ? group.note : (optText(input.note, "note") ?? "")
-    return db.query<Group, [string, string | null, string, number]>("UPDATE groups SET name = ?, doc_path = ?, note = ? WHERE id = ? RETURNING *").get(name, doc, note, id)!
+    const row = db.query<Group, [string, string, number]>("UPDATE groups SET name = ?, note = ? WHERE id = ? RETURNING *").get(name, note, id)!
+    if (docs) setDocs(db, id, docs)
+    return withDocs(db, [row])[0]!
   })()
 }
 
@@ -268,7 +327,7 @@ export function getTodo(db: Database, id: number) {
   return {
     item,
     children: db.query<Item, [number]>(`${SELECT} WHERE items.parent_id = ? ORDER BY items.id`).all(id),
-    group: item.group_id === null ? null : db.query("SELECT * FROM groups WHERE id = ?").get(item.group_id),
+    group: item.group_id === null ? null : withDocs(db, db.query<Group, [number]>("SELECT * FROM groups WHERE id = ?").all(item.group_id))[0]!,
     events: db
       .query<Event & { data: string }, [number]>("SELECT * FROM events WHERE item_id = ? ORDER BY id DESC LIMIT 20")
       .all(id)
@@ -306,6 +365,30 @@ export function listEvents(db: Database, query: EventQuery) {
     )
     .all(...args, limit)
     .map((e) => ({ ...e, data: JSON.parse(e.data) }))
+}
+
+/** Changes per day over the last year, in the viewer's timezone, with the repo and author filters of `listEvents`. */
+export function eventDays(db: Database, query: { repo: string[]; by: string[]; tz?: string | null }): { days: Record<string, number> } {
+  const where = ["events.at >= ?"]
+  const args: string[] = [yearAgo()]
+  if (query.repo.length) {
+    const marks = query.repo.map(() => "?").join(", ")
+    where.push(`(items.repo_id IN (${marks}) OR repos.name IN (${marks}))`)
+    args.push(...query.repo, ...query.repo)
+  }
+  if (query.by.length) {
+    const [sql, by] = byFilter(query.by, "events.author")
+    where.push(sql)
+    args.push(...by)
+  }
+  const rows = db
+    .query<{ day: string; n: number }, string[]>(
+      `SELECT date(events.at, ?) AS day, count(*) AS n
+       FROM events JOIN items ON items.id = events.item_id JOIN repos ON repos.id = items.repo_id
+       WHERE ${where.join(" AND ")} GROUP BY day`,
+    )
+    .all(tzModifier(query.tz), ...args)
+  return { days: Object.fromEntries(rows.map((r) => [r.day, r.n])) }
 }
 
 function parentFor(db: Database, item: { id?: number; repo_id: string }, value: unknown): number | null {
@@ -440,13 +523,18 @@ export function applyImport(db: Database, input: Record<string, unknown>, dryRun
 
     const groupIds = parsed.groups.map((g) => {
       const existing = db.query<Group, [string, string]>("SELECT * FROM groups WHERE repo_id = ? AND name = ?").get(repo.id, g.name)
+      // A doc the group already has under that label keeps its path.
+      const addDocs = (id: number) => g.docs.forEach((d) => db.run("INSERT OR IGNORE INTO group_docs (group_id, label, path) VALUES (?, ?, ?)", [id, d.label, d.path]))
       if (!existing) {
-        return db
-          .query<{ id: number }, [string, string, string | null, string, string]>("INSERT INTO groups (repo_id, name, doc_path, note, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id")
-          .get(repo.id, g.name, g.doc_path, g.note, at)!.id
+        const { id } = db
+          .query<{ id: number }, [string, string, string, string]>("INSERT INTO groups (repo_id, name, note, created_at) VALUES (?, ?, ?, ?) RETURNING id")
+          .get(repo.id, g.name, g.note, at)!
+        addDocs(id)
+        return id
       }
       const note = [existing.note, g.note].filter(Boolean).join("\n\n")
-      db.run("UPDATE groups SET note = ?, doc_path = coalesce(doc_path, ?) WHERE id = ?", [note, g.doc_path, existing.id])
+      db.run("UPDATE groups SET note = ? WHERE id = ?", [note, existing.id])
+      addDocs(existing.id)
       return existing.id
     })
 

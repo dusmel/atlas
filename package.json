@@ -19,6 +19,8 @@
     "check": "tsc --noEmit && tsc --noEmit -p apps/cli && tsc --noEmit -p apps/web",
     "dev:web": "bun run --cwd apps/web dev",
     "migrate": "bun apps/cli/scripts/migrate-promoted-dirs.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "docs:check": "bun scripts/docs-check.ts",
+    "docs:migrate": "bun scripts/docs-migrate.ts"
   }
 }

@@ -5,7 +5,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveRepo } from "../src/git.ts";
@@ -22,6 +22,7 @@ let token = "";
 let tmp = "";
 let store = "";
 let repoDir = "";
+let data = "";
 
 beforeAll(async () => {
   const build = Bun.spawnSync(["bun", "run", "--cwd", "apps/web", "build"], { cwd: ROOT, stdout: "ignore", stderr: "pipe" });
@@ -38,10 +39,14 @@ beforeAll(async () => {
   writeFileSync(join(store, "repos", "app", "meta.json"), JSON.stringify({ repoId: "app", id: repo.id }));
   copyFileSync(FIXTURE, join(store, "repos", "app", "TODO.md"));
 
-  const data = join(tmp, "data");
+  data = join(tmp, "data");
+  // MEGA's copy, empty until a test writes to it; the server watches it from the start.
+  mkdirSync(join(data, "docs", "app"), { recursive: true });
+  // The server reaches its data through a link, as macOS's /var is one, so path checks see a real case.
+  symlinkSync(data, join(tmp, "data-link"));
   server = Bun.spawn(["bun", "apps/web/server.ts"], {
     cwd: ROOT,
-    env: { ...process.env, PORT: "0", ATLAS_DATA_DIR: data, ATLAS_PASSWORD_HASH_B64: "" },
+    env: { ...process.env, PORT: "0", ATLAS_DATA_DIR: join(tmp, "data-link"), ATLAS_PASSWORD_HASH_B64: "" },
     stdout: "pipe",
     stderr: "inherit",
   });
@@ -69,8 +74,8 @@ afterAll(() => {
 // The tests may run inside an agent; clear its markers so the author is decided by each test.
 const NO_AGENT = { AI_AGENT: "", CLAUDECODE: "", OPENCODE: "", ATLAS_AUTHOR: "" };
 
-async function cli(args: string[], opts: { cwd?: string; stdin?: string; env?: Record<string, string> } = {}) {
-  const p = Bun.spawn(["bun", CLI, "todo", ...args], {
+async function cli(args: string[], opts: { cwd?: string; stdin?: string; env?: Record<string, string>; command?: string } = {}) {
+  const p = Bun.spawn(["bun", CLI, opts.command ?? "todo", ...args], {
     cwd: opts.cwd ?? tmp,
     env: { ...process.env, ATLAS_URL: url, ATLAS_TOKEN: token, ATLAS_ROOT: store, ATLAS_AGENT: "0", ...NO_AGENT, ...opts.env },
     stdin: opts.stdin === undefined ? "ignore" : new Blob([opts.stdin]),
@@ -118,7 +123,7 @@ describe("atlas todo", () => {
   });
 
   test("groups, move, start, done and archive", async () => {
-    await json(["group", "add", "Launch", "--repo", "app", "--doc", "plan.html"]);
+    await json(["group", "add", "Launch", "--repo", "app", "--doc", "plan.html", "--doc", "overview=notes/overview.md"]);
     const a = await json(["add", "A", "--repo", "app", "--priority", "P0", "--group", "Launch"]);
     const b = await json(["add", "B", "--repo", "app", "--priority", "P0"]);
     await json(["move", String(b.id), "--before", String(a.id)]);
@@ -130,7 +135,10 @@ describe("atlas todo", () => {
     await json(["archive", String(b.id)]);
     expect(await lane()).toEqual([]);
     const groups = await cli(["groups", "--repo", "app"]);
-    expect(groups.out).toContain("Launch  → plan.html");
+    expect(groups.out).toContain("Launch  → plan: plan.html · overview: notes/overview.md");
+    const shown = await cli(["show", String(a.id), "--plain"]);
+    expect(shown.out).toContain("  plan: plan.html\n  overview: notes/overview.md");
+    expect((await cli(["group", "add", "Twice", "--repo", "app", "--doc", "a=x.md", "--doc", "a=y.md"])).code).not.toBe(0);
   });
 
   test("--status all and --archived", async () => {
@@ -202,6 +210,53 @@ describe("authors", () => {
     expect(await ids("me")).toEqual([mine.id]);
     expect((await json(["groups", "--repo", "app", "--by", "agent"])).map((g: { name: string; open: number }) => [g.name, g.open])).toEqual([["Authors", 1]]);
     for (const i of [mine, claude, piped]) await json(["archive", String(i.id)]);
+  });
+});
+
+describe("atlas doc", () => {
+  const doc = (args: string[]) => cli(args, { command: "doc" });
+  const get = async (path: string) => fetch(`${url}${path}`, { headers: { authorization: `Bearer ${token}` } });
+
+  test("publish makes a new doc readable at once, and MEGA's copy takes over when it arrives", async () => {
+    const html = `<title>Fresh plan</title><p>Seen at once</p><script type="text/markdown" id="atlas-md"># Fresh plan\n\nSeen at once</script>`;
+    mkdirSync(join(store, "repos", "app", "notes"), { recursive: true });
+    writeFileSync(join(store, "repos", "app", "notes", "fresh.html"), html);
+    // A repo's atlas/ is a link into the store, and the path is taken from the store.
+    symlinkSync(join(store, "repos", "app"), join(repoDir, "atlas"));
+    const r = await doc(["publish", join(repoDir, "atlas/notes/fresh.html")]);
+    expect([r.code, r.out.trim(), r.err]).toEqual([0, `${url}/r/app/notes/fresh.html`, ""]);
+    expect(((await (await get("/api/docs/view?repo=app&path=notes/fresh.html")).json()) as { title: string }).title).toBe("Fresh plan");
+    expect(await (await get("/raw/app/notes/fresh.html?format=md")).text()).toBe("# Fresh plan\n\nSeen at once\n");
+
+    // MEGA keeps the Mac's mtime, so its copy matches the fast one and replaces it.
+    const fast = join(data, "docs-fast", "app", "notes", "fresh.html");
+    expect(existsSync(fast)).toBe(true);
+    mkdirSync(join(data, "docs", "app", "notes"), { recursive: true });
+    const mega = join(data, "docs", "app", "notes", "fresh.html");
+    writeFileSync(mega, html);
+    const { mtime } = statSync(join(store, "repos", "app", "notes", "fresh.html"));
+    utimesSync(mega, mtime, mtime);
+    for (let i = 0; i < 50 && existsSync(fast); i++) await Bun.sleep(100);
+    expect(existsSync(fast)).toBe(false);
+    expect((await get("/api/docs/view?repo=app&path=notes/fresh.html")).status).toBe(200);
+
+    // Publishing a version the server already has says so.
+    const again = await doc(["publish", join(store, "repos", "app", "notes", "fresh.html"), "--json"]);
+    expect(JSON.parse(again.out)).toMatchObject({ href: "/r/app/notes/fresh.html", fast: false });
+  }, 20_000);
+
+  test("md prints an md file as written or an html doc's block, and both commands refuse what they can't use", async () => {
+    const dir = join(store, "repos", "app");
+    writeFileSync(join(dir, "plain.md"), "# Plain\n\nAs written\n");
+    writeFileSync(join(dir, "old.html"), `<p>Page</p><script type="text/plain" id="md-source"># Old block</script>`);
+    writeFileSync(join(dir, "none.html"), "<p>No block</p>");
+    expect((await doc(["md", join(dir, "plain.md")])).out).toBe("# Plain\n\nAs written\n");
+    expect((await doc(["md", join(dir, "old.html")])).out).toBe("# Old block\n");
+    expect((await doc(["md", join(dir, "none.html")])).code).toBe(1);
+    writeFileSync(join(tmp, "outside.md"), "# Outside");
+    const outside = await doc(["publish", join(tmp, "outside.md")]);
+    expect([outside.code, outside.err]).toEqual([2, expect.stringContaining("is not in a repo's atlas/ folder")]);
+    expect((await doc(["publish"])).code).toBe(2);
   });
 });
 

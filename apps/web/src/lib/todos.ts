@@ -16,12 +16,20 @@ export const rowLabel = (p: Row) => p ?? "Inbox"
 export const PRIORITY_NAME: Record<string, string> = { P0: "Urgent", P1: "High", P2: "Medium", P3: "Low" }
 export const STATUS_LABEL: Record<Status, string> = { todo: "Todo", doing: "Doing", done: "Done" }
 
-export type Group = { id: number; repo_id: string; repo_name: string; name: string; doc_path: string | null; open: number }
+export type GroupDoc = { label: string; path: string }
+export type Group = { id: number; repo_id: string; repo_name: string; name: string; docs: GroupDoc[]; open: number }
 export type Repo = { id: string; name: string; open: number }
 export type ItemEvent = { id: number; at: string; actor: string; author: string | null; action: string; data: Record<string, unknown> }
 /** An event from GET /events, with the item it belongs to. */
 export type FeedEvent = ItemEvent & { item_id: number; title: string; repo_id: string; repo_name: string }
-export type ItemDetail = { item: Item; children: Item[]; group: { name: string; doc_path: string | null } | null; events: ItemEvent[] }
+/** `href` is where a group doc opens in /r/, null when the server's copy lacks it. `docs_folder` is the item repo's docs folder. */
+export type ItemDetail = {
+  item: Item
+  children: Item[]
+  group: { name: string; docs: (GroupDoc & { href: string | null })[] } | null
+  docs_folder: string | null
+  events: ItemEvent[]
+}
 
 const ITEMS = ["items"]
 
@@ -209,7 +217,7 @@ export function useActions() {
     if (fields.parent !== undefined) patch.parent_id = fields.parent
     if (fields.group !== undefined) {
       const g = groups().find((x) => x.id === fields.group)
-      Object.assign(patch, { group_id: fields.group, group_name: g?.name ?? null, group_doc: g?.doc_path ?? null })
+      Object.assign(patch, { group_id: fields.group, group_name: g?.name ?? null, group_doc: g?.docs[0]?.path ?? null })
     }
     const priority = fields.priority === undefined ? item.priority : fields.priority
     const status = fields.status ?? item.status

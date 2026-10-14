@@ -48,3 +48,13 @@ export async function drag(page: Page, from: Locator, to: Locator, at: "center" 
 // Behaviour tests pass even when text spills out of a control, so check the layout too.
 export const overflowing = (scope: Locator) =>
   scope.locator("button, [role=radio], [role=tab]").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent?.trim()))
+
+/**
+ * The doc in the frame, once it can take clicks. The sandboxed iframe runs in its own process, and
+ * until it has painted, Chrome hands a click to the app's <iframe> element instead (measured: 1 run in 15).
+ */
+export async function docFrame(page: Page, title: string) {
+  const frame = page.frameLocator(`iframe[title="${title}"]`)
+  await frame.locator("body").evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+  return frame
+}

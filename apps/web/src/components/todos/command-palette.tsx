@@ -2,6 +2,8 @@ import {
   ArchiveIcon,
   ArrowRightLeftIcon,
   ClockIcon,
+  FileTextIcon,
+  GlobeIcon,
   KeyboardIcon,
   ListFilterIcon,
   MonitorIcon,
@@ -15,7 +17,7 @@ import {
 import { useState } from "react"
 import { DocCommandGroup } from "@/components/docs/doc-command-group"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
-import { docKey } from "@/lib/docs"
+import { type Hit } from "@/lib/docs"
 import { activeCount, FACETS, ROWS, rowKey, rowLabel, STATUS_LABEL, STATUSES, type Facet, type Filters, type Item, type Row, type Status } from "@/lib/todos"
 import { PriorityIcon, StatusIcon } from "./icons"
 import { FacetCommand, type Option } from "./filters"
@@ -33,7 +35,8 @@ export type PaletteActions = {
   view: (v: View) => void
   shortcuts: () => void
   settings: () => void
-  openDoc: (doc: string, q: string) => void
+  go: (to: "/docs" | "/shared") => void
+  openDoc: (doc: Hit) => void
   theme: (t: "light" | "dark" | "system") => void
 }
 
@@ -131,7 +134,7 @@ function Palette({ page: startPage, view, items, selected, filters, doneAll, opt
             ))}
           </CommandGroup>
         )}
-        <DocCommandGroup query={search} onPick={(h) => close(() => run.openDoc(docKey(h), search.trim()))()} />
+        <DocCommandGroup query={search} onPick={(h) => close(() => run.openDoc(h))()} />
         {selected && (
           <CommandGroup heading={`#${selected.id} ${plainTitle(selected.title).slice(0, 60)}`}>
             <CommandItem onSelect={close(() => run.openItem(selected.id))}>
@@ -196,6 +199,14 @@ function Palette({ page: startPage, view, items, selected, filters, doneAll, opt
           </CommandItem>
         </CommandGroup>
         <CommandGroup heading="General">
+          <CommandItem onSelect={close(() => run.go("/docs"))}>
+            <FileTextIcon />
+            Go to Docs
+          </CommandItem>
+          <CommandItem onSelect={close(() => run.go("/shared"))}>
+            <GlobeIcon />
+            Go to Shared
+          </CommandItem>
           <CommandItem value="theme light" onSelect={close(() => run.theme("light"))}>
             <SunIcon />
             Light theme

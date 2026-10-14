@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite"
 import { folderOf, type DocMeta } from "@atlas/indexer"
+import { tzModifier, yearAgo } from "./days"
 
 export type DocChange = "added" | "changed" | "removed"
 export type DocEvent = { id: number; at: string; change: DocChange; repo: string; path: string; kind: string; kinds: string[]; title: string }
@@ -36,9 +37,10 @@ export function recordDocChanges(db: Database, files: DocMeta[], now = new Date(
 
 const TWIN_GAP_MS = 10 * 60_000
 
-/** Newest first. An md and html pair changed within 10 minutes of each other shows as one event. */
-export function listDocEvents(db: Database, opts: { repo?: string[]; folder?: string[]; after?: string; limit?: number } = {}): DocEvent[] {
-  const limit = opts.limit ?? 100
+/** `paths` keeps only events for these `repo/path` keys. */
+type EventFilters = { repo?: string[]; folder?: string[]; paths?: string[] }
+
+function eventWhere(opts: EventFilters): { parts: string[]; params: string[] } {
   const parts: string[] = []
   const params: string[] = []
   for (const key of ["repo", "folder"] as const) {
@@ -47,6 +49,17 @@ export function listDocEvents(db: Database, opts: { repo?: string[]; folder?: st
     parts.push(`AND ${key} IN (${values.map(() => "?").join(", ")})`)
     params.push(...values)
   }
+  if (opts.paths) {
+    parts.push("AND repo || '/' || path IN (SELECT value FROM json_each(?))")
+    params.push(JSON.stringify(opts.paths))
+  }
+  return { parts, params }
+}
+
+/** Newest first. An md and html pair changed within 10 minutes of each other shows as one event. */
+export function listDocEvents(db: Database, opts: EventFilters & { after?: string; limit?: number } = {}): DocEvent[] {
+  const limit = opts.limit ?? 100
+  const { parts, params } = eventWhere(opts)
   if (opts.after) {
     parts.push("AND at >= ?")
     params.push(opts.after)
@@ -65,4 +78,17 @@ export function listDocEvents(db: Database, opts: { repo?: string[]; folder?: st
     out.push({ ...r, kinds: [r.kind] })
   }
   return out.slice(0, limit)
+}
+
+/** Docs changed per day over the last year, in the viewer's timezone. An md and html pair counts once a day. */
+export function docEventDays(db: Database, opts: EventFilters & { tz?: string | null }): { days: Record<string, number> } {
+  const { parts, params } = eventWhere(opts)
+  const rows = db
+    .query<{ day: string; n: number }, string[]>(
+      `SELECT date(at, ?) AS day,
+              count(DISTINCT repo || '/' || CASE WHEN path LIKE '%.html' THEN substr(path, 1, length(path) - 5) WHEN path LIKE '%.md' THEN substr(path, 1, length(path) - 3) ELSE path END) AS n
+         FROM doc_events WHERE at >= ? ${parts.join(" ")} GROUP BY day`,
+    )
+    .all(tzModifier(opts.tz), yearAgo(), ...params)
+  return { days: Object.fromEntries(rows.map((r) => [r.day, r.n])) }
 }

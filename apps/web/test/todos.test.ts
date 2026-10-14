@@ -12,6 +12,7 @@ import {
   getImport,
   getTodo,
   listAuthors,
+  eventDays,
   listEvents,
   listGroups,
   listRepos,
@@ -177,11 +178,33 @@ describe("archive", () => {
 
 describe("groups and repos", () => {
   test("names are unique per repo, and a rename checks too", () => {
-    const g = createGroup(db, { repo, name: "One", doc_path: "plan.html" })
+    const g = createGroup(db, { repo, name: "One", docs: [{ label: "plan", path: "plan.html" }] })
     createGroup(db, { repo, name: "Two" })
     expect(fails(() => createGroup(db, { repo, name: "One" }))).toBe("409 name_taken")
     expect(fails(() => updateGroup(db, g.id, { name: "Two" }))).toBe("409 name_taken")
-    expect(updateGroup(db, g.id, { note: "hello" })).toMatchObject({ name: "One", doc_path: "plan.html", note: "hello" })
+    expect(updateGroup(db, g.id, { note: "hello" })).toMatchObject({ name: "One", docs: [{ label: "plan", path: "plan.html" }], note: "hello" })
+  })
+
+  test("a group holds several labelled docs, plan first, on the list, the item and its first-doc column", () => {
+    const g = createGroup(db, { repo, name: "Web", docs: [{ label: "Overview", path: "o.html" }, { label: "plan", path: "p.html" }] })
+    expect(g.docs).toEqual([
+      { label: "plan", path: "p.html" },
+      { label: "overview", path: "o.html" },
+    ])
+    expect(listGroups(db).find((x) => x.id === g.id)!.docs).toEqual(g.docs)
+    const a = add("A", { group: "Web" })
+    expect(getTodo(db, a.id).group!.docs).toEqual(g.docs)
+    expect(a.group_doc).toBe("p.html")
+    // docs replaces the set; the old doc_path field still sets only the plan.
+    expect(updateGroup(db, g.id, { docs: [{ label: "design", path: "d.md" }] }).docs).toEqual([{ label: "design", path: "d.md" }])
+    expect(updateGroup(db, g.id, { doc_path: "new.html" }).docs).toEqual([
+      { label: "plan", path: "new.html" },
+      { label: "design", path: "d.md" },
+    ])
+    expect(updateGroup(db, g.id, { doc_path: null }).docs).toEqual([{ label: "design", path: "d.md" }])
+    expect(fails(() => updateGroup(db, g.id, { docs: [{ label: "a b", path: "x" }] }))).toBe("400 bad_label")
+    expect(fails(() => updateGroup(db, g.id, { docs: [{ label: "a", path: " " }] }))).toBe("400 bad_path")
+    expect(fails(() => updateGroup(db, g.id, { docs: [{ label: "a", path: "x" }, { label: "A", path: "y" }] }))).toBe("400 bad_docs")
   })
 
   test("repos list open counts", () => {
@@ -209,6 +232,7 @@ describe("imports", () => {
     const { parsed } = checkFile(original)
     expect(checkStored(parsed, stored as never)).toEqual([])
     expect(stored.groups.map((g) => (g as { name: string }).name)).toEqual(["Launch", "Cleanup", "Low priority stuff", "Recently Done"])
+    expect(listGroups(db).find((g) => g.name === "Launch")!.docs).toEqual([{ label: "plan", path: "plans/launch.html" }])
   })
 
   test("ranks follow file order within each lane", () => {
@@ -298,6 +322,22 @@ describe("events", () => {
     const [newest, ...rest] = events()
     expect(events({ before: String(newest!.id) })).toEqual(rest)
     expect(events({ limit: "1" })).toHaveLength(1)
+  })
+
+  test("days count changes per day in the viewer's timezone, with the repo and author filters, over the last year", () => {
+    const a = createTodo(db, as("me"), { repo, title: "Mine" })
+    createTodo(db, as("claude-code"), { repo: { id: "github.com-me-web", name: "web" }, title: "Web" })
+    updateTodo(db, as("me"), a.id, { priority: "P1" })
+    const midnight = Math.floor(Date.now() / 864e5) * 864e5 - 2 * 864e5
+    const day = (ms: number) => new Date(ms).toISOString().slice(0, 10)
+    const ats = [midnight + 23.5 * 36e5, midnight + 36e5, midnight - 400 * 864e5].map((ms) => new Date(ms).toISOString())
+    for (const [n, at] of ats.entries()) db.run("UPDATE events SET at = ? WHERE id = (SELECT id FROM events ORDER BY id LIMIT 1 OFFSET ?)", [at, n])
+    const days = (q: { repo?: string[]; by?: string[]; tz?: string }) => eventDays(db, { repo: [], by: [], ...q }).days
+    expect(days({})).toEqual({ [day(midnight)]: 2 })
+    expect(days({ tz: "120" })).toEqual({ [day(midnight)]: 1, [day(midnight + 864e5)]: 1 })
+    expect(days({ repo: ["web"] })).toEqual({ [day(midnight)]: 1 })
+    expect(days({ by: ["agent"] })).toEqual({ [day(midnight)]: 1 })
+    expect(fails(() => days({ tz: "900" }))).toBe("400 bad_tz")
   })
 
   test("limit is 1 to 500", () => {

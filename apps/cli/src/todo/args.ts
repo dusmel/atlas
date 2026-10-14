@@ -4,11 +4,13 @@
 
 import { CliError } from "./client.ts";
 
-export type FlagSpec = Record<string, "string" | "boolean">;
-export type Parsed = { flags: Record<string, string | boolean>; rest: string[] };
+/** A `strings` flag repeats, and its values land in `lists`. */
+export type FlagSpec = Record<string, "string" | "boolean" | "strings">;
+export type Parsed = { flags: Record<string, string | boolean>; lists: Record<string, string[]>; rest: string[] };
 
 export function parseArgs(args: string[], spec: FlagSpec): Parsed {
   const flags: Parsed["flags"] = {};
+  const lists: Parsed["lists"] = {};
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
@@ -23,10 +25,11 @@ export function parseArgs(args: string[], spec: FlagSpec): Parsed {
     else {
       const value = args[++i];
       if (value === undefined) throw new CliError(2, `${a} needs a value`);
-      flags[name] = value;
+      if (kind === "strings") (lists[name] ??= []).push(value);
+      else flags[name] = value;
     }
   }
-  return { flags, rest };
+  return { flags, lists, rest };
 }
 
 /** The positional item id, as in `atlas todo show 42` or `#42`. */

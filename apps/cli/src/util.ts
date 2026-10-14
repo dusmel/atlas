@@ -21,6 +21,8 @@ Usage:
   atlas todo <command>              Todos on the Atlas server (atlas todo --help)
   atlas push [--dry-run|--resume-mega] [--json]
                                     Send this Mac's docs to the server (atlas push --help)
+  atlas doc publish <file>          Send one doc to the server now and print its link
+  atlas doc md <file>               Print a doc's markdown (atlas doc --help)
   atlas completion zsh              Print the zsh completion script
 
 Examples:
