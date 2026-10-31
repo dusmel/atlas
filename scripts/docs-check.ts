@@ -4,7 +4,7 @@
  * `superseded-by` no doc has. How many docs carry each part is reported, not judged.
  */
 import { join } from "node:path"
-import { htmlText, mdText, scanDocs, type Contract, type DocFile } from "../packages/indexer/src/index.ts"
+import { createdOf, htmlText, mdText, scanDocs, type Contract, type Created, type DocFile } from "../packages/indexer/src/index.ts"
 
 /** The raw values a doc gives the contract's checked fields, before the reader drops what it does not allow. */
 const HTML_FIELDS = { "atlas-contract": "version", "atlas-id": "id", "atlas-status": "status", "atlas-superseded-by": "supersededBy", "atlas-todo": "todo" } as const
@@ -32,16 +32,25 @@ function rawFields(file: DocFile, text: string): [string, Checked, string][] {
   return found
 }
 
+/** The `created` a doc writes, before the reader drops a value the contract does not allow. */
+function rawCreated(file: DocFile, text: string): string | undefined {
+  if (file.kind === "html") return /<meta name="created" content="([^"]*)"/.exec(text)?.[1]?.trim()
+  const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? ""
+  return /^created:[ \t]*(.*)$/m.exec(front)?.[1]?.trim().replace(/^(["'])(.*)\1$/, "$2")
+}
+
 export type Report = { errors: string[]; counts: [string, number][] }
 
 export async function checkDocs(root: string): Promise<Report> {
   const files = (await scanDocs(root)).filter((f) => f.path !== "index.html" || f.kind !== "html")
   const errors: string[] = []
-  const docs: { file: DocFile; contract: Contract; type: string; text: string }[] = []
+  const docs: { file: DocFile; contract: Contract; type: string; text: string; created: Created | null }[] = []
   for (const file of files) {
     const text = await Bun.file(join(root, file.repo, file.path)).text()
     const read = file.kind === "md" ? mdText(text, file.path) : htmlText(text, file.path)
-    docs.push({ file, contract: read.contract, type: read.type, text })
+    docs.push({ file, contract: read.contract, type: read.type, text, created: read.created })
+    const created = rawCreated(file, text)
+    if (created !== undefined && !createdOf(created)) errors.push(`${file.repo}/${file.path}: created "${created}" is not like 2026-10-26T09:41+02:00`)
     for (const [key, field, value] of rawFields(file, text)) {
       if (read.contract[field] === null) errors.push(`${file.repo}/${file.path}: ${key} "${value}" is not allowed`)
     }
@@ -75,6 +84,8 @@ export async function checkDocs(root: string): Promise<Report> {
     count("with an id", docs.filter((d) => d.contract.id)),
     count("with a doc type", docs.filter((d) => d.type)),
     count("with a status", docs.filter((d) => d.contract.status)),
+    count("with a created time, or a date", docs.filter((d) => d.created)),
+    count("of those, the day only", docs.filter((d) => d.created?.day)),
     count("html", html),
     count("html with a markdown block", html.filter((d) => d.contract.md)),
     count("html with the block as atlas-md", html.filter((d) => /<script[^>]*\bid="atlas-md"/.test(d.text))),
