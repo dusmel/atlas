@@ -15,7 +15,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, ApiError } from "@/lib/api"
-import { exact, stamp } from "@/lib/format"
+import { createdExact, createdStamp, exact, stamp } from "@/lib/format"
 import { typeColor, useRepoColor } from "@/lib/doc-colors"
 import { docHref, rawHref, type DocPage } from "@/lib/docs"
 import { getDb } from "@/server/app-db"
@@ -119,6 +119,14 @@ function DocView() {
           <Badge className="rounded-sm font-mono text-[10.5px] text-white uppercase" style={{ background: typeColor(doc.data.type) }}>
             {doc.data.type}
           </Badge>
+        )}
+        {doc.data?.created && (
+          <span className="text-xs whitespace-nowrap">
+            Created{" "}
+            <time dateTime={doc.data.created} title={createdExact(doc.data.created)} className="tabular-nums">
+              {createdStamp(doc.data.created)}
+            </time>
+          </span>
         )}
         {doc.data && (
           <span className="text-xs whitespace-nowrap">

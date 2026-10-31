@@ -84,8 +84,8 @@ export const DOCS: Record<string, string> = {
   "web/plans/lighthouse.md": `---\ntitle: Lighthouse plan\ntags: plans\ndoc-type: plan\natlas-id: d_lighthouse\n---\n\n${LIGHTHOUSE_MD}`,
   "web/plans/lighthouse.html": HTML_DOC,
   "web/plans/lamp.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="16" fill="#f59e0b"/></svg>',
-  "web/notes/harbour.md": `---\natlas-id: d_harbour001\ntodo: ${HARBOUR_TODO.id}\n---\n\n# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.\n\nRead [the keeper's plan](../plans/lighthouse.html), or [the open question](todo:${HARBOUR_TODO.id}).\n\n| tide | wait |\n|---|---|\n| low | two hours |`,
-  "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><meta name="doc-type" content="reference"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
+  "web/notes/harbour.md": `---\natlas-id: d_harbour001\ncreated: 2026-10-20T12:00+02:00\ntodo: ${HARBOUR_TODO.id}\n---\n\n# Harbour notes\n\nShips wait outside the harbour until the tide turns. The lamp is mentioned here too.\n\nRead [the keeper's plan](../plans/lighthouse.html), or [the open question](todo:${HARBOUR_TODO.id}).\n\n| tide | wait |\n|---|---|\n| low | two hours |`,
+  "api/runbook.html": `<html><head><title>Ferry runbook</title><meta name="tags" content="ops"><meta name="doc-type" content="reference"><meta name="created" content="2026-09-11"><script>var ferry = "hidden"</script></head><body><p>Start the ferry engine, then check the &lt;fuel&gt; gauge.</p></body></html>`,
   "api/backups/old.md": "# Skipped\n\nThe lamp in a backup is never indexed.",
   // Ties the folder to its todo repo, so docs linked from a group show their open todos.
   "web/meta.json": JSON.stringify({ id: web.id }),

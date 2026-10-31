@@ -9,23 +9,24 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
 import { ageTone, useRepoColor } from "@/lib/doc-colors"
-import { docHref, docKey, tagList, type FolderListing } from "@/lib/docs"
-import { ago, exact, stamp } from "@/lib/format"
-import { TagPills, TypeBadge } from "./hits"
+import { docHref, docKey, tagList, type DocOrder, type FolderListing } from "@/lib/docs"
+import { ago, exact } from "@/lib/format"
+import { DocTime, OrderToggle, TagPills, TypeBadge } from "./hits"
 
 const link = "underline-offset-3 hover:text-link hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none rounded"
 const up = (path: string) => path.split("/").slice(0, -1).join("/")
 
 /**
  * The docs folders from the root, one level at a time: subfolders first, then docs. `path` is "" for
- * the root, which lists the repos. `params` carries the repo, type and tag filters.
+ * the root, which lists the repos. `params` carries the repo, type and tag filters. Docs sort by name, or
+ * newest written first for `created`.
  */
-export function DocFolders({ path, params, filtered }: { path: string; params: URLSearchParams; filtered: boolean }) {
+export function DocFolders({ path, params, filtered, order, onOrder }: { path: string; params: URLSearchParams; filtered: boolean; order: DocOrder; onOrder: (order: DocOrder) => void }) {
   const repoColor = useRepoColor()
   const navigate = useNavigate({ from: "/docs" })
   const q = useQuery({
-    queryKey: ["doc-folders", path, params.toString()],
-    queryFn: () => api<FolderListing>(`/docs/folders?${new URLSearchParams({ path, ...Object.fromEntries(params) })}`),
+    queryKey: ["doc-folders", path, params.toString(), order],
+    queryFn: () => api<FolderListing>(`/docs/folders?${new URLSearchParams({ path, ...Object.fromEntries(params), ...(order === "created" ? { order } : {}) })}`),
     placeholderData: (prev) => prev,
   })
   const [selected, setSelected] = useState<string>()
@@ -73,27 +74,31 @@ export function DocFolders({ path, params, filtered }: { path: string; params: U
 
   return (
     <div className="flex flex-col gap-3">
-      <nav aria-label="Folder path" className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm" translate="no">
-        <Link from="/docs" to="/docs" search={(s) => ({ ...s, path: undefined })} className={cn(link, crumbs.length ? "text-muted-foreground" : "font-medium")} aria-current={crumbs.length ? undefined : "page"}>
-          All repos
-        </Link>
-        {crumbs.map((c, i) => (
-          <Fragment key={i}>
-            <span aria-hidden className="text-muted-foreground/60">
-              /
-            </span>
-            <Link
-              from="/docs"
-              to="/docs"
-              search={(s) => ({ ...s, path: crumbs.slice(0, i + 1).join("/") })}
-              className={cn(link, i === crumbs.length - 1 ? "font-medium" : "text-muted-foreground")}
-              aria-current={i === crumbs.length - 1 ? "page" : undefined}
-            >
-              {c}
-            </Link>
-          </Fragment>
-        ))}
-      </nav>
+      <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <nav aria-label="Folder path" className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm" translate="no">
+          <Link from="/docs" to="/docs" search={(s) => ({ ...s, path: undefined })} className={cn(link, crumbs.length ? "text-muted-foreground" : "font-medium")} aria-current={crumbs.length ? undefined : "page"}>
+            All repos
+          </Link>
+          {crumbs.map((c, i) => (
+            <Fragment key={i}>
+              <span aria-hidden className="text-muted-foreground/60">
+                /
+              </span>
+              <Link
+                from="/docs"
+                to="/docs"
+                search={(s) => ({ ...s, path: crumbs.slice(0, i + 1).join("/") })}
+                className={cn(link, i === crumbs.length - 1 ? "font-medium" : "text-muted-foreground")}
+                aria-current={i === crumbs.length - 1 ? "page" : undefined}
+              >
+                {c}
+              </Link>
+            </Fragment>
+          ))}
+        </nav>
+        {/* Only docs sort; folders stay by name, and the root holds none. */}
+        {!!q.data?.docs.length && <OrderToggle value={order} onChange={onOrder} />}
+      </div>
 
       {q.isPending ? (
         <div className="flex flex-col gap-2">
@@ -143,9 +148,7 @@ export function DocFolders({ path, params, filtered }: { path: string; params: U
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
                     <TypeBadge type={d.type} />
                     <TagPills tags={tagList(d.tags)} />
-                    <time dateTime={d.mtime} title={exact(d.mtime)} className={cn("min-w-16 text-right text-xs whitespace-nowrap tabular-nums", ageTone(d.mtime))}>
-                      {stamp(d.mtime)}
-                    </time>
+                    <DocTime doc={d} order={order} className="min-w-16 text-right text-xs whitespace-nowrap" />
                   </div>
                 </div>
               </li>

@@ -199,6 +199,27 @@ test("type and tag filters narrow Search, Overview and Folders, and stay in the 
   await expect(page.locator("[data-row]")).toHaveText([/^web/])
 })
 
+test("the recent list and a folder sort by when docs were written, and the doc shows both times", async ({ page }) => {
+  await page.goto("/docs")
+  await page.getByRole("radio", { name: "Created" }).click()
+  await expect(page).toHaveURL(/sort=created/)
+  const created = page.getByRole("list", { name: "Recently created docs" }).locator("[data-result]")
+  // The harbour notes give a time, the runbook only a day, and the lighthouse plan nothing, so it comes last.
+  await expect(created.getByRole("heading")).toHaveText(["Harbour notes", "Ferry runbook", "Lighthouse plan"])
+  await expect(created.nth(0).locator("time")).toHaveText(/^created 20 Oct( 2026)?, \d{2}:\d{2}$/)
+  await expect(created.nth(0).locator("time")).toHaveAttribute("title", /^Created .+\nUpdated .+$/)
+  await expect(created.nth(1).locator("time")).toHaveText(/^created 11 Sept?( 2026)?$/)
+  await expect(created.nth(2).locator("time")).not.toHaveText(/created/)
+
+  await page.goto("/docs?view=folders&path=web/notes&sort=created")
+  await expect(page.getByRole("radio", { name: "Created" })).toHaveAttribute("aria-checked", "true")
+  await expect(page.locator("[data-row]").first().locator("time")).toHaveText(/^created 20 Oct/)
+
+  await page.goto("/r/web/notes/harbour.md")
+  await expect(page.getByText(/^Created 20 Oct( 2026)?, \d{2}:\d{2}$/)).toBeVisible()
+  await expect(page.getByText(/^Updated /)).toBeVisible()
+})
+
 test("Folders browses from the repos to a doc, and the path and Backspace lead back", async ({ page }) => {
   await page.goto("/docs")
   await views(page).getByRole("link", { name: "Folders" }).click()

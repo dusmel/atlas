@@ -8,14 +8,44 @@ import { GroupDot } from "@/components/todos/filters"
 import { groupColor } from "@/components/todos/group-color"
 import { plainTitle } from "@/components/todos/rich-title"
 import { Badge } from "@/components/ui/badge"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ageTone, tagColor, typeColor, useRepoColor } from "@/lib/doc-colors"
-import { docHref, docKey, docPath, tagList, type DocPage, type Hit } from "@/lib/docs"
-import { exact, stamp } from "@/lib/format"
+import { docHref, docKey, docPath, tagList, type DocOrder, type DocPage, type Hit } from "@/lib/docs"
+import { createdExact, createdStamp, exact, stamp } from "@/lib/format"
 
 export const copyPath = (d: { path: string }) => copy(docPath(d), `Copied ${docPath(d)}`)
 
+/**
+ * A doc's time on a list row: when it was written for `created`, else when it changed. A doc with no created
+ * time shows its change time. The tooltip has both.
+ */
+export function DocTime({ doc, order = "changed", className }: { doc: { mtime: string; created: string | null }; order?: DocOrder; className?: string }) {
+  const created = order === "created" && doc.created
+  const at = created ? doc.created! : doc.mtime
+  const title = [doc.created && `Created ${createdExact(doc.created)}`, `Updated ${exact(doc.mtime)}`].filter(Boolean).join("\n")
+  return (
+    <time dateTime={at} title={title} className={cn("tabular-nums", ageTone(at), className)}>
+      {created ? `created ${createdStamp(at)}` : stamp(at)}
+    </time>
+  )
+}
+
+/** Picks what a newest-first list orders by. */
+export function OrderToggle({ value, onChange }: { value: DocOrder; onChange: (order: DocOrder) => void }) {
+  return (
+    <ToggleGroup type="single" variant="outline" size="sm" value={value} onValueChange={(v) => v && onChange(v as DocOrder)} aria-label="Newest first by">
+      <ToggleGroupItem value="changed" className="px-2.5 text-xs">
+        Changed
+      </ToggleGroupItem>
+      <ToggleGroupItem value="created" className="px-2.5 text-xs">
+        Created
+      </ToggleGroupItem>
+    </ToggleGroup>
+  )
+}
+
 /** Search results and the recent list. `selected` is the row j and k move and focus; its bar and background are the focus mark. */
-export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: string; selected?: string; onSelect: (key: string) => void }) {
+export function Hits({ hits, label, selected, onSelect, order }: { hits: Hit[]; label: string; selected?: string; onSelect: (key: string) => void; order?: DocOrder }) {
   const repoColor = useRepoColor()
   return (
     <ol aria-label={label} className="flex flex-col">
@@ -52,9 +82,7 @@ export function Hits({ hits, label, selected, onSelect }: { hits: Hit[]; label: 
                 {h.repo}
               </span>
               <CopyPath doc={h} />
-              <time dateTime={h.mtime} title={exact(h.mtime)} className={cn("tabular-nums", ageTone(h.mtime))}>
-                {stamp(h.mtime)}
-              </time>
+              <DocTime doc={h} order={order} />
               <TypeBadge type={h.type} />
               <Details hit={h} />
             </div>
