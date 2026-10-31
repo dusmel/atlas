@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { cp, mkdtemp, rename, rm, unlink, utimes } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { DocIndex, ftsPhrase, ftsQuery, htmlText, lowWeight, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
+import { createdOf, DocIndex, ftsPhrase, ftsQuery, htmlText, lowWeight, MATCH_END, MATCH_START, mdText, watchDocs } from "../src/index.ts"
 
 const NONE = { version: null, id: null, status: null, supersededBy: null, todo: null, repo: null, branch: null, pr: null, ticket: null, md: null }
 
@@ -13,7 +13,7 @@ describe("htmlText", () => {
        <body><script>var hidden = 1</script><svg><text>chart label</text></svg><p>First</p><p>second&nbsp;line &lt;ok&gt; &#x2192; done</p></body></html>`,
       "plan.html",
     )
-    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", type: "", body: "First second line <ok> → done", contract: NONE })
+    expect(doc).toEqual({ title: "Plan & notes", tags: "atlas, search", type: "", created: null, body: "First second line <ok> → done", contract: NONE })
   })
 
   test("falls back to the file name for a title", () => {
@@ -22,6 +22,31 @@ describe("htmlText", () => {
 
   test("reads the doc type from its meta tag, lower-cased", () => {
     expect(htmlText('<head><meta name="doc-type" content="Plan"></head><p>hi</p>', "page.html").type).toBe("plan")
+  })
+})
+
+describe("created", () => {
+  test("takes a time with an offset, or a bare day, and nothing else", () => {
+    expect(createdOf("2026-10-26T09:41+02:00")).toEqual({ ms: Date.parse("2026-10-26T07:41:00Z"), day: false })
+    expect(createdOf("2026-10-26T07:41:05Z")).toEqual({ ms: Date.parse("2026-10-26T07:41:05Z"), day: false })
+    expect(createdOf("2026-10-26")).toEqual({ ms: Date.parse("2026-10-26T00:00:00Z"), day: true })
+    // No offset: the time zone would be the server's guess.
+    expect(createdOf("2026-10-26T09:41")).toBeNull()
+    expect(createdOf("26 Oct 2026")).toBeNull()
+    expect(createdOf("2026-13-40")).toBeNull()
+  })
+
+  test("falls back to date, which older docs carry", () => {
+    expect(createdOf(undefined, "2026-09-11")).toEqual({ ms: Date.parse("2026-09-11T00:00:00Z"), day: true })
+    expect(createdOf("2026-10-26T09:41+02:00", "2026-09-11")?.day).toBe(false)
+    expect(createdOf("junk", "2026-09-11")?.day).toBe(true)
+  })
+
+  test("md reads it from the frontmatter, html from its meta tag", () => {
+    expect(mdText('---\ncreated: "2026-10-26T09:41+02:00"\n---\n# R', "r.md").created?.day).toBe(false)
+    expect(mdText("---\ndate: 2026-09-11\n---\n# R", "r.md").created?.day).toBe(true)
+    expect(htmlText('<head><meta name="created" content="2026-10-26T09:41+02:00"><meta name="date" content="2026-09-11"></head>', "p.html").created?.day).toBe(false)
+    expect(htmlText('<head><meta name="date" content="2026-09-11"></head>', "p.html").created?.day).toBe(true)
   })
 })
 
@@ -63,7 +88,7 @@ Uses </b> & <i> as written
 describe("mdText", () => {
   test("reads the title and tags from frontmatter and leaves it out of the body", () => {
     const doc = mdText("---\ntitle: The runbook\ntags: atlas, deploy\n---\n\n# Heading\n\nBody text", "runbook.md")
-    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", type: "", body: "# Heading\n\nBody text", contract: NONE })
+    expect(doc).toEqual({ title: "The runbook", tags: "atlas, deploy", type: "", created: null, body: "# Heading\n\nBody text", contract: NONE })
     expect(mdText("---\ndoc-type: reference\n---\n\n# R", "r.md").type).toBe("reference")
   })
 
@@ -203,6 +228,22 @@ describe("DocIndex", () => {
     expect(index.recent().map((h) => `${h.repo}/${h.path}`)).toEqual(["alpha/new.html", "beta/mid.md", "alpha/old.md"])
     expect(index.recent({ repo: ["alpha"], limit: 1 }).map((h) => h.title)).toEqual(["New"])
     expect(index.recent()[0]!.snippet).toBe("")
+  })
+
+  test("recent by created puts the newest written first, a bare day as the day, and docs without one last", async () => {
+    await write("alpha/a.md", "---\ncreated: 2026-10-01T10:00+02:00\n---\n# A")
+    await write("alpha/b.html", '<title>B</title><meta name="created" content="2026-10-20T08:30:15Z">')
+    await write("alpha/c.md", "---\ndate: 2026-10-10\n---\n# C")
+    await write("alpha/d.md", "# D")
+    await index.sync()
+    const hits = index.recent({ order: "created" })
+    expect(hits.map((h) => [h.path, h.created])).toEqual([
+      ["b.html", "2026-10-20T08:30:15Z"],
+      ["c.md", "2026-10-10"],
+      ["a.md", "2026-10-01T08:00:00Z"],
+      ["d.md", null],
+    ])
+    expect(index.list().find((r) => r.path === "a.md")?.created).toBe("2026-10-01T08:00:00Z")
   })
 
   test("filters by folder and change time, and counts matches per repo and folder", async () => {

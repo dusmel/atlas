@@ -1,5 +1,30 @@
 /** `type` is the doc's `doc-type`, "" when it has none. */
-export type DocText = { title: string; body: string; tags: string; type: string; contract: Contract }
+export type DocText = { title: string; body: string; tags: string; type: string; created: Created | null; contract: Contract }
+
+/** When the doc was written, in ms. `day` is true when the doc gives only a day, which counts from midnight UTC. */
+export type Created = { ms: number; day: boolean }
+
+/** `created` as the API sends it: an ISO time, or the bare day when that is all the doc gives. */
+export const createdText = (c: Created | null) => (c ? new Date(c.ms).toISOString().slice(0, c.day ? 10 : 19) + (c.day ? "" : "Z") : null)
+
+/**
+ * `created` as the contract allows it: `2026-10-26T09:41+02:00` (seconds optional, an offset or Z required) or a
+ * bare `2026-10-26`. Null for anything else. Docs from before `created` give the day in `date`.
+ */
+export function createdOf(created?: string, date?: string): Created | null {
+  for (const v of [created, date].map((x) => x?.trim().replace(/^(["'])(.*)\1$/, "$2"))) {
+    if (!v) continue
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const ms = Date.parse(`${v}T00:00Z`)
+      if (!Number.isNaN(ms)) return { ms, day: true }
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(v)) {
+      const ms = Date.parse(v)
+      if (!Number.isNaN(ms)) return { ms, day: false }
+    }
+  }
+  return null
+}
 
 /**
  * What a doc says about itself under the doc contract (spec section 9). Each field is null when the doc
@@ -75,6 +100,8 @@ export function htmlText(html: string, fallbackTitle: string): DocText {
   let title = ""
   let tags = ""
   let type = ""
+  let created: string | undefined
+  let date: string | undefined
   const fields: Partial<Record<Field, string>> = {}
   // The first block found by each id, so `atlas-md` wins over the older ids whatever the order.
   const blocks = new Map<string, string>()
@@ -101,6 +128,8 @@ export function htmlText(html: string, fallbackTitle: string): DocText {
     })
     .on('meta[name="tags"]', { element: (el) => void (tags = el.getAttribute("content") ?? "") })
     .on('meta[name="doc-type"]', { element: (el) => void (type = el.getAttribute("content") ?? "") })
+    .on('meta[name="created"]', { element: (el) => void (created ??= el.getAttribute("content") ?? "") })
+    .on('meta[name="date"]', { element: (el) => void (date ??= el.getAttribute("content") ?? "") })
     .on("meta[name]", {
       element(el) {
         const key = META[el.getAttribute("name")!.toLowerCase()]
@@ -127,11 +156,12 @@ export function htmlText(html: string, fallbackTitle: string): DocText {
     body: md ?? squash(decode(parts.join(""))),
     tags: squash(decode(tags)),
     type: squash(decode(type)).toLowerCase(),
+    created: createdOf(created, date),
     contract: contractOf(fields, md),
   }
 }
 
-/** Title from the frontmatter, else the first `# ` heading. Tags and type from the frontmatter. */
+/** Title from the frontmatter, else the first `# ` heading. Tags, type and created from the frontmatter. */
 export function mdText(md: string, fallbackTitle: string): DocText {
   const front = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(md)
   const body = front ? md.slice(front[0].length) : md
@@ -142,7 +172,7 @@ export function mdText(md: string, fallbackTitle: string): DocText {
     { id: value("atlas-id"), status: value("status"), supersededBy: value("superseded-by"), todo: value("todo"), repo: value("repo"), branch: value("branch"), pr: value("pr"), ticket: value("ticket") },
     null,
   )
-  return { title: field("title") || heading || fallbackTitle, body: body.trim(), tags: field("tags") ?? "", type: (field("doc-type") ?? "").replace(/^["']|["']$/g, "").toLowerCase(), contract }
+  return { title: field("title") || heading || fallbackTitle, body: body.trim(), tags: field("tags") ?? "", type: (field("doc-type") ?? "").replace(/^["']|["']$/g, "").toLowerCase(), created: createdOf(field("created"), field("date")), contract }
 }
 
 /** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. Lower-cased, so `Atlas` and `atlas` are one tag. */

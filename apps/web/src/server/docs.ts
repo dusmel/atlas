@@ -1,4 +1,4 @@
-import { DocIndex, fastWins, htmlText, mdText, watchDocs, type SearchHit } from "@atlas/indexer"
+import { createdText, DocIndex, fastWins, htmlText, mdText, watchDocs, type DocOrder, type SearchHit } from "@atlas/indexer"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { mkdir, utimes } from "node:fs/promises"
 import { basename, join } from "node:path"
@@ -123,14 +123,20 @@ const filtersOf = (input: FilterInput) => {
   return { repo: input.repo, folder: input.folder, type: input.type, tag: input.tag.map((t) => t.toLowerCase()), after: window === undefined ? undefined : Date.now() - window }
 }
 
-export async function searchDocs(input: FilterInput & { q: string; limit?: string }) {
+const orderOf = (order?: string): DocOrder => {
+  if (order === undefined || order === "changed" || order === "created") return order ?? "changed"
+  throw new HttpError(400, "bad_order", "order is changed or created")
+}
+
+export async function searchDocs(input: FilterInput & { q: string; limit?: string; order?: string }) {
   const limit = input.limit === undefined ? 20 : Number(input.limit)
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new HttpError(400, "bad_limit", "limit is a whole number from 1 to 100")
+  const order = orderOf(input.order)
   const filters = filtersOf(input)
   const docs = getIndex()
   await ready
-  // An empty query lists the most recently changed docs, for the page before anything is typed.
-  const results = input.q.trim() ? docs.search(input.q, { ...filters, limit }) : docs.recent({ ...filters, limit })
+  // An empty query lists the newest docs, for the page before anything is typed. A query ranks by relevance.
+  const results = input.q.trim() ? docs.search(input.q, { ...filters, limit }) : docs.recent({ ...filters, limit, order })
   return { q: input.q, results: withTodos(results), facets: docs.facets(input.q, filters) }
 }
 
@@ -151,10 +157,11 @@ export async function docsOverview(input: Pick<FilterInput, "type" | "tag">) {
 }
 
 /** One level of the docs tree, narrowed by the repo, type and tag filters. */
-export async function docsFolder(path: string, input: Pick<FilterInput, "repo" | "type" | "tag">) {
+export async function docsFolder(path: string, input: Pick<FilterInput, "repo" | "type" | "tag"> & { order?: string }) {
+  const order = orderOf(input.order)
   const docs = getIndex()
   await ready
-  return folderListing(docs.list(filtersOf({ folder: [], ...input })), path)
+  return folderListing(docs.list(filtersOf({ folder: [], ...input })), path, order)
 }
 
 /** Groups with open todos and no doc, group docs whose file the served copy lacks, and ids two docs hold. */
@@ -328,7 +335,7 @@ export async function viewDoc(repo: string, path: string) {
   }
   const kind = path.endsWith(".md") ? "md" : path.endsWith(".html") ? "html" : null
   if (!kind) throw new HttpError(400, "not_a_doc", "Only md and html files open as docs")
-  const { title, type, contract } = await readDoc(file, path)
+  const { title, type, created, contract } = await readDoc(file, path)
   const markdown = kind === "md" || !!contract.md || !!servedFile(repo, `${path.slice(0, -5)}.md`)
   // An md twin's page is its html (spec D25). The app moves there, since links inside the app skip the server's redirect.
   const html = kind === "md" ? `${path.slice(0, -3)}.html` : null
@@ -347,6 +354,7 @@ export async function viewDoc(repo: string, path: string) {
     markdown,
     twin: htmlTwin,
     mtime: statSync(file).mtime.toISOString(),
+    created: createdText(created),
     todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null,
     todo,
     share,

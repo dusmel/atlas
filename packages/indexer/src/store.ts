@@ -6,8 +6,8 @@ import { scanDocs, type DocFile } from "./scan.ts"
 
 export type Counts = { docs: number; md: number; html: number }
 export type SyncResult = Counts & { added: number; changed: number; removed: number; ms: number }
-/** `type` is "" for a doc with no `doc-type`. */
-export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; title: string; snippet: string; mtime: string; tags: string; type: string }
+/** `type` is "" for a doc with no `doc-type`. `created` is an ISO time, a bare `YYYY-MM-DD` when the doc gives only the day, or null. */
+export type SearchHit = { repo: string; path: string; kind: DocFile["kind"]; title: string; snippet: string; mtime: string; created: string | null; tags: string; type: string }
 /**
  * `folder` is the first folder inside the repo, "." for a doc at its top. `after` is a time in ms: only docs changed since.
  * `type` holds doc types, with `none` for a doc without one. Several values in one filter match any of them.
@@ -17,8 +17,10 @@ export type DocFilters = { repo?: string[]; folder?: string[]; after?: number; t
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number>; type: Record<string, number>; tag: Record<string, number> }
 /** One row of the index, without its text. */
 export type DocMeta = { repo: string; path: string; kind: DocFile["kind"]; title: string; mtime: number; size: number }
-/** A row with its type ("" for none) and tags as written. */
-export type DocRow = DocMeta & { type: string; tags: string }
+/** A row with its type ("" for none), tags as written and `created` as in `SearchHit`. */
+export type DocRow = DocMeta & { type: string; tags: string; created: string | null }
+/** `changed` orders by the file's mtime, `created` by when the doc says it was written, docs without one last. */
+export type DocOrder = "changed" | "created"
 /** Per repo: docs (twins once), files by kind, docs changed in the last week, docs untouched for 60 days, and the biggest folders. */
 export type RepoOverview = { repo: string; docs: number; md: number; html: number; week: number; stale: number; last: string; folders: { folder: string; docs: number }[] }
 
@@ -30,7 +32,7 @@ const SCHEMA = `
   CREATE TABLE docs (
     id INTEGER PRIMARY KEY, repo TEXT NOT NULL, path TEXT NOT NULL, folder TEXT NOT NULL, kind TEXT NOT NULL,
     title TEXT NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL, tags TEXT NOT NULL, low INTEGER NOT NULL, type TEXT NOT NULL,
-    doc_id TEXT NOT NULL,
+    doc_id TEXT NOT NULL, created INTEGER, created_day INTEGER NOT NULL,
     UNIQUE (repo, path)
   );
   CREATE INDEX docs_doc_id ON docs (doc_id) WHERE doc_id != '';
@@ -176,14 +178,14 @@ export class DocIndex {
         this.db.run("DELETE FROM docs WHERE id = ?", [id])
       }
       for (const { file, id, mtime, size, text } of reads) {
-        const values = [file.kind, text.title, mtime, size, text.tags, text.type, text.contract.id ?? ""]
+        const values = [file.kind, text.title, mtime, size, text.tags, text.type, text.contract.id ?? "", text.created?.ms ?? null, Number(text.created?.day ?? false)]
         let rowid = id
         if (rowid === undefined) {
           rowid = this.db
-            .query<{ id: number }, (string | number)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags, type, doc_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
+            .query<{ id: number }, (string | number | null)[]>("INSERT INTO docs (repo, path, folder, low, kind, title, mtime, size, tags, type, doc_id, created, created_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id")
             .get(file.repo, file.path, folderOf(file.path), Number(lowWeight(file.path)), ...values)!.id
         } else {
-          this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ?, type = ?, doc_id = ? WHERE id = ?", [...values, rowid])
+          this.db.run("UPDATE docs SET kind = ?, title = ?, mtime = ?, size = ?, tags = ?, type = ?, doc_id = ?, created = ?, created_day = ? WHERE id = ?", [...values, rowid])
           this.db.run("DELETE FROM docs_fts WHERE rowid = ?", [rowid])
           this.db.run("DELETE FROM doc_tags WHERE doc_id = ?", [rowid])
         }
@@ -205,7 +207,7 @@ export class DocIndex {
   /** Every doc that passes the filters, both twins included. */
   list(opts: DocFilters = {}): DocRow[] {
     const w = where(opts)
-    return this.db.query<DocRow, (string | number)[]>(`SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.size, d.type, d.tags FROM docs d WHERE 1 = 1 ${w.sql}`).all(...w.params)
+    return this.db.query<DocRow, (string | number)[]>(`SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.size, d.type, d.tags, ${CREATED} AS created FROM docs d WHERE 1 = 1 ${w.sql}`).all(...w.params)
   }
 
   overview(now = Date.now(), opts: DocFilters = {}): RepoOverview[] {
@@ -247,15 +249,16 @@ export class DocIndex {
     return this.hits(tiers.flatMap((m) => this.query(m, opts, limit * 2)), limit)
   }
 
-  /** The most recently changed docs, newest first, with no snippet. Twins show once, as in search. */
-  recent(opts: DocFilters & { limit?: number } = {}): SearchHit[] {
+  /** The newest docs by `order`, with no snippet. Twins show once, as in search. */
+  recent(opts: DocFilters & { limit?: number; order?: DocOrder } = {}): SearchHit[] {
     const limit = opts.limit ?? 20
     const w = where(opts)
+    const by = opts.order === "created" ? "d.created IS NULL, d.created DESC, d.mtime DESC" : "d.mtime DESC"
     const rows = this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
-        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags, d.type, '' AS snippet FROM docs d
+        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, ${CREATED} AS created, d.tags, d.type, '' AS snippet FROM docs d
           WHERE 1 = 1 ${w.sql}
-          ORDER BY d.mtime DESC, d.repo, d.path
+          ORDER BY ${by}, d.repo, d.path
           LIMIT ?`,
       )
       .all(...w.params, limit * 2)
@@ -288,7 +291,7 @@ export class DocIndex {
     const w = where(opts)
     return this.db
       .query<Omit<SearchHit, "mtime"> & { mtime: number }, (string | number)[]>(
-        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, d.tags, d.type,
+        `SELECT d.repo, d.path, d.kind, d.title, d.mtime, ${CREATED} AS created, d.tags, d.type,
                 snippet(docs_fts, 2, char(2), char(3), '…', 16) AS snippet
            FROM docs_fts JOIN docs d ON d.id = docs_fts.rowid
           WHERE docs_fts MATCH ? ${w.sql}
@@ -341,7 +344,7 @@ export class DocIndex {
   htmlTwin(repo: string, path: string): Omit<SearchHit, "mtime" | "snippet"> & { mtime: number } | null {
     if (!path.endsWith(".md")) return null
     return this.db
-      .query<Omit<SearchHit, "mtime" | "snippet"> & { mtime: number }, [string, string]>("SELECT repo, path, kind, title, mtime, tags, type FROM docs WHERE repo = ? AND path = ?")
+      .query<Omit<SearchHit, "mtime" | "snippet"> & { mtime: number }, [string, string]>(`SELECT d.repo, d.path, d.kind, d.title, d.mtime, ${CREATED} AS created, d.tags, d.type FROM docs d WHERE d.repo = ? AND d.path = ?`)
       .get(repo, `${path.slice(0, -3)}.html`)
   }
 
@@ -365,6 +368,9 @@ export class DocIndex {
 export const NO_TYPE = "none"
 
 export const folderOf = (path: string) => (path.includes("/") ? path.slice(0, path.indexOf("/")) : ".")
+
+// ISO to the second, or the bare day when the doc gave only that.
+const CREATED = "CASE WHEN d.created IS NULL THEN NULL WHEN d.created_day THEN strftime('%Y-%m-%d', d.created / 1000, 'unixepoch') ELSE strftime('%Y-%m-%dT%H:%M:%SZ', d.created / 1000, 'unixepoch') END"
 
 // x.md and x.html are one doc for counting: the path without its extension, which is the kind.
 const TWIN = "d.repo || '/' || substr(d.path, 1, length(d.path) - length(d.kind) - 1)"
