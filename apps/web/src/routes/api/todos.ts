@@ -22,6 +22,7 @@ export const Route = createFileRoute("/api/todos")({
             group: one("group"),
             parent: one("parent"),
             q: one("q"),
+            session: one("session"),
             include_archived: url.searchParams.get("include_archived") === "1",
           }),
         )

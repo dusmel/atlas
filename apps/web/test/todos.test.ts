@@ -296,6 +296,30 @@ describe("authors", () => {
   })
 })
 
+describe("sessions", () => {
+  const in_ = (session: string, terminal = "t1") => ({ actor: "cli:mac", author: "claude-code", session, terminal })
+
+  test("each event keeps the session and terminal that made it", () => {
+    const a = createTodo(db, in_("s1", "t13"), { repo, title: "A" })
+    updateTodo(db, who, a.id, { status: "doing" })
+    expect(getTodo(db, a.id).events.map((e) => [e.session, e.terminal])).toEqual([[null, null], ["s1", "t13"]])
+  })
+
+  test("session lists only the items that session changed, the latest change first", () => {
+    const a = createTodo(db, in_("s1"), { repo, title: "Made in s1" })
+    const b = add("Made elsewhere")
+    add("Never touched")
+    createTodo(db, in_("s2"), { repo, title: "Made in s2" })
+    db.run("UPDATE events SET at = '2026-01-01T00:00:00.000Z' WHERE item_id = ?", [a.id])
+    updateTodo(db, in_("s1"), b.id, { status: "done" })
+    const s1 = list({ session: "s1", status: ["todo", "doing", "done"] }) as (Item & { session_at: string })[]
+    expect(titles(s1)).toEqual(["Made elsewhere", "Made in s1"])
+    expect(s1[1]!.session_at).toBe("2026-01-01T00:00:00.000Z")
+    expect(titles(list({ session: "s1" }))).toEqual(["Made in s1"])
+    expect(list({ session: "nobody" })).toEqual([])
+  })
+})
+
 describe("events", () => {
   const as = (author: string) => ({ actor: "cli:mac", author })
   const events = (q: Partial<Parameters<typeof listEvents>[1]> = {}) => listEvents(db, { repo: [], by: [], ...q })
