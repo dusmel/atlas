@@ -2,4 +2,4 @@
 -- and HC_TERMINAL_ID. Null for the web, for scripts, and for every change made before this.
 ALTER TABLE events ADD COLUMN session TEXT;
 ALTER TABLE events ADD COLUMN terminal TEXT;
-CREATE INDEX events_session ON events (session);
+CREATE INDEX events_session ON events (session, item_id, at);
