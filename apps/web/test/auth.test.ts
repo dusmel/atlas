@@ -116,6 +116,13 @@ describe("whoOf", () => {
     expect(whoOf(token, req({ "x-atlas-author": "me" }))).toEqual({ actor: "token:mac", author: "me" })
   })
 
+  test("the agent session and terminal come along when they look like ids", () => {
+    const h = { "x-atlas-device": "irembo-mac", "x-atlas-author": "claude-code", "x-atlas-session": "99316ce2-4c5b-4679-9cde-5727a7338750", "x-atlas-terminal": "t13" }
+    expect(whoOf(token, req(h))).toEqual({ actor: "cli:irembo-mac", author: "claude-code", session: "99316ce2-4c5b-4679-9cde-5727a7338750", terminal: "t13" })
+    expect(whoOf(token, req({ ...h, "x-atlas-session": "a b", "x-atlas-terminal": "x".repeat(65) }))).toEqual({ actor: "cli:irembo-mac", author: "claude-code" })
+    expect(whoOf({ kind: "session" }, req(h))).toEqual({ actor: "web", author: "me" })
+  })
+
   test("a missing, malformed or reserved author is a script", () => {
     for (const author of ["", "Claude Code", "agent", "import", "unknown", "x".repeat(33)]) {
       expect(whoOf(token, req(author ? { "x-atlas-author": author } : {})).author).toBe("script")

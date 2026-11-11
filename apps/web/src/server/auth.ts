@@ -96,19 +96,24 @@ export function authenticate(db: Database, request: Request): Auth | null {
 }
 
 // Who wrote an event: the browser, or a token, named after its device when the CLI says which.
-/** Where a change came from (actor) and who made it (author). */
-export type Who = { actor: string; author: string }
+/** Where a change came from (actor), who made it (author), and the agent session and terminal behind it. */
+export type Who = { actor: string; author: string; session?: string; terminal?: string }
 
 // "agent" and "unknown" are --by filters and "import" is the importer, so none can be claimed.
+const TAG = /^[\w.:-]{1,64}$/
 const AUTHOR = /^(?!agent$|import$|unknown$)[a-z0-9][a-z0-9._-]{0,31}$/
 
 export function whoOf(auth: Auth, request: Request): Who {
   if (auth.kind === "session") return { actor: "web", author: "me" }
   const device = request.headers.get("x-atlas-device")
   const author = request.headers.get("x-atlas-author") ?? ""
+  const session = request.headers.get("x-atlas-session") ?? ""
+  const terminal = request.headers.get("x-atlas-terminal") ?? ""
   return {
     actor: device && /^[\w.-]{1,64}$/.test(device) ? `cli:${device}` : `token:${auth.name}`,
     author: AUTHOR.test(author) ? author : "script",
+    ...(TAG.test(session) ? { session } : {}),
+    ...(TAG.test(terminal) ? { terminal } : {}),
   }
 }
 

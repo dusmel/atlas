@@ -57,7 +57,9 @@ function itemRow(db: Database, id: number): Item {
 }
 
 function event(db: Database, itemId: number, who: Who, action: string, data: unknown): void {
-  db.run("INSERT INTO events (item_id, actor, author, action, data, at) VALUES (?, ?, ?, ?, ?, ?)", [itemId, who.actor, who.author, action, JSON.stringify(data), now()])
+  db.run("INSERT INTO events (item_id, actor, author, action, data, at, session, terminal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+    itemId, who.actor, who.author, action, JSON.stringify(data), now(), who.session ?? null, who.terminal ?? null,
+  ])
 }
 
 const IMPORTER: Who = { actor: "import", author: "import" }
@@ -279,7 +281,7 @@ function placeRank(db: Database, lane: Lane, input: Record<string, unknown>, exc
 
 // ── items ────────────────────────────────────────────────────────────────────
 
-export type ListQuery = { repo: string[]; status: string[]; priority: string[]; by?: string[]; group?: string; parent?: string; q?: string; include_archived?: boolean }
+export type ListQuery = { repo: string[]; status: string[]; priority: string[]; by?: string[]; group?: string; parent?: string; q?: string; session?: string; include_archived?: boolean }
 
 export function listTodos(db: Database, query: ListQuery): Item[] {
   const where: string[] = []
@@ -317,10 +319,17 @@ export function listTodos(db: Database, query: ListQuery): Item[] {
     args.push(query.q, query.q)
   }
   if (!query.include_archived) where.push("items.archived_at IS NULL")
+  if (query.session) {
+    // Items the session changed, each with when it last did (session_at), newest first.
+    where.push("items.id IN (SELECT item_id FROM events WHERE session = ?)")
+    args.push(query.session)
+    const at = "(SELECT max(at) FROM events WHERE item_id = items.id AND session = ?)"
+    return db.query<Item & { session_at: string }, (string | number)[]>(`${SELECT.replace(" FROM items", `, ${at} AS session_at FROM items`)} WHERE ${where.join(" AND ")} ORDER BY session_at DESC, items.id`).all(query.session, ...args)
+  }
   return db.query<Item, (string | number)[]>(`${SELECT} WHERE ${where.join(" AND ")} ${ORDER}`).all(...args)
 }
 
-type Event = { id: number; item_id: number; actor: string; author: string | null; action: string; at: string }
+type Event = { id: number; item_id: number; actor: string; author: string | null; action: string; at: string; session: string | null; terminal: string | null }
 
 export function getTodo(db: Database, id: number) {
   const item = itemRow(db, id)

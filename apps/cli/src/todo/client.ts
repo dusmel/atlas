@@ -84,6 +84,9 @@ export async function api<T = unknown>(cfg: Config, method: string, path: string
       authorization: `Bearer ${cfg.token}`,
       ...(cfg.device ? { "x-atlas-device": cfg.device } : {}),
       "x-atlas-author": cfg.author,
+      // Set by Claude Code and herdr in an agent's shell; the server stores them on each event.
+      ...(process.env.CLAUDE_CODE_SESSION_ID ? { "x-atlas-session": process.env.CLAUDE_CODE_SESSION_ID } : {}),
+      ...(process.env.HC_TERMINAL_ID ? { "x-atlas-terminal": process.env.HC_TERMINAL_ID } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
