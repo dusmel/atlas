@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SharedRouteImport } from './routes/shared'
+import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as TodosRouteImport } from './routes/todos'
 import { Route as ApiAuthorsRouteImport } from './routes/api/authors'
 import { Route as ApiDocsRouteImport } from './routes/api/docs'
@@ -79,6 +80,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SharedRoute = SharedRouteImport.update({
   id: '/shared',
   path: '/shared',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimelineRoute = TimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TodosRoute = TodosRouteImport.update({
@@ -264,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
   '/shared': typeof SharedRoute
+  '/timeline': typeof TimelineRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
   '/api/docs': typeof ApiDocsRouteWithChildren
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
   '/shared': typeof SharedRoute
+  '/timeline': typeof TimelineRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
   '/api/docs': typeof ApiDocsRouteWithChildren
@@ -351,6 +359,7 @@ export interface FileRoutesById {
   '/logout': typeof LogoutRoute
   '/settings': typeof SettingsRoute
   '/shared': typeof SharedRoute
+  '/timeline': typeof TimelineRoute
   '/todos': typeof TodosRoute
   '/api/authors': typeof ApiAuthorsRoute
   '/api/docs': typeof ApiDocsRouteWithChildren
@@ -396,6 +405,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/settings'
     | '/shared'
+    | '/timeline'
     | '/todos'
     | '/api/authors'
     | '/api/docs'
@@ -439,6 +449,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/settings'
     | '/shared'
+    | '/timeline'
     | '/todos'
     | '/api/authors'
     | '/api/docs'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/settings'
     | '/shared'
+    | '/timeline'
     | '/todos'
     | '/api/authors'
     | '/api/docs'
@@ -526,6 +538,7 @@ export interface RootRouteChildren {
   LogoutRoute: typeof LogoutRoute
   SettingsRoute: typeof SettingsRoute
   SharedRoute: typeof SharedRoute
+  TimelineRoute: typeof TimelineRoute
   TodosRoute: typeof TodosRoute
   ApiAuthorsRoute: typeof ApiAuthorsRoute
   ApiDocsRoute: typeof ApiDocsRouteWithChildren
@@ -586,6 +599,13 @@ declare module '@tanstack/react-router' {
       path: '/shared'
       fullPath: '/shared'
       preLoaderRoute: typeof SharedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline': {
+      id: '/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/todos': {
@@ -970,6 +990,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogoutRoute: LogoutRoute,
   SettingsRoute: SettingsRoute,
   SharedRoute: SharedRoute,
+  TimelineRoute: TimelineRoute,
   TodosRoute: TodosRoute,
   ApiAuthorsRoute: ApiAuthorsRoute,
   ApiDocsRoute: ApiDocsRouteWithChildren,

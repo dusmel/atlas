@@ -1,7 +1,7 @@
 import { DocIndex, fastWins, htmlText, mdText, watchDocs, type SearchHit } from "@atlas/indexer"
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { mkdir, utimes } from "node:fs/promises"
-import { basename, join } from "node:path"
+import { basename, join, posix } from "node:path"
 import { getDb } from "./app-db"
 import { docHref } from "@/lib/docs"
 import { sinceMs } from "@/lib/since"
@@ -299,6 +299,28 @@ export function withDocLinks<T extends { item: { repo_id: string }; group: { id:
   }
 }
 
+/**
+ * Adds where a timeline's group docs open, and where each `doc` line opens: the file, or a folder's
+ * README. A line's ref is relative to the effort folder, which holds the group's first doc.
+ */
+export function withTimelineLinks<T extends { group: { id: number; repo_id: string; docs: { label: string; path: string }[] }; entries: { lines: { source: string; ref: string | null }[] }[] }>(view: T) {
+  const { group, docs_folder: folder } = withDocLinks({ item: { repo_id: view.group.repo_id }, group: view.group })
+  const dir = group!.docs[0] ? posix.dirname(groupDocPath(group!.docs[0].path)) : null
+  const href = (ref: string) => {
+    if (!folder || dir === null) return null
+    const at = posix.join(dir, ref)
+    const path = [at, `${at}/README.html`, `${at}/README.md`].find((p) => !p.endsWith("/") && servedFile(folder, p))
+    return path ? docHref({ repo: folder, path }) : null
+  }
+  return {
+    ...view,
+    group: group!,
+    docs_folder: folder,
+    effort_dir: dir,
+    entries: view.entries.map((e) => ({ ...e, lines: e.lines.map((l) => (l.source === "doc" && l.ref ? { ...l, href: href(l.ref) } : l)) })),
+  }
+}
+
 /** A doc's file in the copy being served, or a 404. */
 export function findDoc(repo: string, path: string) {
   const file = servedFile(repo, path)
@@ -348,6 +370,7 @@ export async function viewDoc(repo: string, path: string) {
     twin: htmlTwin,
     mtime: statSync(file).mtime.toISOString(),
     todos: linkedTodos().get(twin(`${repo}/${path}`)) ?? null,
+    groups: linkedGroups().get(twin(`${repo}/${path}`))?.names ?? [],
     todo,
     share,
     contract: { ...fields, id },

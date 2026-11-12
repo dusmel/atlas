@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router"
-import { ClipboardCopyIcon, CopyIcon, ExternalLinkIcon, GlobeIcon, LinkIcon, ListTodoIcon, SearchIcon, SettingsIcon } from "lucide-react"
+import { ClipboardCopyIcon, CopyIcon, ExternalLinkIcon, GanttChartIcon, GlobeIcon, LinkIcon, ListTodoIcon, SearchIcon, SettingsIcon } from "lucide-react"
 import { useState } from "react"
 import { copy } from "@/components/todos/copy-id"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -16,6 +16,7 @@ export async function copyMarkdown(repo: string, path: string) {
 const PAGES = [
   { to: "/docs", label: "Go to Docs", icon: SearchIcon },
   { to: "/todos", label: "Go to Todos", icon: ListTodoIcon },
+  { to: "/timeline", label: "Go to Timeline", icon: GanttChartIcon },
   { to: "/shared", label: "Go to Shared", icon: GlobeIcon },
   { to: "/settings", label: "Settings and API tokens", icon: SettingsIcon },
 ] as const
