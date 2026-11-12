@@ -81,7 +81,7 @@ async function run(args: string[]): Promise<number> {
           throw new CliError(1, e instanceof Error ? e.message : String(e));
         });
         if (flags.json || flags["dry-run"]) await out(JSON.stringify(r, null, 2));
-        else await out(`${r.scanned} transcripts read, ${r.digested} days digested, ${r.sent.length} sessions sent (${r.sent.filter((x) => x.links.length).length} linked to an effort)`);
+        else await out(`${n(r.scanned, "transcript")} read, ${n(r.digested, "day")} digested, ${n(r.sent.length, "session")} sent (${r.sent.filter((x) => x.links.length).length} linked to an effort)`);
         return 0;
       }
       const groups = words.length ? [await findGroup(cfg, words.join(" "), flags)] : await linkedGroups(cfg, flags);
@@ -116,6 +116,8 @@ async function run(args: string[]): Promise<number> {
   }
   return 0;
 }
+
+const n = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 async function findGroup(cfg: Config, name: string, flags: Record<string, string | boolean>): Promise<Group> {
   const q = new URLSearchParams();

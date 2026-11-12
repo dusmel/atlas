@@ -147,10 +147,10 @@ describe("sessions", () => {
 
   test("the sidebar lists linked sessions under their effort and the rest apart", () => {
     syncSession()
-    syncTimeline(db, { session: "loose", entries: [], meta: { ...meta, title: "Loose one" }, links: [] })
+    syncTimeline(db, { session: "loose", entries: [], meta: { ...meta, title: "Loose one", days: 1, prompts: 3, commits: 0, todos: 0 }, links: [] })
     const t = listTimeline(db)
-    expect(t.efforts.find((e) => e.id === groupId)!.sessions.map((s) => s.id)).toEqual([SID])
-    expect(t.sessions.map((s) => s.title)).toEqual(["Loose one"])
+    expect(t.efforts.find((e) => e.id === groupId)!.sessions.map((s) => [s.id, s.big])).toEqual([[SID, true]])
+    expect(t.sessions.map((s) => [s.title, s.big])).toEqual([["Loose one", false]])
   })
 
   test("a link to a group this server lacks is skipped; a bad signal is refused", () => {

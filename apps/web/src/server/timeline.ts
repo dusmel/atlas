@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite"
+import { bigEnough } from "@atlas/timeline"
 import { now } from "./db"
 import { HttpError } from "./http"
 import { groupDocs, resolveRepo } from "./todos"
@@ -265,15 +266,16 @@ export type SessionSummary = {
 const SESSION_COLS = "s.id, s.agent, s.title, s.ai_title, s.cwd, r.name AS repo_name, s.started_at, s.ended_at, s.days, s.prompts, s.commits, s.todos"
 const SESSIONS = `SELECT ${SESSION_COLS} FROM timeline_sessions s LEFT JOIN repos r ON r.id = s.repo_id`
 
-/** The sidebar: every effort with its sessions, and the sessions that belong to no effort, newest first. */
+/** The sidebar: every effort with its sessions, and the sessions that belong to no effort, newest first. `big` is the size rule for a loose session. */
 export function listTimeline(db: Database) {
   const linked = db
     .query<SessionSummary & { group_id: number }, []>(
       `SELECT ${SESSION_COLS}, l.group_id FROM timeline_session_links l JOIN timeline_sessions s ON s.id = l.session LEFT JOIN repos r ON r.id = s.repo_id ORDER BY s.ended_at DESC`,
     )
     .all()
-  const efforts = listEfforts(db).map((e) => ({ ...e, sessions: linked.filter((s) => s.group_id === e.id).map(({ group_id: _, ...s }) => s) }))
-  const sessions = db.query<SessionSummary, []>(`${SESSIONS} WHERE NOT EXISTS (SELECT 1 FROM timeline_session_links l WHERE l.session = s.id) ORDER BY s.ended_at DESC`).all()
+  const sized = <T extends SessionSummary>(s: T) => ({ ...s, big: bigEnough(s) })
+  const efforts = listEfforts(db).map((e) => ({ ...e, sessions: linked.filter((s) => s.group_id === e.id).map(({ group_id: _, ...s }) => sized(s)) }))
+  const sessions = db.query<SessionSummary, []>(`${SESSIONS} WHERE NOT EXISTS (SELECT 1 FROM timeline_session_links l WHERE l.session = s.id) ORDER BY s.ended_at DESC`).all().map(sized)
   return { efforts, sessions }
 }
 
