@@ -40,14 +40,14 @@ Rules:
 - An empty list is fine. Do not invent.`
 
 /** Runs one day through the model. Lines the filter flags are dropped from the digest too. */
-export async function digestDay(text: string, opts: { model: string; effort?: string; earlierTitles?: string[] }): Promise<DigestRun> {
+export async function digestDay(text: string, opts: { model: string; effort?: string; earlierTitles?: string[]; bin?: string }): Promise<DigestRun> {
   const input = `${opts.earlierTitles?.length ? `Earlier days' titles: ${opts.earlierTitles.join("; ")}\n\n` : ""}${text}`
   const args = ["-p", "--model", opts.model, "--no-session-persistence", "--tools", "", "--setting-sources", "", "--strict-mcp-config"]
   if (opts.effort) args.push("--effort", opts.effort)
   args.push("--system-prompt", DIGEST_PROMPT, "--output-format", "json", "--json-schema", JSON.stringify(SCHEMA))
   const started = performance.now()
   // A scratch cwd, so no project's CLAUDE.md reaches the call.
-  const p = Bun.spawn(["claude", ...args], { cwd: tmpdir(), stdin: new Blob([input]), stdout: "pipe", stderr: "pipe" })
+  const p = Bun.spawn([opts.bin ?? "claude", ...args], { cwd: tmpdir(), stdin: new Blob([input]), stdout: "pipe", stderr: "pipe" })
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited])
   const ms = Math.round(performance.now() - started)
   if (code !== 0) throw new Error(`claude -p exited ${code}: ${err.trim().slice(0, 300)}`)
