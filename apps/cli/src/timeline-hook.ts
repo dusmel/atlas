@@ -1,7 +1,8 @@
 /**
  * `atlas timeline hook`: one command for Claude Code's PostToolUse, Stop and SessionEnd hooks. It reads the
  * hook's JSON on stdin and runs the cheap sync. When the entry the agent worked on has no note, it marks it
- * `note: draft` and asks the agent for one sentence. Design: atlas/timeline/design.html#triggers.
+ * `note: draft` and asks the agent for one sentence. A validation and SessionEnd start the digest.
+ * Design: atlas/timeline/design.html#triggers.
  * A hook must never get in the agent's way: every error goes to the log, and it always exits 0.
  */
 
@@ -108,6 +109,23 @@ async function syncAndAsk(cfg: Config, groups: Group[], asked: string[]): Promis
 /** The command that runs this CLI again: `bun index.ts` from a checkout, or the compiled binary. */
 const self = () => (existsSync(Bun.main) ? [process.execPath, Bun.main] : [process.execPath]);
 
+/** Digests the session's new days in the background: a model call per day must not hold up the agent. */
+function startDigest(session: string) {
+  const cmd = [...self(), "timeline", "sync", "--digest", "--session", session].map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
+  Bun.spawn(["sh", "-c", `nohup ${cmd} >> '${HOOK_LOG}' 2>&1 &`], { stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref();
+}
+
+const PHASE_TODO = /^Phase \d+\b/i;
+
+/** A validation: `todo done` on a "Phase N:" todo, which is how mel records a proven or approved phase. */
+async function validated(cfg: Config, input: HookInput): Promise<boolean> {
+  const m = /\btodo\s+done\s+((?:#?\d+[\s,]*)+)/.exec(String(input.tool_input?.command ?? ""));
+  if (!m) return false;
+  const ids = m[1]!.match(/\d+/g)!;
+  const items = await Promise.all(ids.map((id) => api<{ item: { title: string } }>(cfg, "GET", `/todos/${id}`).catch(() => null)));
+  return items.some((t) => t && PHASE_TODO.test(t.item.title));
+}
+
 /** Runs one hook event. `out` is what to print on stdout; `did` is null when there was nothing to do. */
 export async function runHook(input: HookInput, now = Date.now()): Promise<{ out: string | null; did: string | null }> {
   const state = loadState();
@@ -121,7 +139,9 @@ export async function runHook(input: HookInput, now = Date.now()): Promise<{ out
     const asks = await syncAndAsk(cfg, groups, s.asked);
     s.synced = now;
     saveState(state);
-    const did = `${t.kind}: synced ${groups.map((g) => g.name).join(", ") || "no group"}${asks.length ? ", asked for a note" : ""}`;
+    const digest = t.kind === "todo" && (await validated(cfg, input));
+    if (digest) startDigest(input.session_id);
+    const did = `${t.kind}: synced ${groups.map((g) => g.name).join(", ") || "no group"}${asks.length ? ", asked for a note" : ""}${digest ? ", started the digest" : ""}`;
     return { out: asks.length ? JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: asks.join("\n") } }) : null, did };
   }
 
@@ -138,9 +158,7 @@ export async function runHook(input: HookInput, now = Date.now()): Promise<{ out
   if (input.hook_event_name === "SessionEnd") {
     delete state[input.session_id];
     saveState(state);
-    // The digest is a model call per new day: it runs after Claude Code exits, not in the way of it.
-    const cmd = [...self(), "timeline", "sync", "--digest", "--session", input.session_id].map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(" ");
-    Bun.spawn(["sh", "-c", `nohup ${cmd} >> '${HOOK_LOG}' 2>&1 &`], { stdin: "ignore", stdout: "ignore", stderr: "ignore" }).unref();
+    startDigest(input.session_id);
     return { out: null, did: "started the digest" };
   }
   return { out: null, did: null };
