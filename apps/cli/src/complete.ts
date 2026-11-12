@@ -8,6 +8,7 @@ import { parseArgs, type FlagSpec } from "./todo/args.ts";
 import { api, loadConfig, type Config } from "./todo/client.ts";
 import { DOC_COMMANDS } from "./doc.ts";
 import { PUSH_FLAGS } from "./push.ts";
+import { TIMELINE_COMMANDS } from "./timeline.ts";
 import { TODO_COMMANDS } from "./todo/commands.ts";
 import type { Item } from "./todo/format.ts";
 import { repoParam, scopeOf } from "./todo/scope.ts";
@@ -22,6 +23,7 @@ const TOP: Record<string, { about: string; flags: FlagSpec }> = {
   todo: { about: "Todos on the Atlas server", flags: {} },
   push: { about: "Send this Mac's docs to the server", flags: PUSH_FLAGS },
   doc: { about: "Publish a doc now, or print its markdown", flags: {} },
+  timeline: { about: "An effort's done, doing and next", flags: {} },
   completion: { about: "Print the zsh completion script", flags: {} },
 };
 const NEEDS_ID = new Set(["show", "set", "move", "start", "done", "archive"]);
@@ -115,6 +117,19 @@ export async function complete(words: string[]): Promise<string[]> {
     if (current.startsWith("-")) return flagLines(spec, more);
     // One file per call: md and html docs, and folders to reach them.
     return positionals(more, spec).length ? [] : ["!docs"];
+  }
+
+  if (cmd === "timeline") {
+    const [sub, ...more] = rest;
+    if (!sub) return Object.entries(TIMELINE_COMMANDS).map(([name, c]) => line(name, c.about));
+    const spec = TIMELINE_COMMANDS[sub]?.flags;
+    if (!spec) return [];
+    const prev = more.at(-1);
+    if (prev?.startsWith("--") && spec[prev.slice(2)] === "string") return ["group", "repo"].includes(prev.slice(2)) ? values(prev.slice(2), sub, more.slice(0, -1), spec) : [];
+    if (current.startsWith("-")) return flagLines(spec, more);
+    // sync, show and link take a group name; note takes an entry id, which only timeline.md knows.
+    if (sub !== "note" && !positionals(more, spec).length) return values("group", sub, more, spec);
+    return flagLines(spec, more);
   }
 
   if (cmd !== "todo") {

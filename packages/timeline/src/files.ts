@@ -93,3 +93,30 @@ export function readPlanHeadings(text: string): Map<string, string> {
   for (const m of text.matchAll(/^##\s+(.+?)\s*\{#([a-z0-9-]+)\}\s*$/gm)) out.set(m[2]!, m[1]!)
   return out
 }
+
+/**
+ * Sets one entry's note in timeline.md and returns the new text. Replaces the `note:` line and the
+ * plain lines under it, adds one under the heading when there is none, and adds the heading at the
+ * end for a new entry. Everything else in the file stays as it was.
+ */
+export function setNote(text: string, id: string, note: string): string {
+  const lines = text.split("\n")
+  const start = lines.findIndex((l) => new RegExp(`^##\\s+${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(l))
+  const noteLines = note.trim().split("\n").map((l, i) => (i ? l : `note: ${l}`))
+  if (start === -1) {
+    const body = text.trimEnd()
+    return `${body ? `${body}\n\n` : ""}## ${id}\n${noteLines.join("\n")}\n`
+  }
+  let end = start + 1
+  while (end < lines.length && !/^##\s/.test(lines[end]!)) end++
+  const at = lines.slice(start + 1, end).findIndex((l) => l.startsWith("note:"))
+  if (at === -1) {
+    lines.splice(start + 1, 0, ...noteLines)
+    return lines.join("\n")
+  }
+  const from = start + 1 + at
+  let to = from + 1
+  while (to < end && lines[to]!.trim() && !/^[a-z]+:/.test(lines[to]!)) to++
+  lines.splice(from, to - from, ...noteLines)
+  return lines.join("\n")
+}

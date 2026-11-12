@@ -72,6 +72,8 @@ describe("buildEntries", () => {
   test("run.md's open stretch and parked items go on the doing entry", () => {
     const entries = buildEntries({ work, todos: [], files: { runMd: "Now: closing PR 3\nParked:\n- Deploy - production pauses\n" } })
     expect(entries[2]!.lines.filter((l) => l.source === "run").map((l) => [l.text, l.kind])).toEqual([["closing PR 3", "now"], ["Deploy - production pauses", "parked"]])
+    // Lines with a day first, in day order; what is open now after them.
+    expect(entries[2]!.lines.map((l) => l.day)).toEqual(["2026-11-08", "2026-11-12", null, null])
   })
 
   test("timeline.md adds notes, waiting and next items, overrides state, and adds its own entries", () => {

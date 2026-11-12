@@ -131,7 +131,8 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
 
   for (const e of entries) {
     // Days in order; lines with no day (what is open now, what comes next) after them.
-    e.lines = e.lines.map((l, i) => [l, i] as const).sort(([a, i], [b, j]) => (a.day ?? "~").localeCompare(b.day ?? "~") || i - j).map(([l]) => l)
+    const key = (l: Line) => l.day ?? "9999"
+    e.lines = e.lines.map((l, i) => [l, i] as const).sort(([a, i], [b, j]) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : i - j)).map(([l]) => l)
     const days = e.lines.map((l) => l.day).filter((d): d is string => !!d)
     e.started_at ??= days[0] ?? null
     e.ended_at ??= days.at(-1) ?? null

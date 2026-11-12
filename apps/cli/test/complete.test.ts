@@ -35,6 +35,20 @@ describe("complete", () => {
     expect(await complete(["doc", "nope", ""])).toEqual([]);
   });
 
+  test("timeline offers its subcommands, flags, and no free-text values", async () => {
+    expect(await complete([""])).toContain("timeline:An effort's done, doing and next");
+    expect(await complete(["timeline", ""])).toEqual([
+      "sync:Sync linked efforts: sync [GROUP]",
+      "show:Print an effort's timeline: show GROUP",
+      "link:Link a group to its branches: link GROUP --branches 'v1/*'",
+      "note:Write an entry's note in timeline.md: note ENTRY TEXT|-",
+    ]);
+    expect(await complete(["timeline", "sync", "-"])).toEqual(["--repo", "--all", "--dry-run", "--no-prs", "--json"]);
+    expect(await complete(["timeline", "link", "v1", "--branches", ""])).toEqual([]);
+    expect(await complete(["timeline", "note", "phase-1", ""])).toEqual(["--repo", "--group", "--no-sync"]);
+    expect(await complete(["timeline", "nope", ""])).toEqual([]);
+  });
+
   test("without a server config, server lookups give nothing instead of failing", async () => {
     const saved = { HOME: process.env.HOME, ATLAS_URL: process.env.ATLAS_URL, ATLAS_TOKEN: process.env.ATLAS_TOKEN };
     process.env.HOME = "/nonexistent";
@@ -44,6 +58,8 @@ describe("complete", () => {
       expect(await complete(["todo", "add", "x", "--group", ""])).toEqual([]);
       expect(await complete(["todo", "show", ""])).toEqual([]);
       expect(await complete(["todo", "list", "--by", ""])).toEqual([]);
+      expect(await complete(["timeline", "show", ""])).toEqual([]);
+      expect(await complete(["timeline", "note", "x", "--group", ""])).toEqual([]);
     } finally {
       for (const [k, v] of Object.entries(saved)) {
         if (v === undefined) delete process.env[k];

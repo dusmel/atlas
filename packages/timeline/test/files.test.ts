@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { readPlanHeadings, readRunMd, readTimelineMd } from "../src/files"
+import { readPlanHeadings, readRunMd, readTimelineMd, setNote } from "../src/files"
 
 describe("readRunMd", () => {
   test("reads the open stretch and the parked list, and ignores the prose", () => {
@@ -83,4 +83,40 @@ test("readPlanHeadings maps anchors to heading text", () => {
     ["phase-1", "Phase 1: I keep my versions"],
     ["polish", "Polish after first use"],
   ])
+})
+
+describe("setNote", () => {
+  const file = `# Timeline
+
+## polish {state: doing}
+note: draft
+waiting: #557 pick a target
+
+## phase-2
+note: Old note,
+over two lines.
+next: ship it
+`
+  test("replaces a draft and keeps the other keys", () => {
+    const out = setNote(file, "polish", "Records are never deleted now.")
+    expect(readTimelineMd(out)[0]).toMatchObject({ note: "Records are never deleted now.", noteState: "written", waiting: ["#557 pick a target"] })
+    expect(out.split("\n").length).toBe(file.split("\n").length)
+  })
+
+  test("replaces a note over several lines and keeps the next key", () => {
+    const [, phase2] = readTimelineMd(setNote(file, "phase-2", "New note."))
+    expect(phase2).toMatchObject({ note: "New note.", next: ["ship it"] })
+  })
+
+  test("adds a note under a heading that has none, and a heading for a new entry", () => {
+    expect(readTimelineMd(setNote("## a\nnext: x\n", "a", "Why."))[0]).toMatchObject({ note: "Why.", next: ["x"] })
+    const out = setNote(file, "phase-3", "Started.")
+    expect(readTimelineMd(out).map((e) => e.id)).toEqual(["polish", "phase-2", "phase-3"])
+    expect(setNote("", "phase-1", "First.")).toBe("## phase-1\nnote: First.\n")
+  })
+
+  test("does not match an id that only starts the same", () => {
+    const out = setNote("## phase-10\nnote: ten\n", "phase-1", "one")
+    expect(readTimelineMd(out).map((e) => [e.id, e.note])).toEqual([["phase-10", "ten"], ["phase-1", "one"]])
+  })
 })
