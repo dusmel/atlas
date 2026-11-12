@@ -42,12 +42,14 @@ describe("complete", () => {
       "show:Print an effort's timeline: show GROUP",
       "link:Link a group to its branches: link GROUP --branches 'v1/*'",
       "note:Write an entry's note in timeline.md: note ENTRY TEXT|-",
+      "hook:Run as the Claude Code hook: reads the hook's JSON on stdin",
     ]);
     expect(await complete(["timeline", "sync", "-"])).toEqual(["--repo", "--all", "--dry-run", "--no-prs", "--json", "--sessions", "--digest", "--session", "--days"]);
     // A session id and a day count are free text.
     expect(await complete(["timeline", "sync", "--session", ""])).toEqual([]);
     expect(await complete(["timeline", "link", "v1", "--branches", ""])).toEqual([]);
     expect(await complete(["timeline", "note", "phase-1", ""])).toEqual(["--repo", "--group", "--no-sync"]);
+    expect(await complete(["timeline", "hook", ""])).toEqual([]);
     expect(await complete(["timeline", "nope", ""])).toEqual([]);
   });
 

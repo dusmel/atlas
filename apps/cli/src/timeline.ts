@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join } from "node:path";
 import { branchWork, buildEntries, setNote, type EffortFiles, type Pr, type TodoItem } from "@atlas/timeline";
 import { reposDir } from "./config.ts";
+import { cmdHook } from "./timeline-hook.ts";
 import { syncSessions } from "./timeline-sessions.ts";
 import { parseArgs, textFlag, type FlagSpec } from "./todo/args.ts";
 import { api, CliError, loadConfig, type Config } from "./todo/client.ts";
@@ -21,6 +22,7 @@ export const TIMELINE_COMMANDS: Record<string, { about: string; flags: FlagSpec 
   show: { about: "Print an effort's timeline: show GROUP", flags: { repo: "string", json: "boolean" } },
   link: { about: "Link a group to its branches: link GROUP --branches 'v1/*'", flags: { repo: "string", branches: "string" } },
   note: { about: "Write an entry's note in timeline.md: note ENTRY TEXT|-", flags: { repo: "string", group: "string", "no-sync": "boolean" } },
+  hook: { about: "Run as the Claude Code hook: reads the hook's JSON on stdin", flags: {} },
 };
 
 export const TIMELINE_USAGE = `atlas timeline — what an effort did, is doing and does next, from git, run.md, timeline.md and its todos.
@@ -31,6 +33,7 @@ export const TIMELINE_USAGE = `atlas timeline — what an effort did, is doing a
   atlas timeline sync  --digest [--session ID] [--days 7]                 also a digest per session day (Sonnet)
   atlas timeline show  GROUP [--json]
   atlas timeline note  ENTRY "why it was done" [--group GROUP] [--no-sync]   TEXT - reads stdin
+  atlas timeline hook  < hook JSON              for PostToolUse, Stop and SessionEnd; always exits 0
 
 sync with no GROUP syncs every linked group of the current repo; --all syncs every linked group.
 --digest without --session digests sessions big enough to list that were active in the last --days days.
@@ -57,6 +60,11 @@ async function run(args: string[]): Promise<number> {
   const spec = TIMELINE_COMMANDS[sub];
   if (!spec) throw new CliError(2, `Unknown timeline command: ${sub}\n\n${TIMELINE_USAGE}`);
   const { flags, rest: words } = parseArgs(rest, spec.flags);
+  // Before loadConfig: a hook must exit 0 even with no config.
+  if (sub === "hook") {
+    await cmdHook(await Bun.stdin.text());
+    return 0;
+  }
   const cfg = loadConfig();
 
   switch (sub) {

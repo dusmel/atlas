@@ -127,8 +127,8 @@ export async function complete(words: string[]): Promise<string[]> {
     const prev = more.at(-1);
     if (prev?.startsWith("--") && spec[prev.slice(2)] === "string") return ["group", "repo"].includes(prev.slice(2)) ? values(prev.slice(2), sub, more.slice(0, -1), spec) : [];
     if (current.startsWith("-")) return flagLines(spec, more);
-    // sync, show and link take a group name; note takes an entry id, which only timeline.md knows.
-    if (sub !== "note" && !positionals(more, spec).length) return values("group", sub, more, spec);
+    // sync, show and link take a group name; note takes an entry id, which only timeline.md knows; hook takes nothing.
+    if (sub !== "note" && sub !== "hook" && !positionals(more, spec).length) return values("group", sub, more, spec);
     return flagLines(spec, more);
   }
 
