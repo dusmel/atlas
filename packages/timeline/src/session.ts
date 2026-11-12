@@ -4,6 +4,7 @@
 
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs"
 import { dirname, join } from "node:path"
+import type { Digest } from "./digest"
 import { redact } from "./redact"
 
 export type DayFacts = {
@@ -22,8 +23,18 @@ export type DayFacts = {
 }
 
 /** `pending`: ids of commit commands whose result was not read yet, since a result can land in the next read. */
-export type SessionState = { path: string; size: number; offset: number; title: string | null; days: Record<string, DayFacts>; pending?: string[] }
-export type SyncState = { version: 1; sessions: Record<string, SessionState> }
+export type SessionState = {
+  path: string
+  size: number
+  offset: number
+  title: string | null
+  days: Record<string, DayFacts>
+  pending?: string[]
+  /** Each day's digest, with the day's end byte when it was made: a day that grew past it is digested again. */
+  digests?: Record<string, { end: number; digest: Digest }>
+}
+/** `sent`: per server, a key for what was last posted for each session, so a sync posts only what changed. */
+export type SyncState = { version: 1; sessions: Record<string, SessionState>; sent?: Record<string, Record<string, string>> }
 
 type Rec = Record<string, any>
 
