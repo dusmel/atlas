@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import type { Database } from "bun:sqlite"
 import { HttpError } from "../src/server/http"
-import { getTimeline, listEfforts, syncTimeline } from "../src/server/timeline"
+import { getTimeline, listEfforts, listTimeline, syncTimeline } from "../src/server/timeline"
 import { createGroup, createTodo, updateGroup } from "../src/server/todos"
 import { freshDb } from "./helpers"
 
@@ -108,5 +108,62 @@ describe("listEfforts", () => {
     sync([entry("phase-1")])
     db.run("DELETE FROM groups WHERE id = ?", [groupId])
     expect(db.query("SELECT count(*) AS n FROM timeline_entries").get()).toEqual({ n: 0 })
+  })
+})
+
+describe("sessions", () => {
+  const SID = "11111111-2222-3333-4444-555555555555"
+  const meta = {
+    title: "Lamp rota",
+    ai_title: "First prompt title",
+    cwd: "/w/app",
+    repo_id: repo.id,
+    started_at: "2026-11-03T08:00:00Z",
+    ended_at: "2026-11-04T09:00:00Z",
+    days: 2,
+    prompts: 31,
+    commits: 3,
+    todos: 2,
+  }
+  const day = (d: string) => ({ entry: d, state: "done", title: `Day ${d}`, lines: [{ day: d, text: "Asked for the rota", source: "session", ref: SID, kind: "asked" }] })
+  const syncSession = (extra: Record<string, unknown> = {}) =>
+    syncTimeline(db, { session: SID, entries: [day("2026-11-03"), day("2026-11-04")], meta, links: [{ group_id: groupId, signals: ["todos", "files"] }], ...extra })
+
+  test("stores the facts, the links and one entry per day", () => {
+    expect(syncSession()).toEqual({ created: 2, updated: 0, unchanged: 0, removed: 0 })
+    const view = getTimeline(db, { session: SID }) as { session: Record<string, unknown>; entries: { entry: string }[] }
+    expect(view.entries.map((e) => e.entry)).toEqual(["2026-11-03", "2026-11-04"])
+    expect(view.session).toMatchObject({ id: SID, title: "Lamp rota", repo_name: "app", prompts: 31, efforts: [{ id: groupId, name: "v1", repo_name: "app", signals: ["todos", "files"] }] })
+  })
+
+  test("a second sync with nothing new keeps updated_at", () => {
+    syncSession()
+    const at = () => db.query<{ updated_at: string }, []>("SELECT updated_at FROM timeline_sessions").get()!.updated_at
+    const before = at()
+    Bun.sleepSync(5)
+    syncSession()
+    expect(at()).toBe(before)
+  })
+
+  test("the sidebar lists linked sessions under their effort and the rest apart", () => {
+    syncSession()
+    syncTimeline(db, { session: "loose", entries: [], meta: { ...meta, title: "Loose one" }, links: [] })
+    const t = listTimeline(db)
+    expect(t.efforts.find((e) => e.id === groupId)!.sessions.map((s) => s.id)).toEqual([SID])
+    expect(t.sessions.map((s) => s.title)).toEqual(["Loose one"])
+  })
+
+  test("a link to a group this server lacks is skipped; a bad signal is refused", () => {
+    syncSession({ links: [{ group_id: 9999, signals: ["prs"] }] })
+    expect((getTimeline(db, { session: SID }) as { session: { efforts: unknown[] } }).session.efforts).toEqual([])
+    expect(() => syncSession({ links: [{ group_id: groupId, signals: ["cwd"] }] })).toThrow(HttpError)
+    expect(() => syncTimeline(db, { group: groupId, entries: [], meta })).toThrow(HttpError)
+  })
+
+  test("an unknown session is a 404, and deleting a group drops its links", () => {
+    expect(() => getTimeline(db, { session: "nope" })).toThrow(HttpError)
+    syncSession()
+    db.run("DELETE FROM groups WHERE id = ?", [groupId])
+    expect(db.query("SELECT count(*) AS n FROM timeline_session_links").get()).toEqual({ n: 0 })
   })
 })
