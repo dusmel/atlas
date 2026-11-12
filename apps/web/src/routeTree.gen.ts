@@ -43,6 +43,7 @@ import { Route as ApiEventsDaysRouteImport } from './routes/api/events.days'
 import { Route as ApiGroupsIdRouteImport } from './routes/api/groups.$id'
 import { Route as ApiImportsIdRouteImport } from './routes/api/imports.$id'
 import { Route as ApiSharesTokenRouteImport } from './routes/api/shares.$token'
+import { Route as ApiTimelineAdoptRouteImport } from './routes/api/timeline.adopt'
 import { Route as ApiTodosIdRouteImport } from './routes/api/todos.$id'
 import { Route as ApiTokensIdRouteImport } from './routes/api/tokens.$id'
 import { Route as RRepoSplatRouteImport } from './routes/r.$repo.$'
@@ -222,6 +223,11 @@ const ApiSharesTokenRoute = ApiSharesTokenRouteImport.update({
   path: '/$token',
   getParentRoute: () => ApiSharesRoute,
 } as any)
+const ApiTimelineAdoptRoute = ApiTimelineAdoptRouteImport.update({
+  id: '/adopt',
+  path: '/adopt',
+  getParentRoute: () => ApiTimelineRoute,
+} as any)
 const ApiTodosIdRoute = ApiTodosIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -281,7 +287,7 @@ export interface FileRoutesByFullPath {
   '/api/repos': typeof ApiReposRoute
   '/api/search': typeof ApiSearchRoute
   '/api/shares': typeof ApiSharesRouteWithChildren
-  '/api/timeline': typeof ApiTimelineRoute
+  '/api/timeline': typeof ApiTimelineRouteWithChildren
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/s/$token': typeof STokenRoute
@@ -298,6 +304,7 @@ export interface FileRoutesByFullPath {
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/shares/$token': typeof ApiSharesTokenRoute
+  '/api/timeline/adopt': typeof ApiTimelineAdoptRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
   '/r/$repo/$': typeof RRepoSplatRoute
@@ -325,7 +332,7 @@ export interface FileRoutesByTo {
   '/api/repos': typeof ApiReposRoute
   '/api/search': typeof ApiSearchRoute
   '/api/shares': typeof ApiSharesRouteWithChildren
-  '/api/timeline': typeof ApiTimelineRoute
+  '/api/timeline': typeof ApiTimelineRouteWithChildren
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/s/$token': typeof STokenRoute
@@ -342,6 +349,7 @@ export interface FileRoutesByTo {
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/shares/$token': typeof ApiSharesTokenRoute
+  '/api/timeline/adopt': typeof ApiTimelineAdoptRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
   '/r/$repo/$': typeof RRepoSplatRoute
@@ -370,7 +378,7 @@ export interface FileRoutesById {
   '/api/repos': typeof ApiReposRoute
   '/api/search': typeof ApiSearchRoute
   '/api/shares': typeof ApiSharesRouteWithChildren
-  '/api/timeline': typeof ApiTimelineRoute
+  '/api/timeline': typeof ApiTimelineRouteWithChildren
   '/api/todos': typeof ApiTodosRouteWithChildren
   '/api/tokens': typeof ApiTokensRouteWithChildren
   '/s/$token': typeof STokenRoute
@@ -387,6 +395,7 @@ export interface FileRoutesById {
   '/api/groups/$id': typeof ApiGroupsIdRoute
   '/api/imports/$id': typeof ApiImportsIdRoute
   '/api/shares/$token': typeof ApiSharesTokenRoute
+  '/api/timeline/adopt': typeof ApiTimelineAdoptRoute
   '/api/todos/$id': typeof ApiTodosIdRouteWithChildren
   '/api/tokens/$id': typeof ApiTokensIdRoute
   '/r/$repo/$': typeof RRepoSplatRoute
@@ -433,6 +442,7 @@ export interface FileRouteTypes {
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/shares/$token'
+    | '/api/timeline/adopt'
     | '/api/todos/$id'
     | '/api/tokens/$id'
     | '/r/$repo/$'
@@ -477,6 +487,7 @@ export interface FileRouteTypes {
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/shares/$token'
+    | '/api/timeline/adopt'
     | '/api/todos/$id'
     | '/api/tokens/$id'
     | '/r/$repo/$'
@@ -521,6 +532,7 @@ export interface FileRouteTypes {
     | '/api/groups/$id'
     | '/api/imports/$id'
     | '/api/shares/$token'
+    | '/api/timeline/adopt'
     | '/api/todos/$id'
     | '/api/tokens/$id'
     | '/r/$repo/$'
@@ -549,7 +561,7 @@ export interface RootRouteChildren {
   ApiReposRoute: typeof ApiReposRoute
   ApiSearchRoute: typeof ApiSearchRoute
   ApiSharesRoute: typeof ApiSharesRouteWithChildren
-  ApiTimelineRoute: typeof ApiTimelineRoute
+  ApiTimelineRoute: typeof ApiTimelineRouteWithChildren
   ApiTodosRoute: typeof ApiTodosRouteWithChildren
   ApiTokensRoute: typeof ApiTokensRouteWithChildren
   STokenRoute: typeof STokenRoute
@@ -797,6 +809,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSharesTokenRouteImport
       parentRoute: typeof ApiSharesRoute
     }
+    '/api/timeline/adopt': {
+      id: '/api/timeline/adopt'
+      path: '/adopt'
+      fullPath: '/api/timeline/adopt'
+      preLoaderRoute: typeof ApiTimelineAdoptRouteImport
+      parentRoute: typeof ApiTimelineRoute
+    }
     '/api/todos/$id': {
       id: '/api/todos/$id'
       path: '/$id'
@@ -943,6 +962,18 @@ const ApiSharesRouteWithChildren = ApiSharesRoute._addFileChildren(
   ApiSharesRouteChildren,
 )
 
+interface ApiTimelineRouteChildren {
+  ApiTimelineAdoptRoute: typeof ApiTimelineAdoptRoute
+}
+
+const ApiTimelineRouteChildren: ApiTimelineRouteChildren = {
+  ApiTimelineAdoptRoute: ApiTimelineAdoptRoute,
+}
+
+const ApiTimelineRouteWithChildren = ApiTimelineRoute._addFileChildren(
+  ApiTimelineRouteChildren,
+)
+
 interface ApiTodosIdRouteChildren {
   ApiTodosIdArchiveRoute: typeof ApiTodosIdArchiveRoute
   ApiTodosIdMoveRoute: typeof ApiTodosIdMoveRoute
@@ -1001,7 +1032,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReposRoute: ApiReposRoute,
   ApiSearchRoute: ApiSearchRoute,
   ApiSharesRoute: ApiSharesRouteWithChildren,
-  ApiTimelineRoute: ApiTimelineRoute,
+  ApiTimelineRoute: ApiTimelineRouteWithChildren,
   ApiTodosRoute: ApiTodosRouteWithChildren,
   ApiTokensRoute: ApiTokensRouteWithChildren,
   STokenRoute: STokenRoute,

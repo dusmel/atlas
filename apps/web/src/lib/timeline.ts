@@ -64,6 +64,7 @@ export type SessionSummary = {
   title: string | null
   ai_title: string | null
   cwd: string | null
+  repo_id: string | null
   repo_name: string | null
   started_at: string | null
   ended_at: string | null
@@ -76,8 +77,11 @@ export type SessionSummary = {
 
 export type TimelineList = { efforts: EffortSummary[]; sessions: SessionSummary[] }
 
+/** What Claude Code is asked to run to turn a session into an effort: playbook `mel/playbooks/adopt.md`. */
+export const adoptPrompt = (s: { id: string }, group?: string) => `/mel adopt ${s.id}${group ? ` "${group}"` : ""}`
+
 export type SessionView = {
-  session: SessionSummary & { efforts: { id: number; name: string; repo_name: string; signals: string[] }[] }
+  session: SessionSummary & { efforts: { id: number; name: string; repo_name: string; branches: string | null; signals: string[] }[] }
   entries: TimelineEntry[]
 }
 

@@ -4,6 +4,7 @@ import { ArrowLeftIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { DocPalette } from "@/components/docs/doc-palette"
+import { AdoptPrompt, AdoptSession } from "@/components/timeline/adopt"
 import { Dot, Merged, Rail } from "@/components/timeline/rail"
 import { AgentIcon, ResumeCommand } from "@/components/timeline/session"
 import { Segmented, Sidebar, type Filter } from "@/components/timeline/sidebar"
@@ -238,7 +239,7 @@ function Legends() {
   )
 }
 
-const SIGNALS: Record<string, string> = { todos: "its todos", prs: "its PRs", files: "the files it wrote" }
+const SIGNALS: Record<string, string> = { todos: "its todos", prs: "its PRs", files: "the files it wrote", adopted: "adoption" }
 
 /** Design #look-orphans: the header, why it is listed, then one entry per day and what it left open. */
 function Session({ view, compact, onCompact }: { view: SessionView; compact: boolean; onCompact: (c: boolean) => void }) {
@@ -281,10 +282,23 @@ function Session({ view, compact, onCompact }: { view: SessionView; compact: boo
             .
           </p>
         ) : (
-          <p>
-            Belongs to no effort. It is listed because it is big enough to be one: 3 or more commits, 3 or more todos, 30 or more prompts, or 2 or more days.
-          </p>
+          <>
+            <p>
+              Belongs to no effort. It is listed because it is big enough to be one: 3 or more commits, 3 or more todos, 30 or more prompts, or 2 or more days.
+            </p>
+            <AdoptSession session={s} />
+          </>
         )}
+        {s.efforts
+          .filter((e) => e.signals.includes("adopted") && !e.branches)
+          .map((e) => (
+            <div key={e.id} className="flex flex-col gap-1.5">
+              <p className="text-[13px] text-muted-foreground">
+                {e.name} has no docs or branches yet. Run this in Claude Code to write its design, plan and timeline from the session:
+              </p>
+              <AdoptPrompt session={s} group={e.name} />
+            </div>
+          ))}
         <p className="text-[13px] text-muted-foreground">
           Titles and lines come from a digest of each day. The page never shows prompt text. Resume the session in its folder:
         </p>

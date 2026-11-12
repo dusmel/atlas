@@ -1,0 +1,8 @@
+import { expect, test } from "bun:test";
+import { showMarkdown } from "../src/timeline.ts";
+
+test("each entry heading names the entry id that `atlas timeline note` takes", () => {
+  const entry = { entry: "phase-1", state: "done", title: "Phase 1: Log ships", merged: true, note: "", note_state: "none", lines: [], started_at: "2026-11-03", ended_at: "2026-11-04" };
+  const md = showMarkdown({ name: "Harbour", repo_name: "web", branches: "v1/*" }, [entry] as never);
+  expect(md.split("\n")).toContain("## Phase 1: Log ships · done · merged · 3 Nov to 4 Nov · id `phase-1`");
+});

@@ -19,8 +19,8 @@ export const TIMELINE_COMMANDS: Record<string, { about: string; flags: FlagSpec 
     about: "Sync linked efforts: sync [GROUP], or sessions: sync --sessions|--digest",
     flags: { repo: "string", all: "boolean", "dry-run": "boolean", "no-prs": "boolean", json: "boolean", sessions: "boolean", digest: "boolean", session: "string", days: "string" },
   },
-  show: { about: "Print an effort's timeline: show GROUP", flags: { repo: "string", json: "boolean" } },
-  link: { about: "Link a group to its branches: link GROUP --branches 'v1/*'", flags: { repo: "string", branches: "string" } },
+  show: { about: "Print an effort's timeline: show GROUP, or show --session ID", flags: { repo: "string", json: "boolean", session: "string" } },
+  link: { about: "Link a group to its branches, or to a session it grew from: link GROUP --branches 'v1/*' | --session ID", flags: { repo: "string", branches: "string", session: "string" } },
   note: { about: "Write an entry's note in timeline.md: note ENTRY TEXT|-", flags: { repo: "string", group: "string", "no-sync": "boolean" } },
   hook: { about: "Run as the Claude Code hook: reads the hook's JSON on stdin", flags: {} },
 };
@@ -28,10 +28,12 @@ export const TIMELINE_COMMANDS: Record<string, { about: string; flags: FlagSpec 
 export const TIMELINE_USAGE = `atlas timeline — what an effort did, is doing and does next, from git, run.md, timeline.md and its todos.
 
   atlas timeline link  GROUP --branches 'v1/*'   once per effort; the repo is the group's
+  atlas timeline link  GROUP --session ID         the session the effort grew from (/mel adopt)
   atlas timeline sync  [GROUP] [--all] [--dry-run] [--no-prs] [--json]
   atlas timeline sync  --sessions [--session ID] [--dry-run] [--json]    sessions from the transcripts, no model
   atlas timeline sync  --digest [--session ID] [--days 7]                 also a digest per session day (Sonnet)
   atlas timeline show  GROUP [--json]
+  atlas timeline show  --session ID [--json]    a session's days and what each one asked, decided and did
   atlas timeline note  ENTRY "why it was done" [--group GROUP] [--no-sync]   TEXT - reads stdin
   atlas timeline hook  < hook JSON              for PostToolUse, Stop and SessionEnd; always exits 0
 
@@ -69,10 +71,17 @@ async function run(args: string[]): Promise<number> {
 
   switch (sub) {
     case "link": {
-      if (!words[0] || typeof flags.branches !== "string") throw new CliError(2, "Usage: atlas timeline link GROUP --branches 'v1/*'");
+      const { branches, session } = flags;
+      if (!words[0] || (typeof branches !== "string" && typeof session !== "string")) throw new CliError(2, "Usage: atlas timeline link GROUP --branches 'v1/*' | --session ID");
       const group = await findGroup(cfg, words.join(" "), flags);
-      await api(cfg, "PATCH", `/groups/${group.id}`, { branches: flags.branches });
-      await out(`${group.repo_name}  ${group.name}  → branches ${flags.branches}`);
+      if (typeof branches === "string") {
+        await api(cfg, "PATCH", `/groups/${group.id}`, { branches });
+        await out(`${group.repo_name}  ${group.name}  → branches ${branches}`);
+      }
+      if (typeof session === "string") {
+        await api(cfg, "POST", "/timeline/adopt", { session, group_id: group.id });
+        await out(`${group.repo_name}  ${group.name}  → session ${session}`);
+      }
       return 0;
     }
     case "sync": {
@@ -101,7 +110,15 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "show": {
-      if (!words[0]) throw new CliError(2, "Usage: atlas timeline show GROUP");
+      if (typeof flags.session === "string") {
+        type SessionShown = { session: { id: string; title: string | null; ai_title: string | null; repo_name: string | null; efforts: { name: string }[] }; entries: ShownEntry[] };
+        const t = await api<SessionShown>(cfg, "GET", `/timeline?${new URLSearchParams({ session: flags.session })}`);
+        const s = t.session;
+        const head = { name: s.title || s.ai_title || s.id, repo_name: `${s.repo_name ?? "no repo"} · session ${s.id}${s.efforts.length ? ` · efforts ${s.efforts.map((e) => e.name).join(", ")}` : ""}`, branches: null };
+        await out(flags.json ? JSON.stringify(t, null, 2) : showMarkdown(head, t.entries));
+        return 0;
+      }
+      if (!words[0]) throw new CliError(2, "Usage: atlas timeline show GROUP, or show --session ID");
       const group = await findGroup(cfg, words.join(" "), flags);
       const t = await api<{ entries: ShownEntry[] }>(cfg, "GET", `/timeline?group=${group.id}`);
       await out(flags.json ? JSON.stringify(t, null, 2) : showMarkdown(group, t.entries));
@@ -243,11 +260,12 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const short = (day: string) => `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
 
 /** The rail as markdown, oldest first: one section per entry, its days as sub-lists. */
-export function showMarkdown(group: Group, entries: ShownEntry[]): string {
+export function showMarkdown(group: Pick<Group, "name" | "repo_name" | "branches">, entries: ShownEntry[]): string {
   const out = [`# ${group.name}`, "", `${group.repo_name}${group.branches ? ` · branches ${group.branches}` : ""}`];
   for (const e of entries) {
     const span = e.started_at ? ` · ${short(e.started_at.slice(0, 10))}${e.ended_at && e.ended_at.slice(0, 10) !== e.started_at.slice(0, 10) ? ` to ${short(e.ended_at.slice(0, 10))}` : ""}` : "";
-    out.push("", `## ${e.title} · ${e.state}${e.merged ? " · merged" : ""}${span}`);
+    // The entry id goes in the heading: `atlas timeline note` takes it.
+    out.push("", `## ${e.title} · ${e.state}${e.merged ? " · merged" : ""}${span} · id \`${e.entry}\``);
     if (e.note_state === "written") out.push("", e.note);
     if (e.note_state === "draft") out.push("", "_note: draft_");
     let day: string | null | undefined;

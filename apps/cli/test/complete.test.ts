@@ -39,8 +39,8 @@ describe("complete", () => {
     expect(await complete([""])).toContain("timeline:An effort's done, doing and next");
     expect(await complete(["timeline", ""])).toEqual([
       "sync:Sync linked efforts: sync [GROUP], or sessions: sync --sessions|--digest",
-      "show:Print an effort's timeline: show GROUP",
-      "link:Link a group to its branches: link GROUP --branches 'v1/*'",
+      "show:Print an effort's timeline: show GROUP, or show --session ID",
+      "link:Link a group to its branches, or to a session it grew from: link GROUP --branches 'v1/*' | --session ID",
       "note:Write an entry's note in timeline.md: note ENTRY TEXT|-",
       "hook:Run as the Claude Code hook: reads the hook's JSON on stdin",
     ]);
@@ -48,8 +48,11 @@ describe("complete", () => {
     // A session id and a day count are free text.
     expect(await complete(["timeline", "sync", "--session", ""])).toEqual([]);
     expect(await complete(["timeline", "link", "v1", "--branches", ""])).toEqual([]);
+    expect(await complete(["timeline", "link", "v1", "-"])).toEqual(["--repo", "--branches", "--session"]);
+    expect(await complete(["timeline", "link", "v1", "--session", ""])).toEqual([]);
     expect(await complete(["timeline", "note", "phase-1", ""])).toEqual(["--repo", "--group", "--no-sync"]);
     expect(await complete(["timeline", "hook", ""])).toEqual([]);
+    expect(await complete(["timeline", "show", "--session", ""])).toEqual([]);
     expect(await complete(["timeline", "nope", ""])).toEqual([]);
   });
 
