@@ -72,6 +72,45 @@ test("the rail shows done, now and next, and Compact folds all but now", async (
   await expect(now.getByText("Trim the wick")).toBeVisible()
 })
 
+test("the flow of work: entries around the build, day titles, decisions and unpushed commits", async ({ page }) => {
+  const id = await seedTimeline(page)
+  const line = (day: string | null, text: string, source: string, ref: string | null, kind: string | null) => ({ day, text, source, ref, kind })
+  await api(page, "POST", "/timeline", {
+    group: id,
+    entries: [
+      { entry: "brief", state: "done", title: "Brief", started_at: "2026-11-02", lines: [line("2026-11-02", "Keep a log of passing ships", "session", "s1", "asked")] },
+      { entry: "sign-off", state: "done", title: "Sign-off", started_at: "2026-11-02", lines: [line("2026-11-02", "T4: Sign-off on 2026-11-02", "doc", "design.html#decisions", "decision"), line(null, "3 defaults picked", "run", "run.md", "defaults")] },
+      {
+        entry: "phase-1",
+        state: "done",
+        title: "Phase 1: the keeper's log",
+        started_at: "2026-11-03",
+        ended_at: "2026-11-04",
+        lines: [
+          line("2026-11-03", "Log every passing ship", "git", "a1b2c3d", null),
+          line("2026-11-03", "First nights on the rock", "session", "s1", "day"),
+          line("2026-11-04", "Add the night watch rota", "git", "d4e5f6a", "unpushed"),
+          line("2026-11-04", "PR 7", "git", "https://github.com/example/web/pull/7", "pr"),
+        ],
+      },
+      { entry: "scope-2026-11-05", state: "done", title: "Scope change", started_at: "2026-11-05", lines: [line("2026-11-05", "Phases 2 to 3 added", "run", "run.md", "scope")] },
+    ],
+  })
+  await page.goto(`/timeline?group=${id}`)
+  await expect(page.locator("li[data-entry]")).toHaveCount(4)
+  const phase = page.locator('li[data-entry="phase-1"]')
+  // The day's title heads its day and is not listed as a line.
+  await expect(phase.getByText("3 Nov: First nights on the rock")).toBeVisible()
+  await expect(phase.getByText("First nights on the rock", { exact: true })).toHaveCount(0)
+  // An unpushed commit is counted, marked, and has no GitHub link.
+  await expect(phase.getByText("git d4e5f6a · not pushed")).toBeVisible()
+  await expect(phase.getByRole("link", { name: /d4e5f6a/ })).toHaveCount(0)
+  await expect(phase.getByText("2 commits · PR 7")).toBeVisible()
+  const signoff = page.locator('li[data-entry="sign-off"]')
+  await expect(signoff.getByText("decision", { exact: true })).toBeVisible()
+  await expect(signoff.getByText("3 defaults picked")).toBeVisible()
+})
+
 test("the sidebar lists the effort, what waits on you, and filters", async ({ page }) => {
   const id = await seedTimeline(page)
   await page.goto(`/timeline?group=${id}`)

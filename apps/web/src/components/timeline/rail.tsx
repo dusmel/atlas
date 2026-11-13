@@ -136,14 +136,20 @@ export function Rail({
 
 /** The grey outcome line at an entry's end: its commits and PRs, or how many items wait. */
 function outcome(e: TimelineEntry) {
-  const commits = e.lines.filter((l) => l.source === "git" && !l.kind).length
+  const commits = e.lines.filter((l) => l.source === "git" && (!l.kind || l.kind === "unpushed")).length
   const prs = e.lines.filter((l) => l.kind?.startsWith("pr")).map((l) => l.text)
   if (e.state === "todo" || e.state === "parked") return e.lines.length ? `${e.lines.length} ${e.lines.length === 1 ? "item" : "items"}` : ""
   return [commits && `${commits} ${commits === 1 ? "commit" : "commits"}`, prs.join(", ")].filter(Boolean).join(" · ")
 }
 
-/** An entry's lines, under a day heading when the entry spans more than one day. */
-function Lines({ lines, base }: { lines: TimelineLine[]; base: string | null }) {
+/**
+ * An entry's lines, under a day heading when the entry spans more than one day. A `day` line titles its
+ * day's heading ("8 Nov: First days in your vault"); an entry with nothing else lists it as a line.
+ */
+function Lines({ lines: all, base }: { lines: TimelineLine[]; base: string | null }) {
+  const onlyDays = all.every((l) => l.kind === "day")
+  const titles = new Map(onlyDays ? [] : all.filter((l) => l.kind === "day").map((l) => [l.day, l.text]))
+  const lines = onlyDays ? all : all.filter((l) => l.kind !== "day")
   if (!lines.length) return null
   const days = new Set(lines.map((l) => l.day).filter(Boolean))
   const split = days.size > 1
@@ -151,15 +157,16 @@ function Lines({ lines, base }: { lines: TimelineLine[]; base: string | null }) 
   return (
     <ul className="mt-1 flex list-disc flex-col gap-[3px] pl-[18px] text-[14.5px] leading-normal marker:text-muted-foreground">
       {lines.map((l, i) => {
-        const head = split && l.day !== last && l.day ? dayLabel(l.day) : null
+        const head = split && l.day !== last && l.day ? `${dayLabel(l.day)}${titles.has(l.day) ? `: ${titles.get(l.day)}` : ""}` : null
         last = l.day
+        const href = l.href ?? (l.source === "doc" && l.ref && /^https?:/.test(l.ref) ? l.ref : null)
         return (
           <Fragment key={i}>
             {head && <li className="-ml-[18px] list-none pt-1 font-mono text-[11.5px] text-muted-foreground">{head}</li>}
             <li>
               {l.kind === "waiting" && <b className="font-semibold text-[color-mix(in_oklab,var(--doing)_60%,black)] dark:text-doing">You: </b>}
-              {l.href ? (
-                <a href={l.href} className="text-link underline-offset-2 hover:underline">
+              {href ? (
+                <a href={href} className="text-link underline-offset-2 hover:underline">
                   {l.text}
                 </a>
               ) : (
@@ -183,13 +190,24 @@ function Source({ line, base }: { line: TimelineLine; base: string | null }) {
         todo #{line.ref}
       </Link>
     )
-  if (line.source === "git" && line.ref && base)
+  // A commit on no remote branch is not on GitHub yet, so it gets no link.
+  if (line.kind === "unpushed") return <span className={cn(cls, "text-muted-foreground")}>git {line.ref} · not pushed</span>
+  if (line.source === "git" && line.ref && base && !line.ref.startsWith("http"))
     return (
       <a href={`${base}/commit/${line.ref}`} target="_blank" rel="noopener" className={cn(cls, "text-link underline-offset-2 hover:underline")}>
         git {line.ref}
       </a>
     )
-  const label = line.source === "git" && line.ref ? `git ${line.ref}` : line.kind === "parked" ? "run · parked" : line.source === "session" && line.kind ? line.kind : line.source
+  const label =
+    line.source === "git" && line.ref && !line.ref.startsWith("http")
+      ? `git ${line.ref}`
+      : line.kind === "parked"
+        ? "run · parked"
+        : line.kind === "decision" || line.kind === "defaults"
+          ? line.kind
+          : line.source === "session" && line.kind
+            ? line.kind
+            : line.source
   return <span className={cn(cls, "text-muted-foreground")}>{label}</span>
 }
 
