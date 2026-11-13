@@ -11,6 +11,7 @@ const HLJS = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0"
 const PROPS: [string, string][] = [
   ["Type", "doc-type"],
   ["Tags", "tags"],
+  ["Created", "created"],
   ["Date", "date"],
   ["Repo", "repo"],
   ["Branch", "branch"],
@@ -186,6 +187,7 @@ function contents(headings: Heading[]): string {
 }
 
 function prop(key: string, v: string): string {
+  if (key === "created") return escapeHtml(v.slice(0, 16).replace("T", " "))
   if (key === "tags")
     return escapeHtml(
       v
@@ -207,7 +209,9 @@ export function renderMarkdownPage(md: string, name: string): Page {
   const title = front.title || parts.h1 || name
   const { html, headings } = content(parts.content, parts.related.length ? ["related"] : [])
   const toc = contents(headings)
-  const props = PROPS.filter(([, key]) => front[key]).map(([label, key]) => `<div><dt>${label}</dt><dd>${prop(key, front[key]!)}</dd></div>`)
+  const rows = PROPS.filter(([, key]) => front[key])
+  // The toolbar shows when the doc was written, so a note whose frontmatter holds only that gets no block.
+  const props = (rows.length === 1 && rows[0]![1] === "created" ? [] : rows).map(([label, key]) => `<div><dt>${label}</dt><dd>${prop(key, front[key]!)}</dd></div>`)
   const related = parts.related.length
     ? `<section class="related" id="related" data-atlas-chrome>
 <h2>Related</h2>

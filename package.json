@@ -21,6 +21,7 @@
     "migrate": "bun apps/cli/scripts/migrate-promoted-dirs.ts",
     "test": "bun test",
     "docs:check": "bun scripts/docs-check.ts",
-    "docs:migrate": "bun scripts/docs-migrate.ts"
+    "docs:migrate": "bun scripts/docs-migrate.ts",
+    "docs:created": "bun scripts/docs-created.ts"
   }
 }

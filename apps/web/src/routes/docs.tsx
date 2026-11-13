@@ -9,7 +9,7 @@ import { YearGrid } from "@/components/year-grid"
 import { DocsPalette } from "@/components/docs/docs-palette"
 import { ChangedPopover, CheckList, FilterBadge, FolderPopover, TypeTagFilters } from "@/components/docs/filters"
 import { DocFolders } from "@/components/docs/folders-view"
-import { copyPath, Hits } from "@/components/docs/hits"
+import { copyPath, Hits, OrderToggle } from "@/components/docs/hits"
 import { DocOverview } from "@/components/docs/overview-view"
 import { DocsSidebar } from "@/components/docs/sidebar"
 import { SinceControl } from "@/components/todos/filters"
@@ -24,10 +24,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api } from "@/lib/api"
 import { useRepoColor } from "@/lib/doc-colors"
-import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, NO_TYPE, typeLabel, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
+import { DOC_TABS, DOC_VIEWS, docHref, docKey, flip, folderLabel, joined, list, NO_TYPE, typeLabel, type DocOrder, type DocView, type Facets, type Hit, type Option, type Summary } from "@/lib/docs"
 import { sinceLabel, sinceMs } from "@/lib/since"
 
-type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; type?: string; tag?: string; since?: string; doc?: string; path?: string; design?: "report" | "trends" }
+type Search = { view?: Exclude<DocView, "search">; q?: string; repo?: string; folder?: string; type?: string; tag?: string; since?: string; doc?: string; path?: string; design?: "report" | "trends"; sort?: "created" }
 
 const text = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v))
 
@@ -43,6 +43,7 @@ export const Route = createFileRoute("/docs")({
     doc: text(s.doc),
     path: text(s.path),
     design: s.design === "report" || s.design === "trends" ? s.design : undefined,
+    sort: s.sort === "created" ? "created" : undefined,
   }),
   component: DocsPage,
 })
@@ -87,9 +88,12 @@ function DocsPage() {
     ...(search.tag ? { tag: search.tag } : {}),
     ...(scoped && since ? { since } : {}),
   })
+  const order: DocOrder = search.sort ?? "changed"
+  // A query ranks by relevance, so the order only reaches the list shown before anything is typed.
+  const ordered = q.trim() ? "changed" : order
   const results = useQuery({
-    queryKey: ["search", q, filters.toString()],
-    queryFn: () => api<{ results: Hit[]; facets: Facets }>(`/search?${new URLSearchParams({ q, ...Object.fromEntries(filters) })}`),
+    queryKey: ["search", q, filters.toString(), ordered],
+    queryFn: () => api<{ results: Hit[]; facets: Facets }>(`/search?${new URLSearchParams({ q, ...Object.fromEntries(filters), ...(ordered === "created" ? { order: ordered } : {}) })}`),
     // Keep the last results on screen while typing, but never show them under Recently changed.
     placeholderData: (prev, prevQuery) => (q.trim() && String(prevQuery?.queryKey[1] ?? "").trim() ? prev : undefined),
   })
@@ -245,7 +249,7 @@ function DocsPage() {
           ) : view === "overview" ? (
             <DocOverview repos={repos} params={filters} />
           ) : view === "folders" ? (
-            <DocFolders path={search.path ?? ""} params={filters} filtered={filtered > 0} />
+            <DocFolders path={search.path ?? ""} params={filters} filtered={filtered > 0} order={order} onOrder={(o) => set({ sort: o === "created" ? o : undefined })} />
           ) : results.isPending ? (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-16" />
@@ -255,10 +259,17 @@ function DocsPage() {
             <p className="text-sm text-destructive">{results.error.message}</p>
           ) : !q.trim() ? (
             <section aria-labelledby="recent" className="flex flex-col gap-1">
-              <h2 id="recent" className="text-sm font-medium">
-                Recently changed
-              </h2>
-              {hits.length ? <Hits hits={hits} label="Recently changed docs" selected={selected} onSelect={setSelected} /> : <p className="py-3 text-sm text-muted-foreground">No doc fits these filters.</p>}
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="recent" className="text-sm font-medium">
+                  {order === "created" ? "Recently created" : "Recently changed"}
+                </h2>
+                <OrderToggle value={order} onChange={(o) => set({ sort: o === "created" ? o : undefined })} />
+              </div>
+              {hits.length ? (
+                <Hits hits={hits} label={order === "created" ? "Recently created docs" : "Recently changed docs"} selected={selected} onSelect={setSelected} order={order} />
+              ) : (
+                <p className="py-3 text-sm text-muted-foreground">No doc fits these filters.</p>
+              )}
             </section>
           ) : hits.length === 0 ? (
             <Empty>

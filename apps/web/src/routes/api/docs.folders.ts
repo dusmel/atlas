@@ -7,7 +7,7 @@ export const Route = createFileRoute("/api/docs/folders")({
     handlers: {
       GET: ({ request }) => {
         const url = new URL(request.url)
-        return handle(() => docsFolder(url.searchParams.get("path") ?? "", filterInput(url)))
+        return handle(() => docsFolder(url.searchParams.get("path") ?? "", { ...filterInput(url), order: url.searchParams.get("order") ?? undefined }))
       },
     },
   },

@@ -27,6 +27,12 @@ describe("renderMarkdownPage", () => {
     expect(frontmatter(md).front).toEqual({ title: "Lighthouse plan", "doc-type": "plan", tags: "keeper, lamp", mood: "calm" })
   })
 
+  test("created shows to the minute in the block, and a note with nothing else gets no block", () => {
+    const md = "---\ntags: keeper\ncreated: 2026-10-14T21:45+02:00\n---\n\n# Lamp"
+    expect(body(renderMarkdownPage(md, "x.md").html)).toContain("<dt>Created</dt><dd>2026-10-14 21:45</dd>")
+    expect(body(renderMarkdownPage("---\ncreated: 2026-10-14T21:45+02:00\n---\n# Lamp", "x.md").html)).not.toContain("Metadata")
+  })
+
   test("TL;DR, callouts and heading ids, including {#id} that starts with a digit", () => {
     const md = "# T\n\nTL;DR: the short version.\n\n## 1. Goal {#1-goal}\n\n> [!WARNING]\n> Mind the rocks.\n\n## Goal\n\n## Goal"
     const page = body(renderMarkdownPage(md, "t.md").html)

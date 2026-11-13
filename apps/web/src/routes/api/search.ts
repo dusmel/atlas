@@ -8,7 +8,7 @@ export const Route = createFileRoute("/api/search")({
       GET: ({ request }) => {
         const url = new URL(request.url)
         return handle(() =>
-          searchDocs({ ...filterInput(url), q: url.searchParams.get("q") ?? "", limit: url.searchParams.get("limit") ?? undefined }),
+          searchDocs({ ...filterInput(url), q: url.searchParams.get("q") ?? "", limit: url.searchParams.get("limit") ?? undefined, order: url.searchParams.get("order") ?? undefined }),
         )
       },
     },

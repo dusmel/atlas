@@ -37,6 +37,23 @@ export function stamp(at: string, now = Date.now()): string {
   return `${day}, ${time.format(d)}`
 }
 
+const utcDay = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+const utcDayMonth = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })
+const longDay = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "UTC" })
+
+// A doc that gives only the day of `created` (a bare YYYY-MM-DD) shows that day, with no time and no time-zone shift.
+const bareDay = (at: string) => at.length === 10
+
+/** A doc's created time as `stamp` words it, or just the day when the doc gives no time: "11 Sep". */
+export function createdStamp(at: string, now = Date.now()): string {
+  if (!bareDay(at)) return stamp(at, now)
+  const d = new Date(`${at}T00:00Z`)
+  return (d.getUTCFullYear() === new Date(now).getUTCFullYear() ? utcDayMonth : utcDay).format(d)
+}
+
+/** `exact` for a created time: "11 Sept 2026" for a bare day. */
+export const createdExact = (at: string) => (bareDay(at) ? longDay.format(new Date(`${at}T00:00Z`)) : exact(at))
+
 const QUIET = new Set(["rank", "done_at", "updated_at", "archived_at"])
 const label = (p: unknown) => (p === null ? "Inbox" : String(p))
 

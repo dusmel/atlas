@@ -2,7 +2,7 @@ import { defaultUrlTransform } from "react-markdown"
 import { ActivityIcon, ChartColumnIcon, FolderTreeIcon, GlobeIcon, SearchIcon } from "lucide-react"
 import type { Status } from "@atlas/todos"
 
-export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; tags: string; type: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
+export type Hit = { repo: string; path: string; kind: "md" | "html"; title: string; snippet: string; mtime: string; created: string | null; tags: string; type: string; todos?: { open: number; groups: number[] }; groups?: { id: number; name: string }[] }
 /** Tags as the docs write them: comma-separated, in frontmatter sometimes inside [ ]. */
 export const tagList = (tags: string) => tags.replace(/^\[|\]$/g, "").split(",").map((t) => t.trim()).filter(Boolean)
 export type Facets = { total: number; repo: Record<string, number>; folder: Record<string, number>; type: Record<string, number>; tag: Record<string, number> }
@@ -12,8 +12,10 @@ export type Summary = { docs: number; md: number; html: number; repos: { name: s
 export type FolderListing = {
   path: string
   folders: { name: string; docs: number; last: string }[]
-  docs: { repo: string; path: string; kind: "md" | "html"; title: string; type: string | null; tags: string; mtime: string }[]
+  docs: { repo: string; path: string; kind: "md" | "html"; title: string; type: string | null; tags: string; mtime: string; created: string | null }[]
 }
+/** How the newest-first lists order: by the file's change time, or by when the doc says it was written. */
+export type DocOrder = "changed" | "created"
 export type DocEvent = { id: number; at: string; change: "added" | "changed" | "removed"; repo: string; path: string; kind: string; kinds: string[]; title: string }
 export type DocRef = { repo: string; path: string; title: string; mtime: string }
 export type LinkedDoc = DocRef & { open: number; groups: number[] }
@@ -57,6 +59,8 @@ export type DocPage = {
   markdown: boolean
   twin: string | null
   mtime: string
+  /** An ISO time, a bare YYYY-MM-DD when the doc gives only the day, or null. */
+  created: string | null
   todos: { open: number; groups: number[] } | null
   /** The parent todo the doc names with `atlas-todo`, when that item exists. */
   todo: { id: number; title: string; status: Status } | null
