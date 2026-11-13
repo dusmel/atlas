@@ -36,6 +36,12 @@ const STATES: State[] = ["done", "doing", "todo", "parked"]
 const RANK: Record<State, number> = { done: 0, doing: 1, parked: 2, todo: 3 }
 const PHASE_TODO = /^Phase (\d+)\b/i
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null)
+/** The server takes titles up to 200 characters. A longer plan heading keeps its first sentence, else is cut at a word. */
+export const shortTitle = (t: string, max = 200) => {
+  if (t.length <= max) return t
+  const first = /^(.+?\.)\s/.exec(t)?.[1]
+  return first && first.length <= max ? first : `${t.slice(0, max - 1).replace(/\s+\S*$/, "")}…`
+}
 const humanize = (slug: string) => {
   const s = slug.replace(/[-_]+/g, " ").trim()
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -165,5 +171,5 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
   return entries
     .map((e, i) => [e, i] as const)
     .sort(([a, i], [b, j]) => RANK[a.state] - RANK[b.state] || (a.state === "done" && b.state === "done" ? done(a, b) : 0) || i - j)
-    .map(([e]) => e)
+    .map(([e]) => ({ ...e, title: shortTitle(e.title) }))
 }
