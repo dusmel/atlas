@@ -111,6 +111,56 @@ test("the flow of work: entries around the build, day titles, decisions and unpu
   await expect(signoff.getByText("3 defaults picked")).toBeVisible()
 })
 
+test("the now entry colours each line's dot by its state, so open work stands out", async ({ page }) => {
+  const id = await seedTimeline(page)
+  const line = (text: string, source: string, ref: string | null, kind: string | null) => ({ day: "2026-11-10", text, source, ref, kind })
+  await api(page, "POST", "/timeline", {
+    group: id,
+    entries: [
+      {
+        entry: "lamp",
+        state: "doing",
+        title: "Light the lamp at dusk",
+        lines: [
+          line("Trim the wick", "git", "b7c8d9e", null),
+          line("Polish the lens", "todo", "41", null),
+          line("Wind the clockwork", "git", "c1d2e3f", "unpushed"),
+          line("Test the fog horn", "todo", "42", "doing"),
+        ],
+      },
+    ],
+  })
+  await page.goto(`/timeline?group=${id}`)
+  const now = page.locator('li[data-entry="lamp"]')
+  const state = (text: string) => now.locator("li", { hasText: text }).last()
+  await expect(state("Trim the wick")).toHaveAttribute("data-line-state", "done")
+  await expect(state("Polish the lens")).toHaveAttribute("data-line-state", "done")
+  await expect(state("Wind the clockwork")).toHaveAttribute("data-line-state", "doing")
+  await expect(state("Test the fog horn")).toHaveAttribute("data-line-state", "doing")
+  const marker = (text: string) => state(text).evaluate((el) => getComputedStyle(el, "::marker").color)
+  expect(await marker("Trim the wick")).not.toBe(await marker("Wind the clockwork"))
+  // Done entries keep plain grey dots: every line there is finished.
+  await expect(page.locator('li[data-entry="phase-1"] li[data-line-state]')).toHaveCount(0)
+})
+
+test("the sidebar is as wide as you drag it, and keeps that width", async ({ page }) => {
+  await seedTimeline(page)
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto("/timeline")
+  const side = page.locator("aside").first()
+  const before = (await side.boundingBox())!.width
+  const handle = page.getByRole("separator", { name: "Resize the sidebar" })
+  const box = (await handle.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + 200)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 200, { steps: 5 })
+  await page.mouse.up()
+  const after = (await side.boundingBox())!.width
+  expect(after).toBeGreaterThan(before + 100)
+  await page.reload()
+  await expect.poll(async () => (await side.boundingBox())!.width).toBeCloseTo(after, -1)
+})
+
 test("the sidebar lists the effort, what waits on you, and filters", async ({ page }) => {
   const id = await seedTimeline(page)
   await page.goto(`/timeline?group=${id}`)
@@ -198,6 +248,14 @@ test("an effort shows its sessions, and a session's card resumes it", async ({ p
   await page.goto(`/timeline?group=${id}`)
   await expect(page.getByText("2 sessions")).toBeVisible()
 
+  // The count lists the sessions on hover; one goes to its page.
+  await page.getByRole("button", { name: "2 sessions" }).hover()
+  const list = page.getByRole("dialog", { name: "Sessions" })
+  await expect(list.locator("a[data-session]")).toHaveCount(2)
+  await list.locator(`a[data-session="${S2}"]`).click()
+  await expect(page).toHaveURL(new RegExp(`session=${S2}`))
+  await page.goto(`/timeline?group=${id}`)
+
   // Phase 1 ran on 3 and 4 Nov, while both sessions were active; the work after it names none.
   const done = page.locator('li[data-entry="phase-1"]')
   await expect(done.locator("[data-session]")).toHaveCount(2)
@@ -254,14 +312,20 @@ test("a session page leads each day with the prompts as sent, pastes folded", as
   await expect(page.locator('li[data-entry="2026-11-04"] [data-prompt]')).toHaveCount(0)
 })
 
-test("the sidebar nests an effort's sessions and folds small loose ones", async ({ page }) => {
+test("the sidebar nests an effort's sessions once it is expanded, and folds small loose ones", async ({ page }) => {
   const id = await seedTimeline(page)
   await seedSessions(page, id)
-  await page.goto(`/timeline?group=${id}`)
+  await page.goto("/timeline")
   const row = page.locator('[data-effort="Onboarding"]')
+  await expect(row.locator(`a[data-session="${S1}"]`)).toHaveCount(0)
+  await row.getByRole("button", { name: "Show details" }).click()
   await expect(row.locator(`a[data-session="${S1}"]`)).toContainText("Keeper's log")
   await expect(row.locator(`a[data-session="${S2}"]`)).toContainText("bbbbbbbb")
-  await expect(row.locator(`[data-detail-session="${S2}"]`)).toContainText("Watch rota")
+  await expect(row.locator(`a[data-session="${S2}"]`)).toContainText("Watch rota")
+
+  // The selected effort opens by itself.
+  await page.goto(`/timeline?group=${id}`)
+  await expect(row.locator(`a[data-session="${S1}"]`)).toBeVisible()
 
   await page.getByRole("radio", { name: "All" }).click()
   const loose = page.getByRole("region", { name: "Sessions with no effort" })

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { ChevronRightIcon, FolderIcon } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { cn } from "cn"
 import { ago, daysSince, effortState, sessionSize, sessionSpan, sessionTitle, type EffortSummary, type SessionSummary } from "@/lib/timeline"
 import { AgentIcon } from "./session"
@@ -58,7 +58,12 @@ export function Sidebar({
   onBars: (b: boolean) => void
 }) {
   const [q, setQ] = useState("")
-  const [open, setOpen] = useState<Record<string, boolean>>(selected === null ? {} : { [selected]: true })
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  // The selected effort, or the effort of the selected session, opens once the list has loaded.
+  const opened = efforts.filter((e) => e.id === selected || (!!session && e.sessions.some((s) => s.id === session))).map((e) => e.id)
+  useEffect(() => {
+    if (opened.length) setOpen((o) => ({ ...o, ...Object.fromEntries(opened.map((id) => [id, true])) }))
+  }, [opened.join()])
   const [fold, setFold] = useState<Record<string, boolean>>({})
   const flip = (k: string) => setFold((f) => ({ ...f, [k]: !f[k] }))
 
@@ -221,7 +226,7 @@ function Loose({ sessions, q, filter, selected, fold, flip }: { sessions: Sessio
 }
 
 /** A session by its title, with the short id in grey; `detail` is the grey line under it. */
-function SessionRow({ s, selected, detail, nested }: { s: SessionSummary; selected: boolean; detail?: string; nested?: boolean }) {
+export function SessionRow({ s, selected, detail, nested }: { s: SessionSummary; selected: boolean; detail?: string; nested?: boolean }) {
   return (
     <Link
       to="/timeline"
@@ -291,24 +296,17 @@ function EffortRow({ e, selected, session, bars, open, onToggle }: { e: Row; sel
           ))}
         </span>
       )}
-      {/* An effort lists its sessions under it only when it has more than one (design #look-sidebar). */}
-      {e.sessions.length > 1 && (
-        <span className="mt-1 -mr-2 -ml-2 flex flex-col">
-          {e.sessions.map((s) => (
-            <SessionRow key={s.id} s={s} selected={s.id === session} nested />
-          ))}
-        </span>
-      )}
       {open && (
         <>
           <span className="mt-[5px] ml-[21px] block text-xs text-muted-foreground">{status}</span>
-          {e.sessions.map((s) => (
-            <span key={s.id} className="mt-1 ml-[21px] flex items-center gap-1.5 text-xs text-muted-foreground" data-detail-session={s.id}>
-              <AgentIcon size={11} />
-              <span className="truncate">{sessionTitle(s)}</span>
-              <span className="shrink-0">· {sessionSpan(s)}</span>
+          {/* Sessions stay folded until the effort is expanded, so a long list of efforts stays short. */}
+          {e.sessions.length > 0 && (
+            <span className="mt-1 -mr-2 -ml-2 flex flex-col" data-effort-sessions>
+              {e.sessions.map((s) => (
+                <SessionRow key={s.id} s={s} selected={s.id === session} nested />
+              ))}
             </span>
-          ))}
+          )}
           {repos.map((r) => (
             <span key={r} className="mt-1 ml-[21px] flex items-center gap-1.5 text-xs text-muted-foreground">
               <FolderIcon className="size-3 shrink-0" aria-hidden />
