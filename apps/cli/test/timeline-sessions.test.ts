@@ -6,7 +6,9 @@ const plan = (path: string) => docPrefix({ docs: [{ label: "plan", path }] } as 
 describe("docPrefix", () => {
   test("a plan in the docs root shares the folder, so only files named like it count", () => {
     expect(plan("object-storage-plan.html")).toBe("object-storage-")
-    expect(plan("telephony-architecture.html")).toBe("telephony-architecture")
+    expect(plan("atlas-web-v1-overview.html")).toBe("atlas-web-v1-")
+    expect(plan("telephony-architecture.html")).toBe("telephony-")
+    expect(plan("overview.html")).toBe("overview")
   })
 
   test("a plan in its own folder, or one called plan.html, takes the whole folder", () => {

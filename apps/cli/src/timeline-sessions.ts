@@ -49,14 +49,16 @@ const git = (cwd: string, args: string[]) => {
 };
 
 /**
- * A plan in the repo's docs root, such as `object-storage-plan.html` or `telephony-architecture.html`, shares
- * that folder with other efforts: only files named like it count (`object-storage-`, `telephony-architecture`).
- * A plan in its own folder (`timeline/plan.html`, `voice-200-users/report.html`) has the folder to itself.
+ * A plan in the repo's docs root, such as `object-storage-plan.html` or `atlas-web-v1-overview.html`, shares
+ * that folder with other efforts. Only files named like it count: its name less the last word, which says
+ * what the doc is (`object-storage-`, `atlas-web-v1-`). A plan in its own folder (`timeline/plan.html`,
+ * `voice-200-users/report.html`) has the folder to itself.
  */
 export function docPrefix(g: Pick<Group, "docs">): string | null {
   const plan = g.docs.find((d) => d.label === "plan")?.path;
   if (!plan || plan.includes("/") || plan === "plan.html") return null;
-  return plan.replace(/\.html$/, "").replace(/plan$/, "");
+  const name = plan.replace(/\.html$/, "");
+  return name.replace(/(?<=-)[^-]+$/, "");
 }
 
 /** Every group with branches or an effort folder, with what linkSession needs to match it. */
