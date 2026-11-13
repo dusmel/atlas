@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import type { Database } from "bun:sqlite"
 import { HttpError } from "../src/server/http"
-import { getTimeline, listEfforts, listTimeline, syncTimeline } from "../src/server/timeline"
+import { adoptSession, getTimeline, listEfforts, listTimeline, syncTimeline } from "../src/server/timeline"
 import { createGroup, createTodo, updateGroup } from "../src/server/todos"
 import { freshDb } from "./helpers"
 
@@ -158,6 +158,19 @@ describe("sessions", () => {
     expect((getTimeline(db, { session: SID }) as { session: { efforts: unknown[] } }).session.efforts).toEqual([])
     expect(() => syncSession({ links: [{ group_id: groupId, signals: ["cwd"] }] })).toThrow(HttpError)
     expect(() => syncTimeline(db, { group: groupId, entries: [], meta })).toThrow(HttpError)
+  })
+
+  test("an adopted session stays linked through later syncs, which still replace the other signals", () => {
+    syncSession({ links: [] })
+    const efforts = () => (getTimeline(db, { session: SID }) as { session: { efforts: { id: number; signals: string[] }[] } }).session.efforts.map((e) => [e.id, e.signals])
+    expect(adoptSession(db, { session: SID, group_id: groupId })).toEqual({ session: SID, group_id: groupId, signals: ["adopted"] })
+    syncSession({ links: [] })
+    expect(efforts()).toEqual([[groupId, ["adopted"]]])
+    syncSession()
+    expect(efforts()).toEqual([[groupId, ["todos", "files", "adopted"]]])
+    expect(listTimeline(db).efforts.find((e) => e.id === groupId)!.sessions.map((s) => s.id)).toEqual([SID])
+    expect(() => adoptSession(db, { session: "nope", group_id: groupId })).toThrow(HttpError)
+    expect(() => adoptSession(db, { session: SID, group_id: 9999 })).toThrow(HttpError)
   })
 
   test("an unknown session is a 404, and deleting a group drops its links", () => {

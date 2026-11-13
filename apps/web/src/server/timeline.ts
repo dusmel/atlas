@@ -105,7 +105,8 @@ const toEntry = (r: Row): TimelineEntry => ({
   updated_at: r.updated_at,
 })
 
-const SIGNALS = ["todos", "prs", "files"] as const
+// `adopted` is set by hand when a session becomes an effort (`/mel adopt`); a sync never removes it.
+const SIGNALS = ["todos", "prs", "files", "adopted"] as const
 const count = (v: unknown, what: string) => {
   if (v === undefined) return 0
   if (!Number.isInteger(v) || (v as number) < 0) throw bad("bad_field", `${what} must be a whole number`)
@@ -142,16 +143,43 @@ function saveSessionMeta(db: Database, id: string, v: unknown, at: string) {
   )
 }
 
-/** Replaces a session's links. A group the server does not have is skipped: the Mac may know more groups' folders than this server. */
+/**
+ * Replaces a session's links, keeping every `adopted` one. A group the server does not have is skipped: the
+ * Mac may know more groups' folders than this server.
+ */
 function saveSessionLinks(db: Database, id: string, v: unknown) {
   if (!Array.isArray(v)) throw bad("bad_links", "links must be a list")
-  db.run("DELETE FROM timeline_session_links WHERE session = ?", [id])
+  const adopted = new Set(
+    db
+      .query<{ group_id: number; signals: string }, [string]>("SELECT group_id, signals FROM timeline_session_links WHERE session = ?")
+      .all(id)
+      .filter((l) => (JSON.parse(l.signals) as string[]).includes("adopted"))
+      .map((l) => l.group_id),
+  )
+  const links = new Map<number, string[]>()
   for (const l of v as Record<string, unknown>[]) {
     if (!l || !Number.isInteger(l.group_id) || !Array.isArray(l.signals) || !l.signals.length) throw bad("bad_links", "each link needs a group_id and signals")
-    const signals = (l.signals as unknown[]).map((s) => oneOf(s, SIGNALS, "signal"))
-    if (!db.query("SELECT 1 FROM groups WHERE id = ?").get(l.group_id as number)) continue
-    db.run("INSERT OR REPLACE INTO timeline_session_links (session, group_id, signals) VALUES (?, ?, ?)", [id, l.group_id as number, JSON.stringify(signals)])
+    links.set(l.group_id as number, (l.signals as unknown[]).map((s) => oneOf(s, SIGNALS, "signal")))
   }
+  for (const g of adopted) links.set(g, [...new Set([...(links.get(g) ?? []), "adopted"])])
+  db.run("DELETE FROM timeline_session_links WHERE session = ?", [id])
+  for (const [g, signals] of links) {
+    if (!db.query("SELECT 1 FROM groups WHERE id = ?").get(g)) continue
+    db.run("INSERT INTO timeline_session_links (session, group_id, signals) VALUES (?, ?, ?)", [id, g, JSON.stringify(signals)])
+  }
+}
+
+/** Ties a session to the effort it grew into, for `/mel adopt` and the page's Make it an effort. */
+export function adoptSession(db: Database, input: Record<string, unknown>) {
+  const session = text(input.session, "session", 200)
+  if (!Number.isInteger(input.group_id)) throw bad("bad_field", "group_id must be a whole number")
+  const group = input.group_id as number
+  if (!db.query("SELECT 1 FROM timeline_sessions WHERE id = ?").get(session)) throw new HttpError(404, "not_found", `No session ${session}`)
+  if (!db.query("SELECT 1 FROM groups WHERE id = ?").get(group)) throw new HttpError(404, "not_found", `No group ${group}`)
+  const old = db.query<{ signals: string }, [string, number]>("SELECT signals FROM timeline_session_links WHERE session = ? AND group_id = ?").get(session, group)
+  const signals = [...new Set([...(old ? (JSON.parse(old.signals) as string[]) : []), "adopted"])]
+  db.run("INSERT OR REPLACE INTO timeline_session_links (session, group_id, signals) VALUES (?, ?, ?)", [session, group, JSON.stringify(signals)])
+  return { session, group_id: group, signals }
 }
 
 /**
@@ -218,8 +246,8 @@ export function getTimeline(db: Database, query: { group?: string | null; repo?:
     const meta = db.query<SessionSummary, [string]>(`${SESSIONS} WHERE s.id = ?`).get(query.session)
     if (!meta && !rows.length) throw new HttpError(404, "not_found", `No session ${query.session}`)
     const efforts = db
-      .query<{ id: number; name: string; repo_name: string; signals: string }, [string]>(
-        "SELECT g.id, g.name, r.name AS repo_name, l.signals FROM timeline_session_links l JOIN groups g ON g.id = l.group_id JOIN repos r ON r.id = g.repo_id WHERE l.session = ? ORDER BY r.name, g.name",
+      .query<{ id: number; name: string; repo_name: string; branches: string | null; signals: string }, [string]>(
+        "SELECT g.id, g.name, r.name AS repo_name, g.branches, l.signals FROM timeline_session_links l JOIN groups g ON g.id = l.group_id JOIN repos r ON r.id = g.repo_id WHERE l.session = ? ORDER BY r.name, g.name",
       )
       .all(query.session)
       .map((e) => ({ ...e, signals: JSON.parse(e.signals) as string[] }))
@@ -255,6 +283,7 @@ export type SessionSummary = {
   title: string | null
   ai_title: string | null
   cwd: string | null
+  repo_id: string | null
   repo_name: string | null
   started_at: string | null
   ended_at: string | null
@@ -263,7 +292,7 @@ export type SessionSummary = {
   commits: number
   todos: number
 }
-const SESSION_COLS = "s.id, s.agent, s.title, s.ai_title, s.cwd, r.name AS repo_name, s.started_at, s.ended_at, s.days, s.prompts, s.commits, s.todos"
+const SESSION_COLS = "s.id, s.agent, s.title, s.ai_title, s.cwd, s.repo_id, r.name AS repo_name, s.started_at, s.ended_at, s.days, s.prompts, s.commits, s.todos"
 const SESSIONS = `SELECT ${SESSION_COLS} FROM timeline_sessions s LEFT JOIN repos r ON r.id = s.repo_id`
 
 /** The sidebar: every effort with its sessions, and the sessions that belong to no effort, newest first. `big` is the size rule for a loose session. */

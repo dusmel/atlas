@@ -41,7 +41,7 @@ type Rec = Record<string, any>
 const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"])
 // `git commit` prints "[branch 1a2b3c4] subject". With -q, agents print the hash after it with
 // `git log --oneline -1` or `rev-parse --short HEAD`, so a line that starts with a hash counts too.
-const COMMIT_CMD = /\bgit(?:\s+-[Cc]\s+\S+)*\s+commit\b/
+export const COMMIT_CMD = /\bgit(?:\s+-[Cc]\s+\S+)*\s+commit\b/
 const COMMIT_OUT = /^\[[^\]\s]+(?: \(root-commit\))? ([0-9a-f]{7,12})\] /gm
 const HASH_LINE = /^([0-9a-f]{7,12})(?:\s|$)/m
 const TODO = /\btodo\s+(?:start|done|move|set|archive)\s+((?:#?\d+[\s,]*)+)/g

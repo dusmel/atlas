@@ -98,6 +98,13 @@ next: Use it for a week
     expect(entries[3]).toMatchObject({ title: "After v1", state: "todo" })
   })
 
+  test("a timeline.md section named next joins the Next entry built from open todos", () => {
+    const timelineMd = "## next\nwaiting: Review the PRs\n"
+    const entries = buildEntries({ work, todos: [todo(9, "Ship it", "todo")], files: { plan, timelineMd } })
+    expect(entries.filter((e) => e.entry === "next")).toHaveLength(1)
+    expect(entries.at(-1)!.lines.map((l) => [l.text, l.kind])).toEqual([["Ship it", "next"], ["Review the PRs", "waiting"]])
+  })
+
   test("PRs: a line at the end of the entry; merged marks the entry done and merged", () => {
     const prs = [
       { number: 1, branch: "v1/1-marks", state: "MERGED", url: "https://x/pull/1", mergedAt: "2026-11-06T08:00:00Z" },

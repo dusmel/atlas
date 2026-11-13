@@ -208,3 +208,30 @@ test("the sidebar nests an effort's sessions and folds small loose ones", async 
   await expect(page).toHaveURL(new RegExp(`session=${SMALL}`))
   await expect(page).not.toHaveURL(/group=/)
 })
+
+test("a session with no effort becomes one, and keeps the prompt that writes its docs", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"])
+  const id = await seedTimeline(page)
+  await seedSessions(page, id)
+  await page.goto(`/timeline?session=${LOOSE}`)
+  const why = page.getByRole("region", { name: "Why it is listed" })
+  await why.getByRole("button", { name: "Copy prompt" }).click()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`/mel adopt ${LOOSE}`)
+
+  const name = `Fog horn ${Date.now()}`
+  await why.getByRole("button", { name: "Make it an effort" }).click()
+  const form = why.getByRole("form", { name: "Make it an effort" })
+  await form.getByRole("textbox").fill(name)
+  await form.getByRole("combobox", { name: "Repo" }).click()
+  await page.getByRole("option", { name: "web" }).click()
+  await form.getByRole("button", { name: "Create and copy the prompt" }).click()
+
+  await expect(why.getByRole("link", { name })).toBeVisible()
+  await expect(why.getByText("by adoption")).toBeVisible()
+  await expect(why.getByText(`/mel adopt ${LOOSE} "${name}"`)).toBeVisible()
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`/mel adopt ${LOOSE} "${name}"`)
+  // A later sync of the session sends no links; the adoption stays.
+  await api(page, "POST", "/timeline", { session: LOOSE, links: [], entries: [] })
+  await page.reload()
+  await expect(why.getByRole("link", { name })).toBeVisible()
+})
