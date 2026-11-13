@@ -9,6 +9,7 @@ import { join, relative } from "node:path";
 import {
   activeDays,
   bigEnough,
+  dayPrompts,
   dayText,
   DIGEST_MODEL,
   digestDay,
@@ -158,8 +159,12 @@ export async function syncSessions(cfg: Config, opts: Opts) {
     const days = activeDays(s.days);
     if (!days.length) continue;
     const digests = Object.fromEntries(Object.entries(s.digests ?? {}).map(([day, d]) => [day, d.digest]));
-    const key = `${s.offset}:${Object.values(s.digests ?? {}).map((d) => d.end).join(",")}:${refsKey}`;
+    // `p1:` marks keys sent with prompts, so a session sent before prompts existed sends all its days once.
+    const key = `p1:${s.offset}:${days.reduce((n, d) => n + d.prompts, 0)}:${Object.values(s.digests ?? {}).map((d) => d.end).join(",")}:${refsKey}`;
     if (sent[id] === key && !opts.dryRun) continue;
+    const sentTo = sent[id]?.startsWith("p1:") ? Number(sent[id]!.split(":")[1]) : -1;
+    const grown = days.filter((d) => d.end > sentTo);
+    const prompts = { days: grown.map((d) => d.day), items: (await Promise.all(grown.map((d) => dayPrompts(s.path, d.day, d.start, d.end)))).flat() };
 
     const todos = await api<Item[]>(cfg, "GET", `/todos?${new URLSearchParams({ session: id, status: "todo,doing,done", include_archived: "1" })}`);
     const links = linkSession(s.days, todos.flatMap((t) => (t.group_id ? [t.group_id] : [])), refs);
@@ -186,9 +191,9 @@ export async function syncSessions(cfg: Config, opts: Opts) {
       commits: new Set(days.flatMap((d) => d.commits)).size,
       todos: new Set([...days.flatMap((d) => d.todos), ...todos.map((t) => t.id)]).size,
     };
-    const counts = opts.dryRun ? null : await api<Record<string, number>>(cfg, "POST", "/timeline", { session: id, meta, links, entries });
+    const counts = opts.dryRun ? null : await api<Record<string, number>>(cfg, "POST", "/timeline", { session: id, meta, links, entries, prompts });
     if (!opts.dryRun) sent[id] = key;
-    results.push({ session: id, entries: entries.length, links, counts, ...(opts.dryRun ? { payload: { meta, entries } } : {}) });
+    results.push({ session: id, entries: entries.length, links, counts, ...(opts.dryRun ? { payload: { meta, entries, prompts: prompts.items.length } } : {}) });
   }
   if (!opts.dryRun) await saveState(state);
   // An effort sync caches its sessions for 10 minutes; drop that cache so a new digest shows at once.

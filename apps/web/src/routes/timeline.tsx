@@ -300,13 +300,13 @@ function Session({ view, compact, onCompact }: { view: SessionView; compact: boo
             </div>
           ))}
         <p className="text-[13px] text-muted-foreground">
-          Titles and lines come from a digest of each day. The page never shows prompt text. Resume the session in its folder:
+          Your prompts show as you sent them, minus any line that looked like a secret. The titles and the small lines under each day come from a digest. Resume the session in its folder:
         </p>
         <ResumeCommand session={s} />
       </section>
       <Legends />
       {view.entries.length ? (
-        <Rail entries={view.entries} owner={s.id} compact={compact} />
+        <Rail entries={view.entries} owner={s.id} compact={compact} prompts={view.prompts} />
       ) : (
         <Empty className="mt-6 border">
           <EmptyHeader>

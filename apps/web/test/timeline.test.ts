@@ -136,6 +136,20 @@ describe("sessions", () => {
     expect(view.session).toMatchObject({ id: SID, title: "Lamp rota", repo_name: "app", prompts: 31, efforts: [{ id: groupId, name: "v1", repo_name: "app", signals: ["todos", "files"] }] })
   })
 
+  test("stores prompts per day and replaces only the days sent", () => {
+    const p = (day: string, at: string, text: string) => ({ day, at, text, dropped: 0 })
+    syncSession({ prompts: { days: ["2026-11-03", "2026-11-04"], items: [p("2026-11-03", "2026-11-03T08:00:00Z", "Plan the rota"), p("2026-11-04", "2026-11-04T08:00:00Z", "Paint the lamp")] } })
+    syncSession({ prompts: { days: ["2026-11-04"], items: [p("2026-11-04", "2026-11-04T08:00:00Z", "Paint the lamp"), p("2026-11-04", "2026-11-04T09:00:00Z", "Then the rail")] } })
+    const view = getTimeline(db, { session: SID }) as { prompts: { text: string }[] }
+    expect(view.prompts.map((x) => x.text)).toEqual(["Plan the rota", "Paint the lamp", "Then the rail"])
+    expect(() => syncSession({ prompts: { days: ["2026-11-03"], items: [p("2026-11-04", "2026-11-04T10:00:00Z", "x")] } })).toThrow("not in days")
+    // Empty text is only for a prompt the filter emptied.
+    expect(() => syncSession({ prompts: { days: ["2026-11-03"], items: [p("2026-11-03", "2026-11-03T10:00:00Z", "")] } })).toThrow("non-empty")
+    syncSession({ prompts: { days: ["2026-11-03"], items: [{ ...p("2026-11-03", "2026-11-03T10:00:00Z", ""), dropped: 1 }] } })
+    expect((getTimeline(db, { session: SID }) as { prompts: { text: string; dropped: number }[] }).prompts[0]).toMatchObject({ text: "", dropped: 1 })
+    expect(() => syncTimeline(db, { group: groupId, entries: [], prompts: { days: [], items: [] } })).toThrow("belong to a session")
+  })
+
   test("a second sync with nothing new keeps updated_at", () => {
     syncSession()
     const at = () => db.query<{ updated_at: string }, []>("SELECT updated_at FROM timeline_sessions").get()!.updated_at

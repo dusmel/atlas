@@ -5,7 +5,8 @@ import ReactMarkdown from "react-markdown"
 import { cn } from "cn"
 import { RichTitle } from "@/components/todos/rich-title"
 import { docLinks } from "@/lib/docs"
-import { commitBase, dayLabel, entrySessions, spanLabel, type SessionSummary, type TimelineEntry, type TimelineLine } from "@/lib/timeline"
+import { commitBase, dayLabel, entrySessions, spanLabel, type SessionPrompt, type SessionSummary, type TimelineEntry, type TimelineLine } from "@/lib/timeline"
+import { Prompts } from "./prompts"
 import { SessionMarker } from "./session"
 
 // Design: atlas/timeline/design.html#look-rail. Oldest work first, then now, then what comes next.
@@ -19,7 +20,8 @@ const WHEN: Record<TimelineEntry["state"], string> = {
 
 /**
  * The rail of an effort or a session. Compact folds every entry but now to one line. `sessions` are the
- * effort's sessions: each entry's outcome line ends with the ones active on its days.
+ * effort's sessions: each entry's outcome line ends with the ones active on its days. A session's `prompts`
+ * lead each of its days, and the digest lines follow in small text.
  */
 export function Rail({
   entries,
@@ -28,6 +30,7 @@ export function Rail({
   docsFolder = null,
   effortDir = null,
   sessions = [],
+  prompts = [],
 }: {
   entries: TimelineEntry[]
   /** The effort or session id: the page scrolls to now when it changes. */
@@ -36,6 +39,7 @@ export function Rail({
   docsFolder?: string | null
   effortDir?: string | null
   sessions?: SessionSummary[]
+  prompts?: SessionPrompt[]
 }) {
   const nowRef = useRef<HTMLLIElement>(null)
   const base = commitBase(entries)
@@ -66,6 +70,7 @@ export function Rail({
         const when = e.state === "done" ? spanLabel(e) : WHEN[e.state]
         const meta = outcome(e)
         const by = e.state === "done" || e.state === "doing" ? entrySessions(e, sessions) : []
+        const asked = prompts.filter((p) => p.day === e.entry)
         return (
           <li
             key={e.entry}
@@ -100,7 +105,8 @@ export function Rail({
                     <ReactMarkdown urlTransform={noteLink}>{e.note}</ReactMarkdown>
                   </div>
                 )}
-                <Lines lines={e.lines.filter((l) => !l.kind?.startsWith("pr"))} base={base} />
+                {asked.length > 0 && <Prompts prompts={asked} />}
+                <Lines lines={e.lines.filter((l) => !l.kind?.startsWith("pr"))} base={base} small={asked.length > 0} />
                 {(meta || by.length > 0) && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground">
                     {meta}
@@ -146,7 +152,7 @@ function outcome(e: TimelineEntry) {
  * An entry's lines, under a day heading when the entry spans more than one day. A `day` line titles its
  * day's heading ("8 Nov: First days in your vault"); an entry with nothing else lists it as a line.
  */
-function Lines({ lines: all, base }: { lines: TimelineLine[]; base: string | null }) {
+function Lines({ lines: all, base, small }: { lines: TimelineLine[]; base: string | null; small?: boolean }) {
   const onlyDays = all.every((l) => l.kind === "day")
   const titles = new Map(onlyDays ? [] : all.filter((l) => l.kind === "day").map((l) => [l.day, l.text]))
   const lines = onlyDays ? all : all.filter((l) => l.kind !== "day")
@@ -155,7 +161,7 @@ function Lines({ lines: all, base }: { lines: TimelineLine[]; base: string | nul
   const split = days.size > 1
   let last: string | null | undefined
   return (
-    <ul className="mt-1 flex list-disc flex-col gap-[3px] pl-[18px] text-[14.5px] leading-normal marker:text-muted-foreground">
+    <ul className={cn("mt-1 flex list-disc flex-col gap-[3px] pl-[18px] leading-normal marker:text-muted-foreground", small ? "text-[13px] text-muted-foreground" : "text-[14.5px]")}>
       {lines.map((l, i) => {
         const head = split && l.day !== last && l.day ? `${dayLabel(l.day)}${titles.has(l.day) ? `: ${titles.get(l.day)}` : ""}` : null
         last = l.day

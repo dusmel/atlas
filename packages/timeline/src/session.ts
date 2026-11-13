@@ -1,6 +1,6 @@
 // Reads Claude Code transcripts (~/.claude/projects/<slug>/<uuid>.jsonl) into facts per local day.
-// Design: atlas/timeline/design.html#sessions. Facts never hold prompt text or tool output; only
-// dayText() returns conversation text, redacted, for the digest model, and nothing stores it.
+// Design: atlas/timeline/design.html#sessions. Facts never hold prompt text or tool output. dayText()
+// gives the digest model the conversation, and dayPrompts() the owner's prompts, both redacted.
 
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs"
 import { dirname, join } from "node:path"
@@ -34,7 +34,7 @@ export type SessionState = {
   digests?: Record<string, { end: number; digest: Digest }>
 }
 /** `sent`: per server, a key for what was last posted for each session, so a sync posts only what changed. */
-export type SyncState = { version: 1; sessions: Record<string, SessionState>; sent?: Record<string, Record<string, string>> }
+export type SyncState = { version: 2; sessions: Record<string, SessionState>; sent?: Record<string, Record<string, string>> }
 
 type Rec = Record<string, any>
 
@@ -45,7 +45,8 @@ export const COMMIT_CMD = /\bgit(?:\s+-[Cc]\s+\S+)*\s+commit\b/
 const COMMIT_OUT = /^\[[^\]\s]+(?: \(root-commit\))? ([0-9a-f]{7,12})\] /gm
 const HASH_LINE = /^([0-9a-f]{7,12})(?:\s|$)/m
 const TODO = /\btodo\s+(?:start|done|move|set|archive)\s+((?:#?\d+[\s,]*)+)/g
-const SYSTEM_PROMPT = /^\s*<(?:task-notification|local-command-stdout|local-command-caveat|system-reminder)/
+// Text the harness or another agent put in the owner's place: `<hc>` is a message from another terminal.
+const SYSTEM_PROMPT = /^\s*<(?:task-notification|local-command-stdout|local-command-caveat|system-reminder|bash-stdout|bash-stderr|hc\b)/
 
 export function dayOf(iso: string, timeZone?: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso))
@@ -62,7 +63,7 @@ function textOf(content: unknown): string {
 
 /** A prompt the owner typed, not a tool result, a meta record or a notification the harness injected. */
 export function isPrompt(r: Rec): boolean {
-  if (r.type !== "user" || r.isMeta || r.isSidechain || r.promptSource === "system") return false
+  if (r.type !== "user" || r.isMeta || r.isSidechain || r.isCompactSummary || r.promptSource === "system") return false
   const c = r.message?.content
   if (Array.isArray(c) && c.some((x: Rec) => x?.type === "tool_result")) return false
   const text = textOf(c)
@@ -208,8 +209,11 @@ export async function dayText(path: string, start: number, end: number): Promise
 export const STATE_PATH = join(process.env.HOME ?? "", ".cache/atlas/timeline-sync.json")
 
 export async function loadState(path = STATE_PATH): Promise<SyncState> {
-  if (!existsSync(path)) return { version: 1, sessions: {} }
-  return (await Bun.file(path).json()) as SyncState
+  if (!existsSync(path)) return { version: 2, sessions: {} }
+  const state = (await Bun.file(path).json()) as Omit<SyncState, "version"> & { version: number }
+  // Version 1 counted compact summaries as prompts. Read every transcript again; the digests stay.
+  if (state.version === 1) for (const [id, s] of Object.entries(state.sessions)) state.sessions[id] = { ...s, size: 0, offset: 0, days: {}, pending: [] }
+  return { ...state, version: 2 }
 }
 
 export async function saveState(state: SyncState, path = STATE_PATH): Promise<void> {
@@ -253,4 +257,46 @@ export async function scanTranscripts(state: SyncState, projectsDir: string, tim
     changed.push(t.id)
   }
   return changed
+}
+
+export type Prompt = { day: string; at: string; text: string; dropped: number }
+
+/** A prompt as the owner sent it: a slash command as `/name args`, a shell command as `! cmd`, no reminders. */
+export function promptText(r: Rec): string | null {
+  if (!isPrompt(r)) return null
+  const raw = textOf(r.message.content)
+  const cmd = raw.match(/<command-name>([^<]*)<\/command-name>/)
+  if (cmd) return [cmd[1]!.trim(), raw.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim()].filter(Boolean).join(" ")
+  const bash = raw.match(/^\s*<bash-input>([\s\S]*?)<\/bash-input>/)
+  if (bash) return `! ${bash[1]!.trim()}`
+  const text = raw
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+    .replace(/<pasted_content\b[^>]*>/g, "<pasted_content>")
+    .trim()
+  return text || null
+}
+
+/** The owner's prompts of one local day, each with its secret-looking lines dropped. */
+export async function dayPrompts(path: string, day: string, start: number, end: number, timeZone?: string): Promise<Prompt[]> {
+  const out: Prompt[] = []
+  await eachLine(
+    path,
+    start,
+    (line) => {
+      let r: Rec
+      try {
+        r = JSON.parse(line)
+      } catch {
+        return
+      }
+      if (!r.timestamp || dayOf(r.timestamp, timeZone) !== day) return
+      const text = promptText(r)
+      if (!text) return
+      const clean = redact(text)
+      // A prompt that was all secret stays, empty, so the page can say a line was held back.
+      out.push({ day, at: r.timestamp, text: clean.text.trim() ? clean.text : "", dropped: clean.dropped })
+    },
+    end,
+  )
+  return out
 }
