@@ -124,6 +124,14 @@ next: Use it for a week
   })
 })
 
+test("a second branch for the same phase joins that phase's entry", () => {
+  const two: BranchWork[] = [...work, { branch: "v1/3-fixes", commits: [c("2026-11-13", "Fix a title")] }]
+  const polish = buildEntries({ work: two, todos: [] }).filter((e) => e.entry === "phase-3")
+  expect(polish).toHaveLength(1)
+  expect(polish[0]!.state).toBe("doing")
+  expect(polish[0]!.lines.map((l) => l.text)).toEqual(["Keep records", "Virtual monitor", "Fix a title"])
+})
+
 describe("shortTitle", () => {
   const long = "Phase 1: Hetzner base (PR #2, merged). " + "Coolify project with its login and backups, ".repeat(5)
   test("a heading over 200 characters keeps its first sentence", () => {

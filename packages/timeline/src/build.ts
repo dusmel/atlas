@@ -77,9 +77,19 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
     const merged = pr?.state === "MERGED"
     const lines: Line[] = w.commits.map((c) => ({ day: c.day, text: c.subject, source: "git", ref: c.short, kind: null }))
     if (pr) lines.push({ day: day(pr.mergedAt) ?? w.commits.at(-1)!.day, text: `PR ${pr.number}`, source: "git", ref: pr.url, kind: merged ? "pr-merged" : "pr" })
+    const state = merged || i < input.work.length - 1 ? "done" : "doing"
+    // A follow-up branch for the same phase (`timeline/9-titles` after `timeline/9-links`) joins its entry.
+    const same = byId.get(id)
+    if (same) {
+      same.lines.push(...lines)
+      same.state = state
+      same.merged &&= merged
+      same.ended_at = w.commits.at(-1)!.at
+      return
+    }
     add({
       entry: id,
-      state: merged || i < input.work.length - 1 ? "done" : "doing",
+      state,
       title: headings.get(id) ?? humanize(id),
       merged,
       lines,
