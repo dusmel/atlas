@@ -17,6 +17,8 @@ const PLANTED = [
   '{"password": "correct-horse-battery"}',
   "hash $2b$10$FAKEfakeFAKEfakeFAKEfakeFAKEfakeFAKEfakeFAKEfakeFAKE",
   "random Zx9QwErTy7UiOp3AsDfGh5JkLzXcVbN1mQ in a sentence",
+  "https://claude.ai/artifact/FAKEfakeFAKE?sk=oc_FAKEfake0123FAKE",
+  "https://storage.example.com/a.wav?X-Amz-Expires=600&signature=FAKEfake0123",
 ]
 
 const SAFE = [
@@ -27,6 +29,8 @@ const SAFE = [
   "ATLAS_PASSWORD_HASH_B64=$(bun -e ...) bun server.ts",
   "Fix the token refresh in the login page",
   "The password field now shows a hint",
+  "Open https://atlas.example.com/timeline?group=Atlas%20timeline&density=compact",
+  "See https://example.com/search?q=lamp+rota&page=2",
 ]
 
 describe("redaction", () => {

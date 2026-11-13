@@ -12,6 +12,7 @@ const PATTERNS: RegExp[] = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /\bBearer\s+[A-Za-z0-9._~+/-]{12,}/i,
   /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/i, // credentials in a URL
+  /[?&](?:sk|key|sig|signature|code|access_token|token)=[^\s&#]{8,}/i, // a key in a URL, such as a share link's sk=
   // KEY=value, "token": "value", password: value. The value must be long enough to be a secret.
   /\b[\w-]*(?:token|secret|passw(?:or)?d|api[_-]?key|private[_-]?key|access[_-]?key|credential|auth)[\w-]*["']?\s*[:=]\s*["']?(?!\$|\{\{|op:\/\/)[^\s"']{8,}/i,
   /\$2[aby]\$\d\d\$[./A-Za-z0-9]{40,}/, // bcrypt hash

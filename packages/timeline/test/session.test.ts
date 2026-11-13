@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { activeDays, dayText, readSession, scanTranscripts, type SyncState } from "../src/session"
+import { activeDays, dayPrompts, dayText, loadState, readSession, scanTranscripts, type SyncState } from "../src/session"
 
 // A made-up session: two days in Kigali time (UTC+2), so 23:30 UTC on the 3rd is already the 4th.
 const ID = "11111111-2222-3333-4444-555555555555"
@@ -123,7 +123,7 @@ describe("scanTranscripts", () => {
         .join("\n") + "\n"
     const half = JSON.stringify(lines[7]!)
     writeFileSync(path, first + half.slice(0, 20))
-    const state: SyncState = { version: 1, sessions: {} }
+    const state: SyncState = { version: 2, sessions: {} }
 
     expect(await scanTranscripts(state, projects, TZ)).toEqual([ID])
     expect(state.sessions[ID]!.offset).toBe(Buffer.byteLength(first))
@@ -151,4 +151,56 @@ describe("scanTranscripts", () => {
     // Nothing new: nothing changes.
     expect(await scanTranscripts(state, projects, TZ)).toEqual([])
   })
+})
+
+describe("dayPrompts", () => {
+  // Planted, made-up secrets: none may come back.
+  const GH = "ghp_FAKEfake0123456789FAKEfake0123456789"
+  const AWS = "AKIAFAKEFAKE12345678"
+  const at = (m: number) => `2026-11-05T09:${String(m).padStart(2, "0")}:00Z`
+  const paste = Array.from({ length: 14 }, (_, i) => `row ${i + 1}`).join("\n")
+  const records = [
+    { type: "user", timestamp: at(0), message: { content: "Plan the ferry rota" } },
+    { type: "user", timestamp: at(1), message: { content: "<command-message>mel</command-message>\n<command-name>/mel</command-name>\n<command-args>auto build the rota</command-args>" } },
+    { type: "user", timestamp: at(1), isMeta: true, message: { content: [{ type: "text", text: "Base directory for this skill: /x/mel\n# /mel" }] } },
+    { type: "user", timestamp: at(2), message: { content: "<bash-input>git status</bash-input>" } },
+    { type: "user", timestamp: at(2), message: { content: "<bash-stdout>On branch main</bash-stdout><bash-stderr></bash-stderr>" } },
+    { type: "user", timestamp: at(3), message: { content: '<hc from="t9">another agent says hello</hc>' } },
+    { type: "user", timestamp: at(4), isCompactSummary: true, message: { content: "This session is being continued from a previous conversation" } },
+    { type: "user", timestamp: at(5), message: { content: [{ type: "text", text: "Check the tide table\n<system-reminder>hook output</system-reminder>" }] } },
+    { type: "user", timestamp: at(6), message: { content: [{ type: "tool_result", tool_use_id: "x", content: "tool output" }] } },
+    { type: "user", timestamp: at(7), promptSource: "typed", message: { content: `Use these:\n<pasted_content id="7afa">\n${paste}\ntoken=${GH}\naws ${AWS}\n</pasted_content>` } },
+    { type: "user", timestamp: at(8), message: { content: "https://claude.ai/artifact/FAKE?sk=oc_FAKEfake0123FAKE" } },
+    { type: "user", timestamp: "2026-11-05T23:00:00Z", message: { content: "A prompt on the next local day" } },
+  ]
+  const path = join(dir, "prompts.jsonl")
+  writeFileSync(path, records.map((l) => JSON.stringify(l)).join("\n") + "\n")
+
+  test("keeps what the owner typed, as sent, and drops secret lines", async () => {
+    const s = await readSession(path, 0, TZ)
+    const d = s.days["2026-11-05"]!
+    const prompts = await dayPrompts(path, "2026-11-05", d.start, d.end, TZ)
+    expect(prompts.map((p) => p.text.split("\n")[0])).toEqual(["Plan the ferry rota", "/mel auto build the rota", "! git status", "Check the tide table", "Use these:", ""])
+    // A prompt that was all secret stays, empty, with its line counted.
+    expect(prompts[5]!.dropped).toBe(1)
+    expect(prompts[3]!.text).toBe("Check the tide table")
+    const pasted = prompts[4]!
+    expect(pasted.text).toStartWith("Use these:\n<pasted_content>\nrow 1\n")
+    expect(pasted.text).toContain("row 14")
+    expect(pasted.dropped).toBe(2)
+    const all = JSON.stringify(prompts)
+    for (const leak of [GH, AWS, "oc_FAKE", "hook output", "tool output", "another agent", "Base directory", "On branch main", "continued from"]) expect(all).not.toContain(leak)
+    // The prompt count agrees with what dayPrompts keeps.
+    expect(d.prompts).toBe(6)
+  })
+})
+
+test("a version 1 state reads every transcript again and keeps its digests", async () => {
+  const path = join(dir, "state-v1.json")
+  const digest = { end: 900, digest: { title: "Rota day" } }
+  writeFileSync(path, JSON.stringify({ version: 1, sessions: { a: { path: "/x.jsonl", size: 900, offset: 900, title: "Rota", days: { "2026-11-03": { prompts: 12 } }, pending: ["c1"], digests: { "2026-11-03": digest } } }, sent: { h: { a: "k" } } }))
+  const state = await loadState(path)
+  expect(state.version).toBe(2)
+  expect(state.sessions.a).toMatchObject({ offset: 0, size: 0, days: {}, pending: [], title: "Rota", digests: { "2026-11-03": digest } })
+  expect(state.sent).toEqual({ h: { a: "k" } })
 })
