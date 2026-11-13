@@ -2,7 +2,8 @@ import { Link } from "@tanstack/react-router"
 import { ChevronRightIcon, FolderIcon } from "lucide-react"
 import { useState } from "react"
 import { cn } from "cn"
-import { ago, daysSince, effortState, type EffortSummary } from "@/lib/timeline"
+import { ago, daysSince, effortState, sessionSize, sessionSpan, sessionTitle, type EffortSummary, type SessionSummary } from "@/lib/timeline"
+import { AgentIcon } from "./session"
 
 // Design: atlas/timeline/design.html#look-sidebar.
 
@@ -34,17 +35,23 @@ type Row = EffortSummary & {
   state: ReturnType<typeof effortState>
 }
 
-/** Efforts by repo, with what waits on you on top. */
+/** Efforts by repo, with what waits on you on top, then the sessions that belong to no effort. */
 export function Sidebar({
   efforts,
+  sessions,
   selected,
+  session,
   filter,
   bars,
   onFilter,
   onBars,
 }: {
   efforts: EffortSummary[]
+  /** Sessions with no effort. */
+  sessions: SessionSummary[]
   selected: number | null
+  /** The selected session's id. */
+  session: string | null
   filter: Filter
   bars: boolean
   onFilter: (f: Filter) => void
@@ -85,7 +92,7 @@ export function Sidebar({
       <div key={r.name} className="flex flex-col">
         <div className="px-1 pb-[3px] text-xs text-muted-foreground">{r.name}</div>
         {shown.map((e) => (
-          <EffortRow key={e.id} e={e} selected={e.id === selected} bars={bars} open={!!open[e.id]} onToggle={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))} />
+          <EffortRow key={e.id} e={e} selected={e.id === selected} session={session} bars={bars} open={!!open[e.id]} onToggle={() => setOpen((o) => ({ ...o, [e.id]: !o[e.id] }))} />
         ))}
         {(hidden > 0 || fold[r.name]) && (
           <button type="button" onClick={() => flip(r.name)} className="cursor-pointer px-2 py-[5px] text-left text-[12.5px] text-muted-foreground hover:text-foreground">
@@ -103,8 +110,8 @@ export function Sidebar({
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Find an effort"
-          aria-label="Find an effort"
+          placeholder="Find an effort or session"
+          aria-label="Find an effort or session"
           className="rounded-[7px] border bg-background px-2.5 py-[7px] text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <div className="flex items-center gap-2 px-1 text-xs">
@@ -137,7 +144,7 @@ export function Sidebar({
             <Link
               key={i}
               to="/timeline"
-              search={(s) => ({ ...s, group: String(w.effort.id) })}
+              search={(s) => ({ ...s, session: undefined, group: String(w.effort.id) })}
               className="ml-1 border-l-2 border-doing/50 py-px pl-2.5 text-[13px] leading-snug text-foreground/90 hover:text-foreground"
             >
               {w.text} <span className="text-muted-foreground">· {w.effort.name}</span>
@@ -165,11 +172,79 @@ export function Sidebar({
           <p className="px-1 text-[13px] text-muted-foreground">{efforts.length ? "No effort matches." : "No efforts yet. Link a todo group to its branches with atlas timeline link."}</p>
         )}
       </nav>
+
+      <Loose sessions={sessions} q={q} filter={filter} selected={session} fold={fold} flip={flip} />
     </div>
   )
 }
 
-function EffortRow({ e, selected, bars, open, onToggle }: { e: Row; selected: boolean; bars: boolean; open: boolean; onToggle: () => void }) {
+const recent = (s: SessionSummary) => (daysSince(s.ended_at) ?? Infinity) <= 14
+
+/**
+ * Sessions with no effort (design #look-orphans): big ones get a lean row, smaller ones fold into one
+ * line. Active and Neglected fold sessions older than 14 days.
+ */
+function Loose({ sessions, q, filter, selected, fold, flip }: { sessions: SessionSummary[]; q: string; filter: Filter; selected: string | null; fold: Record<string, boolean>; flip: (k: string) => void }) {
+  const found = sessions.filter((s) => !q || sessionTitle(s).toLowerCase().includes(q.toLowerCase()) || s.id.startsWith(q.toLowerCase()) || !!s.repo_name?.toLowerCase().includes(q.toLowerCase()))
+  if (!found.length) return null
+  const big = found.filter((s) => s.big || s.id === selected)
+  const small = found.filter((s) => !big.includes(s))
+  const shown = filter === "all" || q || fold.older ? big : big.filter((s) => recent(s) || s.id === selected)
+  const older = big.length - shown.length
+  return (
+    <section aria-label="Sessions with no effort" className="flex flex-col">
+      <div className="px-1 pb-[3px] text-xs text-muted-foreground">Sessions with no effort</div>
+      {shown.map((s) => (
+        <SessionRow key={s.id} s={s} selected={s.id === selected} detail={[s.repo_name, sessionSize(s)].filter(Boolean).join(" · ")} />
+      ))}
+      {(older > 0 || fold.older) && (
+        <button type="button" onClick={() => flip("older")} className="cursor-pointer px-2 py-[5px] text-left text-[12.5px] text-muted-foreground hover:text-foreground">
+          {fold.older ? "Fewer" : `${older} older`}
+        </button>
+      )}
+      {small.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => flip("small")}
+            aria-expanded={!!fold.small}
+            title="Under 3 commits, 3 todos, 30 prompts and 2 days"
+            className="cursor-pointer px-2 py-[5px] text-left text-[12.5px] text-muted-foreground hover:text-foreground"
+          >
+            {fold.small ? "▾" : "▸"} {small.length} smaller {small.length === 1 ? "session" : "sessions"}
+          </button>
+          {fold.small && small.map((s) => <SessionRow key={s.id} s={s} selected={s.id === selected} detail={[s.repo_name, sessionSize(s)].filter(Boolean).join(" · ")} />)}
+        </>
+      )}
+    </section>
+  )
+}
+
+/** A session by its title, with the short id in grey; `detail` is the grey line under it. */
+function SessionRow({ s, selected, detail, nested }: { s: SessionSummary; selected: boolean; detail?: string; nested?: boolean }) {
+  return (
+    <Link
+      to="/timeline"
+      search={(p) => ({ ...p, group: undefined, session: s.id })}
+      aria-current={selected ? "page" : undefined}
+      data-session={s.id}
+      title={`${sessionTitle(s)} · ${sessionSpan(s)}`}
+      className={cn("flex flex-col rounded-[7px] px-2 py-1 hover:bg-muted/70", nested && "ml-[19px] py-0.5", selected && "bg-[color-mix(in_oklab,var(--link)_9%,transparent)]")}
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <AgentIcon size={12} />
+        <span className={cn("truncate", nested ? "text-[13px]" : "", selected ? "font-semibold text-link" : "text-foreground")}>{sessionTitle(s)}</span>
+        <span className="shrink-0 font-mono text-[10.5px] text-muted-foreground">{s.id.slice(0, 8)}</span>
+        <span className="grow" />
+        <span className="text-xs whitespace-nowrap text-muted-foreground">{ago(daysSince(s.ended_at))}</span>
+      </span>
+      {detail && <span className="ml-[20px] truncate text-xs text-muted-foreground">{detail}</span>}
+    </Link>
+  )
+}
+
+function EffortRow({ e, selected, session, bars, open, onToggle }: { e: Row; selected: boolean; session: string | null; bars: boolean; open: boolean; onToggle: () => void }) {
+  const repos = [...new Set([e.repo_name, ...e.sessions.map((s) => s.repo_name).filter((r): r is string => !!r)])]
   const status = e.doing ? `${e.doing} open` : e.state === "done" ? "Done" : e.bar.length ? `${e.bar.length} ${e.bar.length === 1 ? "entry" : "entries"}, none started` : "Not synced yet"
   return (
     <div data-effort={e.name} className={cn("block rounded-[7px] px-2 py-1.5", selected && "bg-[color-mix(in_oklab,var(--link)_9%,transparent)]")}>
@@ -179,7 +254,7 @@ function EffortRow({ e, selected, bars, open, onToggle }: { e: Row; selected: bo
         </span>
         <Link
           to="/timeline"
-          search={(s) => ({ ...s, group: String(e.id) })}
+          search={(s) => ({ ...s, session: undefined, group: String(e.id) })}
           aria-current={selected ? "page" : undefined}
           className={cn("truncate", selected ? "font-semibold text-link" : e.state === "done" || e.state === "quiet" ? "text-muted-foreground" : "text-foreground")}
         >
@@ -216,14 +291,31 @@ function EffortRow({ e, selected, bars, open, onToggle }: { e: Row; selected: bo
           ))}
         </span>
       )}
+      {/* An effort lists its sessions under it only when it has more than one (design #look-sidebar). */}
+      {e.sessions.length > 1 && (
+        <span className="mt-1 -mr-2 -ml-2 flex flex-col">
+          {e.sessions.map((s) => (
+            <SessionRow key={s.id} s={s} selected={s.id === session} nested />
+          ))}
+        </span>
+      )}
       {open && (
         <>
           <span className="mt-[5px] ml-[21px] block text-xs text-muted-foreground">{status}</span>
-          <span className="mt-1 ml-[21px] flex items-center gap-1.5 text-xs text-muted-foreground">
-            <FolderIcon className="size-3 shrink-0" aria-hidden />
-            {e.repo_name}
-            {e.branches && <span className="font-mono text-[11px]">· {e.branches}</span>}
-          </span>
+          {e.sessions.map((s) => (
+            <span key={s.id} className="mt-1 ml-[21px] flex items-center gap-1.5 text-xs text-muted-foreground" data-detail-session={s.id}>
+              <AgentIcon size={11} />
+              <span className="truncate">{sessionTitle(s)}</span>
+              <span className="shrink-0">· {sessionSpan(s)}</span>
+            </span>
+          ))}
+          {repos.map((r) => (
+            <span key={r} className="mt-1 ml-[21px] flex items-center gap-1.5 text-xs text-muted-foreground">
+              <FolderIcon className="size-3 shrink-0" aria-hidden />
+              {r}
+              {r === e.repo_name && e.branches && <span className="font-mono text-[11px]">· {e.branches}</span>}
+            </span>
+          ))}
         </>
       )}
     </div>

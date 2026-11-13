@@ -7,13 +7,17 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join } from "node:path";
 import { branchWork, buildEntries, setNote, type EffortFiles, type Pr, type TodoItem } from "@atlas/timeline";
 import { reposDir } from "./config.ts";
+import { syncSessions } from "./timeline-sessions.ts";
 import { parseArgs, textFlag, type FlagSpec } from "./todo/args.ts";
 import { api, CliError, loadConfig, type Config } from "./todo/client.ts";
 import { repoParam, scopeOf } from "./todo/scope.ts";
 import { err, out } from "./util.ts";
 
 export const TIMELINE_COMMANDS: Record<string, { about: string; flags: FlagSpec }> = {
-  sync: { about: "Sync linked efforts: sync [GROUP]", flags: { repo: "string", all: "boolean", "dry-run": "boolean", "no-prs": "boolean", json: "boolean" } },
+  sync: {
+    about: "Sync linked efforts: sync [GROUP], or sessions: sync --sessions|--digest",
+    flags: { repo: "string", all: "boolean", "dry-run": "boolean", "no-prs": "boolean", json: "boolean", sessions: "boolean", digest: "boolean", session: "string", days: "string" },
+  },
   show: { about: "Print an effort's timeline: show GROUP", flags: { repo: "string", json: "boolean" } },
   link: { about: "Link a group to its branches: link GROUP --branches 'v1/*'", flags: { repo: "string", branches: "string" } },
   note: { about: "Write an entry's note in timeline.md: note ENTRY TEXT|-", flags: { repo: "string", group: "string", "no-sync": "boolean" } },
@@ -23,13 +27,16 @@ export const TIMELINE_USAGE = `atlas timeline — what an effort did, is doing a
 
   atlas timeline link  GROUP --branches 'v1/*'   once per effort; the repo is the group's
   atlas timeline sync  [GROUP] [--all] [--dry-run] [--no-prs] [--json]
+  atlas timeline sync  --sessions [--session ID] [--dry-run] [--json]    sessions from the transcripts, no model
+  atlas timeline sync  --digest [--session ID] [--days 7]                 also a digest per session day (Sonnet)
   atlas timeline show  GROUP [--json]
   atlas timeline note  ENTRY "why it was done" [--group GROUP] [--no-sync]   TEXT - reads stdin
 
 sync with no GROUP syncs every linked group of the current repo; --all syncs every linked group.
+--digest without --session digests sessions big enough to list that were active in the last --days days.
 GROUP is a todo group name. Each command takes --repo NAME when the current directory is not the repo.`;
 
-type Group = { id: number; name: string; repo_id: string; repo_name: string; branches: string | null; docs: { label: string; path: string }[] };
+export type Group = { id: number; name: string; repo_id: string; repo_name: string; branches: string | null; docs: { label: string; path: string }[] };
 
 export async function cmdTimeline(args: string[]): Promise<void> {
   try {
@@ -61,6 +68,22 @@ async function run(args: string[]): Promise<number> {
       return 0;
     }
     case "sync": {
+      if (flags.sessions || flags.digest || typeof flags.session === "string") {
+        const days = typeof flags.days === "string" ? Number(flags.days) : 7;
+        if (!Number.isInteger(days) || days < 1) throw new CliError(2, "--days takes a whole number of days");
+        const r = await syncSessions(cfg, {
+          digest: !!flags.digest,
+          session: typeof flags.session === "string" ? flags.session : undefined,
+          days,
+          dryRun: !!flags["dry-run"],
+          log: (l) => err(l),
+        }).catch((e) => {
+          throw new CliError(1, e instanceof Error ? e.message : String(e));
+        });
+        if (flags.json || flags["dry-run"]) await out(JSON.stringify(r, null, 2));
+        else await out(`${n(r.scanned, "transcript")} read, ${n(r.digested, "day")} digested, ${n(r.sent.length, "session")} sent (${r.sent.filter((x) => x.links.length).length} linked to an effort)`);
+        return 0;
+      }
       const groups = words.length ? [await findGroup(cfg, words.join(" "), flags)] : await linkedGroups(cfg, flags);
       if (!groups.length) throw new CliError(2, "No linked groups here. Link one with: atlas timeline link GROUP --branches 'v1/*'");
       const results = [];
@@ -94,6 +117,8 @@ async function run(args: string[]): Promise<number> {
   return 0;
 }
 
+const n = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
 async function findGroup(cfg: Config, name: string, flags: Record<string, string | boolean>): Promise<Group> {
   const q = new URLSearchParams();
   // In a promoted repo the name is that repo's group; elsewhere any repo's, if only one has it.
@@ -118,7 +143,7 @@ async function onlyLinkedGroup(cfg: Config, flags: Record<string, string | boole
 }
 
 /** The store folder whose meta.json has this repo's id; it holds repoRoot, the checkout on this Mac. */
-function storeDir(repoId: string): { dir: string; repoRoot: string | null } {
+export function storeDir(repoId: string): { dir: string; repoRoot: string | null } {
   for (const name of existsSync(reposDir()) ? readdirSync(reposDir()) : []) {
     try {
       const meta = JSON.parse(readFileSync(join(reposDir(), name, "meta.json"), "utf8"));
@@ -129,7 +154,7 @@ function storeDir(repoId: string): { dir: string; repoRoot: string | null } {
 }
 
 /** The effort's folder: where its plan doc lives. */
-function effortDir(group: Group): string {
+export function effortDir(group: Group): string {
   const plan = group.docs.find((d) => d.label === "plan");
   if (!plan) throw new CliError(2, `Group ${group.name} has no plan doc, so it has no effort folder. Add one with --doc on the group`);
   return dirname(join(storeDir(group.repo_id).dir, plan.path));
@@ -169,7 +194,7 @@ function newest(dir: string): number {
 const PR_TTL_MS = 10 * 60 * 1000;
 
 /** One `gh pr list` per repo, kept 10 minutes, so the sync after each commit stays fast. */
-async function pullRequests(repoRoot: string, repoId: string): Promise<Pr[]> {
+export async function pullRequests(repoRoot: string, repoId: string): Promise<Pr[]> {
   const cache = join(process.env.HOME!, ".cache/atlas/timeline-prs", `${repoId}.json`);
   try {
     if (Date.now() - statSync(cache).mtimeMs < PR_TTL_MS) return JSON.parse(readFileSync(cache, "utf8"));

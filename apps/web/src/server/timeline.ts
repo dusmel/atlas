@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite"
+import { bigEnough } from "@atlas/timeline"
 import { now } from "./db"
 import { HttpError } from "./http"
 import { groupDocs, resolveRepo } from "./todos"
@@ -104,9 +105,59 @@ const toEntry = (r: Row): TimelineEntry => ({
   updated_at: r.updated_at,
 })
 
+const SIGNALS = ["todos", "prs", "files"] as const
+const count = (v: unknown, what: string) => {
+  if (v === undefined) return 0
+  if (!Number.isInteger(v) || (v as number) < 0) throw bad("bad_field", `${what} must be a whole number`)
+  return v as number
+}
+
+/** A session's facts. Text fields are short labels; the server never gets prompt text. */
+function saveSessionMeta(db: Database, id: string, v: unknown, at: string) {
+  if (!v || typeof v !== "object") throw bad("bad_meta", "meta must be an object")
+  const m = v as Record<string, unknown>
+  const repo = optText(m.repo_id, "repo_id")
+  const values = [
+    m.agent === undefined ? "claude" : text(m.agent, "agent", 40),
+    optText(m.title, "title"),
+    optText(m.ai_title, "ai_title"),
+    optText(m.cwd, "cwd"),
+    repo && db.query("SELECT 1 FROM repos WHERE id = ?").get(repo) ? repo : null,
+    optText(m.started_at, "started_at"),
+    optText(m.ended_at, "ended_at"),
+    count(m.days, "days"),
+    count(m.prompts, "prompts"),
+    count(m.commits, "commits"),
+    count(m.todos, "todos"),
+  ]
+  const old = db
+    .query<Record<string, unknown>, [string]>("SELECT agent, title, ai_title, cwd, repo_id, started_at, ended_at, days, prompts, commits, todos FROM timeline_sessions WHERE id = ?")
+    .get(id)
+  if (old && Object.values(old).every((x, i) => x === values[i])) return
+  db.run(
+    `INSERT INTO timeline_sessions (id, agent, title, ai_title, cwd, repo_id, started_at, ended_at, days, prompts, commits, todos, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET agent = excluded.agent, title = excluded.title, ai_title = excluded.ai_title, cwd = excluded.cwd, repo_id = excluded.repo_id, started_at = excluded.started_at,
+       ended_at = excluded.ended_at, days = excluded.days, prompts = excluded.prompts, commits = excluded.commits, todos = excluded.todos, updated_at = excluded.updated_at`,
+    [id, ...values, at],
+  )
+}
+
+/** Replaces a session's links. A group the server does not have is skipped: the Mac may know more groups' folders than this server. */
+function saveSessionLinks(db: Database, id: string, v: unknown) {
+  if (!Array.isArray(v)) throw bad("bad_links", "links must be a list")
+  db.run("DELETE FROM timeline_session_links WHERE session = ?", [id])
+  for (const l of v as Record<string, unknown>[]) {
+    if (!l || !Number.isInteger(l.group_id) || !Array.isArray(l.signals) || !l.signals.length) throw bad("bad_links", "each link needs a group_id and signals")
+    const signals = (l.signals as unknown[]).map((s) => oneOf(s, SIGNALS, "signal"))
+    if (!db.query("SELECT 1 FROM groups WHERE id = ?").get(l.group_id as number)) continue
+    db.run("INSERT OR REPLACE INTO timeline_session_links (session, group_id, signals) VALUES (?, ?, ?)", [id, l.group_id as number, JSON.stringify(signals)])
+  }
+}
+
 /**
  * Replaces an owner's entries with the ones sent, in order. Rows that do not change keep their
- * updated_at, so a sync with nothing new changes no row.
+ * updated_at, so a sync with nothing new changes no row. A session's sync can also send its `meta`
+ * and `links`.
  */
 export function syncTimeline(db: Database, input: Record<string, unknown>) {
   if (!Array.isArray(input.entries)) throw bad("bad_entries", "entries must be a list")
@@ -118,6 +169,10 @@ export function syncTimeline(db: Database, input: Record<string, unknown>) {
   }
   return db.transaction(() => {
     const owner = resolveOwner(db, input)
+    if (owner.col === "session") {
+      if (input.meta !== undefined) saveSessionMeta(db, owner.id as string, input.meta, now())
+      if (input.links !== undefined) saveSessionLinks(db, owner.id as string, input.links)
+    } else if (input.meta !== undefined || input.links !== undefined) throw bad("bad_owner", "meta and links belong to a session")
     const existing = new Map(db.query<Row, [number | string]>(`SELECT * FROM timeline_entries WHERE ${owner.col} = ?`).all(owner.id).map((r) => [r.entry, r]))
     const counts = { created: 0, updated: 0, unchanged: 0, removed: 0 }
     const at = now()
@@ -160,7 +215,15 @@ type EffortRow = { id: number; name: string; repo_id: string; repo_name: string;
 export function getTimeline(db: Database, query: { group?: string | null; repo?: string | null; session?: string | null }) {
   if (query.session) {
     const rows = db.query<Row, [string]>("SELECT * FROM timeline_entries WHERE session = ? ORDER BY position").all(query.session)
-    return { session: query.session, entries: rows.map(toEntry) }
+    const meta = db.query<SessionSummary, [string]>(`${SESSIONS} WHERE s.id = ?`).get(query.session)
+    if (!meta && !rows.length) throw new HttpError(404, "not_found", `No session ${query.session}`)
+    const efforts = db
+      .query<{ id: number; name: string; repo_name: string; signals: string }, [string]>(
+        "SELECT g.id, g.name, r.name AS repo_name, l.signals FROM timeline_session_links l JOIN groups g ON g.id = l.group_id JOIN repos r ON r.id = g.repo_id WHERE l.session = ? ORDER BY r.name, g.name",
+      )
+      .all(query.session)
+      .map((e) => ({ ...e, signals: JSON.parse(e.signals) as string[] }))
+    return { session: { ...(meta ?? { id: query.session }), efforts }, entries: rows.map(toEntry) }
   }
   if (!query.group) throw bad("bad_owner", "Send group=<id or name> or session=<id>")
   const id = /^\d+$/.test(query.group) ? Number(query.group) : null
@@ -185,6 +248,36 @@ const EFFORTS = `SELECT groups.id, groups.name, groups.repo_id, repos.name AS re
     count(items.id) FILTER (WHERE items.status = 'doing' AND items.archived_at IS NULL) AS doing_items,
     max(items.updated_at) AS items_at
   FROM groups JOIN repos ON repos.id = groups.repo_id LEFT JOIN items ON items.group_id = groups.id`
+
+export type SessionSummary = {
+  id: string
+  agent: string
+  title: string | null
+  ai_title: string | null
+  cwd: string | null
+  repo_name: string | null
+  started_at: string | null
+  ended_at: string | null
+  days: number
+  prompts: number
+  commits: number
+  todos: number
+}
+const SESSION_COLS = "s.id, s.agent, s.title, s.ai_title, s.cwd, r.name AS repo_name, s.started_at, s.ended_at, s.days, s.prompts, s.commits, s.todos"
+const SESSIONS = `SELECT ${SESSION_COLS} FROM timeline_sessions s LEFT JOIN repos r ON r.id = s.repo_id`
+
+/** The sidebar: every effort with its sessions, and the sessions that belong to no effort, newest first. `big` is the size rule for a loose session. */
+export function listTimeline(db: Database) {
+  const linked = db
+    .query<SessionSummary & { group_id: number }, []>(
+      `SELECT ${SESSION_COLS}, l.group_id FROM timeline_session_links l JOIN timeline_sessions s ON s.id = l.session LEFT JOIN repos r ON r.id = s.repo_id ORDER BY s.ended_at DESC`,
+    )
+    .all()
+  const sized = <T extends SessionSummary>(s: T) => ({ ...s, big: bigEnough(s) })
+  const efforts = listEfforts(db).map((e) => ({ ...e, sessions: linked.filter((s) => s.group_id === e.id).map(({ group_id: _, ...s }) => sized(s)) }))
+  const sessions = db.query<SessionSummary, []>(`${SESSIONS} WHERE NOT EXISTS (SELECT 1 FROM timeline_session_links l WHERE l.session = s.id) ORDER BY s.ended_at DESC`).all().map(sized)
+  return { efforts, sessions }
+}
 
 /** Every effort for the sidebar: its phase bar, last activity and what waits on the owner. */
 export function listEfforts(db: Database) {

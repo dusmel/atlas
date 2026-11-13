@@ -5,7 +5,8 @@ import ReactMarkdown from "react-markdown"
 import { cn } from "cn"
 import { RichTitle } from "@/components/todos/rich-title"
 import { docLinks } from "@/lib/docs"
-import { commitBase, dayLabel, spanLabel, type EffortView, type TimelineEntry, type TimelineLine } from "@/lib/timeline"
+import { commitBase, dayLabel, entrySessions, spanLabel, type SessionSummary, type TimelineEntry, type TimelineLine } from "@/lib/timeline"
+import { SessionMarker } from "./session"
 
 // Design: atlas/timeline/design.html#look-rail. Oldest work first, then now, then what comes next.
 
@@ -16,29 +17,47 @@ const WHEN: Record<TimelineEntry["state"], string> = {
   parked: "parked",
 }
 
-/** The rail of one effort. Compact folds every entry but now to one line. */
-export function Rail({ view, compact }: { view: EffortView; compact: boolean }) {
+/**
+ * The rail of an effort or a session. Compact folds every entry but now to one line. `sessions` are the
+ * effort's sessions: each entry's outcome line ends with the ones active on its days.
+ */
+export function Rail({
+  entries,
+  owner,
+  compact,
+  docsFolder = null,
+  effortDir = null,
+  sessions = [],
+}: {
+  entries: TimelineEntry[]
+  /** The effort or session id: the page scrolls to now when it changes. */
+  owner: string | number
+  compact: boolean
+  docsFolder?: string | null
+  effortDir?: string | null
+  sessions?: SessionSummary[]
+}) {
   const nowRef = useRef<HTMLLIElement>(null)
-  const base = commitBase(view.entries)
-  const notes = docLinks(view.docs_folder)
-  const noteLink = (url: string) => (view.effort_dir && !/^([a-z][a-z0-9+.-]*:|[#/?])/i.test(url) ? notes(`${view.effort_dir}/${url}`) : notes(url))
+  const base = commitBase(entries)
+  const notes = docLinks(docsFolder)
+  const noteLink = (url: string) => (effortDir && !/^([a-z][a-z0-9+.-]*:|[#/?])/i.test(url) ? notes(`${effortDir}/${url}`) : notes(url))
 
   // The page opens scrolled to now.
   useEffect(() => {
     nowRef.current?.scrollIntoView({ block: "center" })
-  }, [view.group.id])
+  }, [owner])
 
-  const doingAt = view.entries.findIndex((e) => e.state === "doing")
-  const lastDone = view.entries.map((e) => e.state).lastIndexOf("done")
+  const doingAt = entries.findIndex((e) => e.state === "doing")
+  const lastDone = entries.map((e) => e.state).lastIndexOf("done")
   // The line is solid up to now, dotted after it.
   const solidUntil = doingAt >= 0 ? doingAt : lastDone
   const dotTop = (e: TimelineEntry, open: boolean) => (e.state === "doing" ? 14 : open ? 4 : 5)
 
   return (
     <ol className="mt-3.5 flex flex-col" aria-label="Timeline">
-      {view.entries.map((e, i) => {
+      {entries.map((e, i) => {
         const open = !compact || e.state === "doing"
-        const next = view.entries[i + 1]
+        const next = entries[i + 1]
         const gap = open ? 26 : 10
         const top = dotTop(e, open)
         const nextTop = next ? dotTop(next, !compact || next.state === "doing") : 0
@@ -46,6 +65,7 @@ export function Rail({ view, compact }: { view: EffortView; compact: boolean }) 
         const future = e.state !== "done"
         const when = e.state === "done" ? spanLabel(e) : WHEN[e.state]
         const meta = outcome(e)
+        const by = e.state === "done" || e.state === "doing" ? entrySessions(e, sessions) : []
         return (
           <li
             key={e.entry}
@@ -81,7 +101,17 @@ export function Rail({ view, compact }: { view: EffortView; compact: boolean }) 
                   </div>
                 )}
                 <Lines lines={e.lines.filter((l) => !l.kind?.startsWith("pr"))} base={base} />
-                {meta && <div className="mt-1 text-[12.5px] text-muted-foreground">{meta}</div>}
+                {(meta || by.length > 0) && (
+                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground">
+                    {meta}
+                    {by.map((s, j) => (
+                      <span key={s.id} className="contents">
+                        {(meta || j > 0) && <span aria-hidden>·</span>}
+                        <SessionMarker session={s} />
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-baseline gap-3 text-[14.5px]">
@@ -92,6 +122,9 @@ export function Rail({ view, compact }: { view: EffortView; compact: boolean }) 
                 </span>
                 <span className="grow" />
                 <span className="text-[12.5px] whitespace-nowrap text-muted-foreground max-sm:hidden">{meta}</span>
+                {by.map((s) => (
+                  <SessionMarker key={s.id} session={s} iconOnly />
+                ))}
               </div>
             )}
           </li>
@@ -156,7 +189,7 @@ function Source({ line, base }: { line: TimelineLine; base: string | null }) {
         git {line.ref}
       </a>
     )
-  const label = line.source === "git" && line.ref ? `git ${line.ref}` : line.kind === "parked" ? "run · parked" : line.source
+  const label = line.source === "git" && line.ref ? `git ${line.ref}` : line.kind === "parked" ? "run · parked" : line.source === "session" && line.kind ? line.kind : line.source
   return <span className={cn(cls, "text-muted-foreground")}>{label}</span>
 }
 

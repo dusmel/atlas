@@ -38,12 +38,14 @@ describe("complete", () => {
   test("timeline offers its subcommands, flags, and no free-text values", async () => {
     expect(await complete([""])).toContain("timeline:An effort's done, doing and next");
     expect(await complete(["timeline", ""])).toEqual([
-      "sync:Sync linked efforts: sync [GROUP]",
+      "sync:Sync linked efforts: sync [GROUP], or sessions: sync --sessions|--digest",
       "show:Print an effort's timeline: show GROUP",
       "link:Link a group to its branches: link GROUP --branches 'v1/*'",
       "note:Write an entry's note in timeline.md: note ENTRY TEXT|-",
     ]);
-    expect(await complete(["timeline", "sync", "-"])).toEqual(["--repo", "--all", "--dry-run", "--no-prs", "--json"]);
+    expect(await complete(["timeline", "sync", "-"])).toEqual(["--repo", "--all", "--dry-run", "--no-prs", "--json", "--sessions", "--digest", "--session", "--days"]);
+    // A session id and a day count are free text.
+    expect(await complete(["timeline", "sync", "--session", ""])).toEqual([]);
     expect(await complete(["timeline", "link", "v1", "--branches", ""])).toEqual([]);
     expect(await complete(["timeline", "note", "phase-1", ""])).toEqual(["--repo", "--group", "--no-sync"]);
     expect(await complete(["timeline", "nope", ""])).toEqual([]);
