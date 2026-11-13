@@ -4,8 +4,8 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { branchWork, buildEntries, setNote, type EffortFiles, type Pr, type TodoItem } from "@atlas/timeline";
+import { basename, dirname, join, relative } from "node:path";
+import { branchWork, buildEntries, setNote, type EffortDoc, type EffortFiles, type Entry, type Pr, type SessionDays, type TodoItem } from "@atlas/timeline";
 import { reposDir } from "./config.ts";
 import { cmdHook } from "./timeline-hook.ts";
 import { syncSessions } from "./timeline-sessions.ts";
@@ -191,22 +191,51 @@ const localDay = (ms: number) => {
 };
 const read = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : undefined);
 
-/** Everything the effort folder gives the sync. Files that do not exist are left out. */
-export function readEffortFiles(dir: string): EffortFiles {
+/**
+ * Everything the effort folder gives the sync. Files that do not exist are left out. An effort whose plan
+ * is not `plan.html` shares its folder with other docs, such as `object-storage-plan.html` among the voice
+ * docs: then only docs named like the plan belong to it, and `<prefix>spec` can be its design.
+ */
+export function readEffortFiles(dir: string, plan = "plan.html"): EffortFiles {
   const evidenceDir = join(dir, "evidence");
   const evidence = existsSync(evidenceDir)
     ? readdirSync(evidenceDir, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => ({ name: d.name, day: localDay(newest(join(evidenceDir, d.name))) }))
     : [];
-  const report = join(dir, "report.html");
+  const docs = effortDocs(dir, plan);
+  const md = (role: string) => {
+    const d = docs.find((x) => x.role === role);
+    return d ? read(join(dir, d.path.replace(/\.html$/, ".md"))) : undefined;
+  };
   return {
-    plan: read(join(dir, "plan.md")),
+    plan: md("plan"),
+    design: md("design"),
     runMd: read(join(dir, "run.md")),
     timelineMd: read(join(dir, "timeline.md")),
     evidence,
-    report: existsSync(report) ? { path: "report.html", day: localDay(statSync(report).mtimeMs) } : undefined,
+    docs,
+    docPrefix: `${relative(reposDir(), dir)}/`,
   };
+}
+
+/** The effort's docs, read from each html page's meta tags, with the role its name gives it. */
+export function effortDocs(dir: string, plan = "plan.html"): EffortDoc[] {
+  const prefix = plan.replace(/plan\.html$/, "");
+  const role = (name: string): EffortDoc["role"] =>
+    name === plan ? "plan" : [`${prefix}design.html`, `${prefix}spec.html`].includes(name) ? "design" : name === `${prefix}report.html` ? "report" : /brief/i.test(name) ? "brief" : null;
+  const out: EffortDoc[] = [];
+  for (const name of existsSync(dir) ? readdirSync(dir) : []) {
+    if (!name.endsWith(".html") || name === "index.html" || !name.startsWith(prefix)) continue;
+    const head = readFileSync(join(dir, name), "utf8").slice(0, 20_000);
+    const meta = (k: string) => new RegExp(`<meta name="${k}" content="([^"]*)"`).exec(head)?.[1] ?? null;
+    // Docs from before 2026-10-26 carry only a day, as `date`.
+    out.push({ path: name, title: /<title>([^<]*)<\/title>/.exec(head)?.[1]?.trim() || name, type: meta("doc-type"), created: meta("created") ?? meta("date"), role: role(name) });
+  }
+  // The design is `<prefix>design.html` when both it and a spec exist.
+  const designs = out.filter((d) => d.role === "design");
+  if (designs.length > 1) for (const d of designs) if (d.path !== `${prefix}design.html`) d.role = null;
+  return out;
 }
 
 // The day evidence was made is when its newest file was written.
@@ -239,16 +268,45 @@ export async function pullRequests(repoRoot: string, repoId: string): Promise<Pr
   return prs;
 }
 
+/**
+ * The day entries of each session linked to the group, read back from the server and kept 10 minutes
+ * like the PRs: two round trips cost about a second from Kigali, and the hook waits for the sync.
+ */
+export const SESSION_CACHE = join(process.env.HOME!, ".cache/atlas/timeline-sessions");
+export const sessionCachePrefix = (url: string) => `${url.replace(/[^a-z0-9]+/gi, "-")}-`;
+
+async function linkedSessions(cfg: Config, groupId: number): Promise<SessionDays[]> {
+  const cache = join(SESSION_CACHE, `${sessionCachePrefix(cfg.url)}${groupId}.json`);
+  try {
+    if (Date.now() - statSync(cache).mtimeMs < PR_TTL_MS) return JSON.parse(readFileSync(cache, "utf8"));
+  } catch {}
+  const list = await api<{ efforts: { id: number; sessions: { id: string }[] }[] }>(cfg, "GET", "/timeline");
+  const ids = list.efforts.find((e) => e.id === groupId)?.sessions.map((s) => s.id) ?? [];
+  const sessions = await Promise.all(ids.map(async (id) => ({ id, days: (await api<{ entries: Entry[] }>(cfg, "GET", `/timeline?${new URLSearchParams({ session: id })}`)).entries })));
+  mkdirSync(dirname(cache), { recursive: true });
+  writeFileSync(cache, JSON.stringify(sessions));
+  return sessions;
+}
+
+/** Short hashes of the effort's commits that are on no remote branch. */
+async function unpushedCommits(repoRoot: string, pattern: string): Promise<string[]> {
+  const p = Bun.spawn(["git", "log", `--branches=${pattern}`, "--not", "--remotes", "--format=%h"], { cwd: repoRoot, stdout: "pipe", stderr: "pipe" });
+  const [text, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+  return code === 0 ? text.split("\n").filter(Boolean) : [];
+}
+
 export async function syncGroup(cfg: Config, group: Group, opts: { dryRun: boolean; prs: boolean }) {
   if (!group.branches) throw new CliError(2, `Group ${group.name} has no branches. Link it with: atlas timeline link "${group.name}" --branches 'v1/*'`);
   const { repoRoot } = storeDir(group.repo_id);
   if (!repoRoot || !existsSync(repoRoot)) throw new CliError(2, `The checkout of ${group.repo_name} is not on this Mac (${repoRoot ?? "no repoRoot in meta.json"})`);
-  const [work, todos, prs] = await Promise.all([
+  const [work, todos, prs, sessions, unpushed] = await Promise.all([
     branchWork(repoRoot, group.branches),
     api<TodoItem[]>(cfg, "GET", `/todos?${new URLSearchParams({ repo: group.repo_id, group: group.name, status: "todo,doing,done" })}`),
     opts.prs ? pullRequests(repoRoot, group.repo_id) : Promise.resolve([]),
+    linkedSessions(cfg, group.id),
+    unpushedCommits(repoRoot, group.branches),
   ]);
-  const entries = buildEntries({ work, todos, prs, files: readEffortFiles(effortDir(group)) });
+  const entries = buildEntries({ work, todos, prs, files: readEffortFiles(effortDir(group), basename(group.docs.find((d) => d.label === "plan")!.path)), sessions, unpushed });
   if (opts.dryRun) return { group: group.name, entries, counts: null };
   const counts = await api<Record<string, number>>(cfg, "POST", "/timeline", { group: group.id, entries });
   return { group: group.name, entries, counts };
@@ -268,15 +326,18 @@ export function showMarkdown(group: Pick<Group, "name" | "repo_name" | "branches
     out.push("", `## ${e.title} · ${e.state}${e.merged ? " · merged" : ""}${span} · id \`${e.entry}\``);
     if (e.note_state === "written") out.push("", e.note);
     if (e.note_state === "draft") out.push("", "_note: draft_");
+    // A `day` line titles its day: "8 Nov: First days in your vault".
+    const titles = new Map(e.lines.filter((l) => l.kind === "day").map((l) => [l.day, l.text]));
+    const lines = e.lines.every((l) => l.kind === "day") ? e.lines : e.lines.filter((l) => l.kind !== "day");
     let day: string | null | undefined;
-    for (const l of e.lines) {
+    for (const l of lines) {
       if (l.day !== day) {
         day = l.day;
-        out.push("", day ? `${short(day)}:` : "Open:");
+        out.push("", day ? `${short(day)}${titles.has(day) && l.kind !== "day" ? `: ${titles.get(day)}` : ""}:` : "Open:");
       }
       const src = l.source === "git" && l.ref && !l.ref.startsWith("http") ? `git ${l.ref}` : l.source === "todo" ? `todo #${l.ref}` : l.source;
       const who = l.kind === "waiting" ? "**You:** " : "";
-      out.push(`- ${who}${l.text}${l.kind && !["waiting", "pr", "pr-merged"].includes(l.kind) ? ` (${l.kind})` : ""}  \`${src}\``);
+      out.push(`- ${who}${l.text}${l.kind && !["waiting", "pr", "pr-merged", "day"].includes(l.kind) ? ` (${l.kind})` : ""}  \`${src}\``);
     }
   }
   return out.join("\n");

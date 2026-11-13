@@ -307,10 +307,12 @@ export function withTimelineLinks<T extends { group: { id: number; repo_id: stri
   const { group, docs_folder: folder } = withDocLinks({ item: { repo_id: view.group.repo_id }, group: view.group })
   const dir = group!.docs[0] ? posix.dirname(groupDocPath(group!.docs[0].path)) : null
   const href = (ref: string) => {
+    if (/^https?:/.test(ref)) return ref
     if (!folder || dir === null) return null
-    const at = posix.join(dir, ref)
+    const [file, hash] = ref.split("#")
+    const at = posix.join(dir, file!)
     const path = [at, `${at}/README.html`, `${at}/README.md`].find((p) => !p.endsWith("/") && servedFile(folder, p))
-    return path ? docHref({ repo: folder, path }) : null
+    return path ? `${docHref({ repo: folder, path })}${hash ? `#${hash}` : ""}` : null
   }
   return {
     ...view,

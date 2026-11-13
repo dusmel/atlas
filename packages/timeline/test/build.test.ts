@@ -113,18 +113,13 @@ next: Use it for a week
     const entries = buildEntries({ work, todos: [], prs })
     expect(entries[0]).toMatchObject({ merged: true, state: "done" })
     expect(entries[0]!.lines.at(-1)).toEqual({ day: "2026-11-06", text: "PR 1", source: "git", ref: "https://x/pull/1", kind: "pr-merged" })
-    expect(entries[2]).toMatchObject({ merged: false, state: "doing" })
-    expect(entries[2]!.lines.at(-1)).toMatchObject({ text: "PR 3", kind: "pr" })
+    const polish = entries.find((e) => e.entry === "phase-3")!
+    expect(polish).toMatchObject({ merged: false, state: "doing" })
+    expect(polish.lines.at(-1)).toMatchObject({ text: "PR 3", kind: "pr" })
   })
 
-  test("evidence goes on the entry with its name, the report on the entry it was written in", () => {
-    const entries = buildEntries({
-      work,
-      todos: [],
-      files: { plan, evidence: [{ name: "phase-2", day: "2026-11-05" }, { name: "unknown", day: "2026-11-05" }], report: { path: "report.html", day: "2026-11-05" } },
-    })
+  test("evidence goes on the entry with its name", () => {
+    const entries = buildEntries({ work, todos: [], files: { plan, evidence: [{ name: "phase-2", day: "2026-11-05" }] } })
     expect(entries[1]!.lines.find((l) => l.kind === "evidence")).toEqual({ day: "2026-11-05", text: "Evidence: phase-2", source: "doc", ref: "evidence/phase-2/", kind: "evidence" })
-    expect(entries.flatMap((e) => e.lines).filter((l) => l.kind === "report").length).toBe(1)
-    expect(entries.flatMap((e) => e.lines).some((l) => l.text.includes("unknown"))).toBe(false)
   })
 })

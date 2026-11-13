@@ -4,7 +4,7 @@
  * prompt text. Design: atlas/timeline/design.html#sessions.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   activeDays,
@@ -24,7 +24,7 @@ import {
 } from "@atlas/timeline";
 import { reposDir } from "./config.ts";
 import { api, type Config } from "./todo/client.ts";
-import { effortDir, pullRequests, storeDir, type Group } from "./timeline.ts";
+import { effortDir, pullRequests, SESSION_CACHE, sessionCachePrefix, storeDir, type Group } from "./timeline.ts";
 
 const PROJECTS = join(process.env.HOME!, ".claude/projects");
 
@@ -191,5 +191,9 @@ export async function syncSessions(cfg: Config, opts: Opts) {
     results.push({ session: id, entries: entries.length, links, counts, ...(opts.dryRun ? { payload: { meta, entries } } : {}) });
   }
   if (!opts.dryRun) await saveState(state);
+  // An effort sync caches its sessions for 10 minutes; drop that cache so a new digest shows at once.
+  if (results.some((r) => r.counts)) {
+    for (const f of existsSync(SESSION_CACHE) ? readdirSync(SESSION_CACHE) : []) if (f.startsWith(sessionCachePrefix(cfg.url))) rmSync(join(SESSION_CACHE, f), { force: true });
+  }
   return { scanned: scanned.length, digested, sent: results };
 }
