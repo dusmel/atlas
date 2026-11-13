@@ -18,6 +18,7 @@ import { ensureRepo, scoreForCommand, findExistingPromotedDir, resolveRepoId, ch
 import { cmdTodo } from "./todo/commands.ts";
 import { cmdPush } from "./push.ts";
 import { cmdDoc } from "./doc.ts";
+import { cmdTimeline } from "./timeline.ts";
 import { complete, ZSH_SCRIPT } from "./complete.ts";
 import { cmdPickDoc } from "./pick.ts";
 
@@ -274,6 +275,9 @@ export async function main(): Promise<void> {
       break;
     case "doc":
       await cmdDoc(args);
+      break;
+    case "timeline":
+      await cmdTimeline(args);
       break;
     case "completion":
       await out(ZSH_SCRIPT);

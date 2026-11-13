@@ -58,6 +58,8 @@ export type DocPage = {
   twin: string | null
   mtime: string
   todos: { open: number; groups: number[] } | null
+  /** The todo groups that link this doc; each has a timeline. */
+  groups: { id: number; name: string }[]
   /** The parent todo the doc names with `atlas-todo`, when that item exists. */
   todo: { id: number; title: string; status: Status } | null
   share: Share | null

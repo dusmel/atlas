@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router"
-import { ClipboardCopyIcon, ExternalLinkIcon, FileQuestionIcon, LinkIcon } from "lucide-react"
+import { ClipboardCopyIcon, ExternalLinkIcon, FileQuestionIcon, GanttChartIcon, LinkIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { AppHeader } from "@/components/app-header"
@@ -132,6 +132,14 @@ function DocView() {
           <div className="ml-auto flex items-center gap-1.5">
             {doc.data.todo && <ParentTodo todo={doc.data.todo} />}
             {doc.data.todos && <TodosLink todos={doc.data.todos} />}
+            {doc.data.groups[0] && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/timeline" search={{ group: String(doc.data.groups[0].id) }} title={`The timeline of ${doc.data.groups[0].name}`}>
+                  <GanttChartIcon data-icon="inline-start" />
+                  <span className="max-sm:sr-only">Timeline</span>
+                </Link>
+              </Button>
+            )}
             {related.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

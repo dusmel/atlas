@@ -19,6 +19,7 @@
       "dependencies": {
         "@atlas/doc-render": "workspace:*",
         "@atlas/indexer": "workspace:*",
+        "@atlas/timeline": "workspace:*",
         "@atlas/todos": "workspace:*",
         "@clack/prompts": "^1.8.1",
       },
@@ -70,6 +71,9 @@
     "packages/indexer": {
       "name": "@atlas/indexer",
     },
+    "packages/timeline": {
+      "name": "@atlas/timeline",
+    },
     "packages/todos": {
       "name": "@atlas/todos",
       "dependencies": {
@@ -83,6 +87,8 @@
     "@atlas/doc-render": ["@atlas/doc-render@workspace:packages/doc-render"],
 
     "@atlas/indexer": ["@atlas/indexer@workspace:packages/indexer"],
+
+    "@atlas/timeline": ["@atlas/timeline@workspace:packages/timeline"],
 
     "@atlas/todos": ["@atlas/todos@workspace:packages/todos"],
 

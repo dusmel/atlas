@@ -9,6 +9,7 @@
     "@clack/prompts": "^1.8.1",
     "@atlas/todos": "workspace:*",
     "@atlas/indexer": "workspace:*",
-    "@atlas/doc-render": "workspace:*"
+    "@atlas/doc-render": "workspace:*",
+    "@atlas/timeline": "workspace:*"
   }
 }

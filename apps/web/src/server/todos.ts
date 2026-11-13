@@ -96,7 +96,7 @@ export function listRepos(db: Database) {
     .all()
 }
 
-type Group = { id: number; repo_id: string; name: string; note: string; created_at: string }
+type Group = { id: number; repo_id: string; name: string; note: string; created_at: string; branches: string | null }
 export type GroupDoc = { label: string; path: string }
 
 /** Each group's docs, plan first, then by label. */
@@ -240,7 +240,8 @@ export function updateGroup(db: Database, id: number, input: Record<string, unkn
     }
     const docs = docsInput(input, groupDocs(db, [id]).get(id)!)
     const note = input.note === undefined ? group.note : (optText(input.note, "note") ?? "")
-    const row = db.query<Group, [string, string, number]>("UPDATE groups SET name = ?, note = ? WHERE id = ? RETURNING *").get(name, note, id)!
+    const branches = input.branches === undefined ? group.branches : optText(input.branches, "branches")?.trim() || null
+    const row = db.query<Group, [string, string, string | null, number]>("UPDATE groups SET name = ?, note = ?, branches = ? WHERE id = ? RETURNING *").get(name, note, branches, id)!
     if (docs) setDocs(db, id, docs)
     return withDocs(db, [row])[0]!
   })()

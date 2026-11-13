@@ -23,6 +23,7 @@ Usage:
                                     Send this Mac's docs to the server (atlas push --help)
   atlas doc publish <file>          Send one doc to the server now and print its link
   atlas doc md <file>               Print a doc's markdown (atlas doc --help)
+  atlas timeline <command>          An effort's done, doing and next (atlas timeline --help)
   atlas completion zsh              Print the zsh completion script
 
 Examples:
