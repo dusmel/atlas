@@ -106,7 +106,7 @@ export function Rail({
                   </div>
                 )}
                 {asked.length > 0 && <Prompts prompts={asked} />}
-                <Lines lines={e.lines.filter((l) => !l.kind?.startsWith("pr"))} base={base} small={asked.length > 0} />
+                <Lines lines={e.lines.filter((l) => !l.kind?.startsWith("pr"))} base={base} small={asked.length > 0} marked={doing} />
                 {(meta || by.length > 0) && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground">
                     {meta}
@@ -152,7 +152,7 @@ function outcome(e: TimelineEntry) {
  * An entry's lines, under a day heading when the entry spans more than one day. A `day` line titles its
  * day's heading ("8 Nov: First days in your vault"); an entry with nothing else lists it as a line.
  */
-function Lines({ lines: all, base, small }: { lines: TimelineLine[]; base: string | null; small?: boolean }) {
+function Lines({ lines: all, base, small, marked }: { lines: TimelineLine[]; base: string | null; small?: boolean; marked?: boolean }) {
   const onlyDays = all.every((l) => l.kind === "day")
   const titles = new Map(onlyDays ? [] : all.filter((l) => l.kind === "day").map((l) => [l.day, l.text]))
   const lines = onlyDays ? all : all.filter((l) => l.kind !== "day")
@@ -169,7 +169,7 @@ function Lines({ lines: all, base, small }: { lines: TimelineLine[]; base: strin
         return (
           <Fragment key={i}>
             {head && <li className="-ml-[18px] list-none pt-1 font-mono text-[11.5px] text-muted-foreground">{head}</li>}
-            <li>
+            <li className={marked ? MARK[lineState(l) ?? "none"] : undefined} data-line-state={marked ? (lineState(l) ?? undefined) : undefined}>
               {l.kind === "waiting" && <b className="font-semibold text-[color-mix(in_oklab,var(--doing)_60%,black)] dark:text-doing">You: </b>}
               {href ? (
                 <a href={href} className="text-link underline-offset-2 hover:underline">
@@ -185,6 +185,26 @@ function Lines({ lines: all, base, small }: { lines: TimelineLine[]; base: strin
       })}
     </ul>
   )
+}
+
+/**
+ * In the now entry, where a long list mixes finished and open work, each line's dot takes its state: a pushed
+ * commit or a done todo is done, an unpushed commit or a todo in progress is doing, what is next is to do.
+ */
+export function lineState(l: TimelineLine): "done" | "doing" | "todo" | null {
+  if (l.kind === "unpushed" || l.kind === "now" || l.kind === "waiting" || (l.source === "todo" && l.kind === "doing")) return "doing"
+  if (l.kind === "next" || l.kind === "parked" || (l.source === "todo" && l.kind === "todo")) return "todo"
+  if ((l.source === "git" || l.source === "todo") && !l.kind) return "done"
+  if (l.kind === "done") return "done"
+  return null
+}
+
+// `!` beats the list's own grey marker colour.
+const MARK = {
+  done: "marker:text-done!",
+  doing: "marker:text-doing!",
+  todo: "list-[circle] marker:text-muted-foreground!",
+  none: "",
 }
 
 /** Where a line came from: a commit and a todo link to themselves. */

@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { ArrowLeftIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppHeader } from "@/components/app-header"
 import { DocPalette } from "@/components/docs/doc-palette"
 import { AdoptPrompt, AdoptSession } from "@/components/timeline/adopt"
 import { Dot, Merged, Rail } from "@/components/timeline/rail"
 import { AgentIcon, ResumeCommand } from "@/components/timeline/session"
-import { Segmented, Sidebar, type Filter } from "@/components/timeline/sidebar"
+import { Segmented, SessionRow, Sidebar, type Filter } from "@/components/timeline/sidebar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { useHotkeys } from "@/hooks/use-hotkeys"
 import { api, ApiError } from "@/lib/api"
@@ -43,6 +44,7 @@ function TimelinePage() {
   const search = Route.useSearch()
   const navigate = useNavigate({ from: "/timeline" })
   const [palette, setPalette] = useState(false)
+  const [sideWidth, setSideWidth] = useSideWidth()
   useHotkeys({ "mod+k": () => setPalette((o) => !o) })
 
   const list = useQuery({
@@ -84,8 +86,9 @@ function TimelinePage() {
       <AppHeader onCommand={() => setPalette(true)} />
       <DocPalette open={palette} onOpenChange={setPalette} page="/timeline" />
       <div className="flex min-h-0 grow">
-        <aside className={cn("shrink-0 overflow-y-auto bg-muted/40 px-3.5 py-[18px] md:w-[300px] md:border-r", picked ? "max-md:hidden" : "max-md:w-full")}>
-          <Sidebar
+        <div className={cn("relative shrink-0 md:w-(--side-w)", picked ? "max-md:hidden" : "max-md:w-full")} style={{ "--side-w": `${sideWidth}px` } as React.CSSProperties}>
+          <aside className="thin-scroll h-full overflow-y-auto bg-muted/40 px-3.5 py-[18px] md:border-r">
+            <Sidebar
             efforts={efforts}
             sessions={loose}
             selected={selected}
@@ -94,8 +97,10 @@ function TimelinePage() {
             bars={search.side !== "list"}
             onFilter={(f) => set({ filter: f === "all" ? undefined : f })}
             onBars={(b) => set({ side: b ? undefined : "list" })}
-          />
-        </aside>
+            />
+          </aside>
+          <SideHandle width={sideWidth} onWidth={setSideWidth} />
+        </div>
         <main className={cn("min-w-0 grow overflow-y-auto px-4 pt-6 pb-10 sm:px-11", !picked && "max-md:hidden")}>
           {!picked ? (
             <Empty className="mt-10">
@@ -156,9 +161,7 @@ function Effort({ view, sessions, compact, onCompact }: { view: EffortView; sess
         {sessions.length > 0 && (
           <>
             <span aria-hidden>·</span>
-            <span title={sessions.map((s) => `${sessionTitle(s)} · ${sessionSpan(s)}`).join("\n")}>
-              {sessions.length} {sessions.length === 1 ? "session" : "sessions"}
-            </span>
+            <SessionsPopover sessions={sessions} />
           </>
         )}
         {g.docs
@@ -190,6 +193,83 @@ function Effort({ view, sessions, compact, onCompact }: { view: EffortView; sess
         </Empty>
       )}
     </div>
+  )
+}
+
+/** The effort's session count opens, on hover or click, a list of its sessions to go to. */
+function SessionsPopover({ sessions }: { sessions: SessionSummary[] }) {
+  const [open, setOpen] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const hover = (o: boolean) => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setOpen(o), o ? 120 : 200)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)} className="cursor-pointer underline-offset-2 hover:text-foreground hover:underline">
+          {sessions.length} {sessions.length === 1 ? "session" : "sessions"}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[min(440px,calc(100vw-32px))] gap-0 p-1.5" aria-label="Sessions" onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}>
+        {sessions.map((s) => (
+          <SessionRow key={s.id} s={s} selected={false} detail={sessionSpan(s)} />
+        ))}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const SIDE_KEY = "atlas.timeline-sidebar-width"
+const SIDE_DEFAULT = 300
+const SIDE_MIN = 240
+const clampSide = (w: number) => Math.round(Math.max(SIDE_MIN, Math.min(w, 640, window.innerWidth - 360)))
+
+/** The sidebar's width, kept on this browser. */
+function useSideWidth() {
+  const [width, setWidth] = useState(SIDE_DEFAULT)
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(SIDE_KEY))
+      if (saved) setWidth(clampSide(saved))
+    } catch {}
+  }, [])
+  const save = (w: number) => {
+    const next = clampSide(w)
+    setWidth(next)
+    try {
+      localStorage.setItem(SIDE_KEY, String(next))
+    } catch {}
+  }
+  return [width, save] as const
+}
+
+/** The sidebar's right edge: drag it, or focus it and use the arrow keys. A double click resets the width. */
+function SideHandle({ width, onWidth }: { width: number; onWidth: (w: number) => void }) {
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the sidebar"
+      aria-valuenow={width}
+      aria-valuemin={SIDE_MIN}
+      tabIndex={0}
+      title="Drag to resize. Double click to reset."
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && onWidth(e.clientX - e.currentTarget.parentElement!.getBoundingClientRect().left)}
+      onDoubleClick={() => onWidth(SIDE_DEFAULT)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 96 : 32
+        if (e.key === "ArrowRight") onWidth(width + step)
+        else if (e.key === "ArrowLeft") onWidth(width - step)
+        else return
+        e.preventDefault()
+      }}
+      className="absolute inset-y-0 right-0 z-10 w-2 translate-x-1/2 cursor-col-resize touch-none outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-ring focus-visible:after:bg-ring max-md:hidden"
+    />
   )
 }
 

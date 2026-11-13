@@ -224,3 +224,10 @@
   .markdown.doc th { font-weight: 600; }
   .markdown.doc li > input[type="checkbox"] { margin-right: 0.4em; vertical-align: -0.1em; }
 }
+
+/* A thin scrollbar that shows its thumb only while the pane is hovered, instead of the wide grey default. */
+@utility thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  &:hover { scrollbar-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent) transparent; }
+}
