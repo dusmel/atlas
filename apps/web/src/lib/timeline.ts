@@ -80,9 +80,13 @@ export type TimelineList = { efforts: EffortSummary[]; sessions: SessionSummary[
 /** What Claude Code is asked to run to turn a session into an effort: playbook `mel/playbooks/adopt.md`. */
 export const adoptPrompt = (s: { id: string }, group?: string) => `/mel adopt ${s.id}${group ? ` "${group}"` : ""}`
 
+/** A prompt as the owner sent it, after the Mac's redaction filter. `dropped` counts the lines it removed. */
+export type SessionPrompt = { day: string; at: string; text: string; dropped: number }
+
 export type SessionView = {
   session: SessionSummary & { efforts: { id: number; name: string; repo_name: string; branches: string | null; signals: string[] }[] }
   entries: TimelineEntry[]
+  prompts: SessionPrompt[]
 }
 
 /** The digest title, else Claude Code's own title, else the short id. */

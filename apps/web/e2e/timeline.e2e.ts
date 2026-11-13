@@ -229,6 +229,31 @@ test("a session page shows why it is listed, its days and what it left open", as
   await expect(page.getByRole("region", { name: "Why it is listed" }).getByText("Belongs to no effort")).toBeVisible()
 })
 
+test("a session page leads each day with the prompts as sent, pastes folded", async ({ page }) => {
+  const id = await seedTimeline(page)
+  await seedSessions(page, id)
+  const paste = Array.from({ length: 15 }, (_, i) => `ship ${i + 1}`).join("\n")
+  const items = [
+    { day: "2026-11-03", at: "2026-11-03T07:05:00Z", text: "Start a ship log for the harbour", dropped: 0 },
+    { day: "2026-11-03", at: "2026-11-03T07:40:00Z", text: `Use this list:\n<pasted_content>\n${paste}\n</pasted_content>`, dropped: 1 },
+  ]
+  await api(page, "POST", "/timeline", { session: S1, entries: [], prompts: { days: ["2026-11-03"], items } })
+  // That post removed the day entries, since it sent none; seeding again puts them back and keeps the prompts.
+  await seedSessions(page, id)
+  await page.goto(`/timeline?session=${S1}`)
+  const day = page.locator('li[data-entry="2026-11-03"]')
+  await expect(day.locator("[data-prompt]")).toHaveCount(2)
+  await expect(day.getByText("Start a ship log for the harbour")).toBeVisible()
+  await expect(day.getByText("ship 12", { exact: false })).toBeVisible()
+  await expect(day.getByText("ship 13")).toHaveCount(0)
+  await day.getByRole("button", { name: "Show 3 more lines" }).click()
+  await expect(day.getByText("ship 15", { exact: false })).toBeVisible()
+  await expect(day.getByText("1 line held back: it looked like a secret")).toBeVisible()
+  // The digest lines follow the prompts, in small text.
+  await expect(day.getByText("Asked for a ship log")).toHaveCSS("font-size", "13px")
+  await expect(page.locator('li[data-entry="2026-11-04"] [data-prompt]')).toHaveCount(0)
+})
+
 test("the sidebar nests an effort's sessions and folds small loose ones", async ({ page }) => {
   const id = await seedTimeline(page)
   await seedSessions(page, id)

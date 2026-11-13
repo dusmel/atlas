@@ -113,7 +113,7 @@ const count = (v: unknown, what: string) => {
   return v as number
 }
 
-/** A session's facts. Text fields are short labels; the server never gets prompt text. */
+/** A session's facts. Text fields are short labels; prompts come apart, in `prompts`. */
 function saveSessionMeta(db: Database, id: string, v: unknown, at: string) {
   if (!v || typeof v !== "object") throw bad("bad_meta", "meta must be an object")
   const m = v as Record<string, unknown>
@@ -169,6 +169,25 @@ function saveSessionLinks(db: Database, id: string, v: unknown) {
   }
 }
 
+export type SessionPrompt = { day: string; at: string; text: string; dropped: number }
+
+/** Replaces a session's prompts on the days sent: the Mac sends only the days that grew since its last sync. */
+function saveSessionPrompts(db: Database, id: string, v: unknown) {
+  const p = v as { days?: unknown; items?: unknown } | null
+  if (!p || !Array.isArray(p.days) || !Array.isArray(p.items)) throw bad("bad_prompts", "prompts must be { days, items }")
+  const days = p.days.map((d) => text(d, "prompt day", 10))
+  const items = p.items.map((x: Record<string, unknown>) => {
+    const day = text(x?.day, "prompt day", 10)
+    if (!days.includes(day)) throw bad("bad_prompts", `prompt day ${day} is not in days`)
+    const dropped = count(x.dropped, "dropped")
+    // A prompt that was all secret arrives empty, with the lines the filter dropped.
+    const body = x.text === "" && dropped > 0 ? "" : text(x.text, "prompt text", 200_000)
+    return [id, text(x.at, "prompt at", 40), day, body, dropped] as const
+  })
+  for (const d of days) db.run("DELETE FROM timeline_prompts WHERE session = ? AND day = ?", [id, d])
+  for (const row of items) db.run("INSERT OR REPLACE INTO timeline_prompts (session, at, day, text, dropped) VALUES (?, ?, ?, ?, ?)", [...row])
+}
+
 /** Ties a session to the effort it grew into, for `/mel adopt` and the page's Make it an effort. */
 export function adoptSession(db: Database, input: Record<string, unknown>) {
   const session = text(input.session, "session", 200)
@@ -200,7 +219,8 @@ export function syncTimeline(db: Database, input: Record<string, unknown>) {
     if (owner.col === "session") {
       if (input.meta !== undefined) saveSessionMeta(db, owner.id as string, input.meta, now())
       if (input.links !== undefined) saveSessionLinks(db, owner.id as string, input.links)
-    } else if (input.meta !== undefined || input.links !== undefined) throw bad("bad_owner", "meta and links belong to a session")
+      if (input.prompts !== undefined) saveSessionPrompts(db, owner.id as string, input.prompts)
+    } else if (input.meta !== undefined || input.links !== undefined || input.prompts !== undefined) throw bad("bad_owner", "meta, links and prompts belong to a session")
     const existing = new Map(db.query<Row, [number | string]>(`SELECT * FROM timeline_entries WHERE ${owner.col} = ?`).all(owner.id).map((r) => [r.entry, r]))
     const counts = { created: 0, updated: 0, unchanged: 0, removed: 0 }
     const at = now()
@@ -251,7 +271,8 @@ export function getTimeline(db: Database, query: { group?: string | null; repo?:
       )
       .all(query.session)
       .map((e) => ({ ...e, signals: JSON.parse(e.signals) as string[] }))
-    return { session: { ...(meta ?? { id: query.session }), efforts }, entries: rows.map(toEntry) }
+    const prompts = db.query<SessionPrompt, [string]>("SELECT day, at, text, dropped FROM timeline_prompts WHERE session = ? ORDER BY at").all(query.session)
+    return { session: { ...(meta ?? { id: query.session }), efforts }, entries: rows.map(toEntry), prompts }
   }
   if (!query.group) throw bad("bad_owner", "Send group=<id or name> or session=<id>")
   const id = /^\d+$/.test(query.group) ? Number(query.group) : null
