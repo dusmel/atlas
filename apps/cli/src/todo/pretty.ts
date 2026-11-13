@@ -30,7 +30,7 @@ const CODES = {
 } as const;
 type Code = keyof typeof CODES;
 
-const painter = (color: boolean) => (s: string, ...codes: Code[]) =>
+export const painter = (color: boolean) => (s: string, ...codes: Code[]) =>
   color && s ? codes.reduce((out, c) => `\x1b[${CODES[c][0]}m${out}\x1b[${CODES[c][1]}m`, s) : s;
 
 const STATUS: Record<string, { glyph: string; code: Code | null }> = {

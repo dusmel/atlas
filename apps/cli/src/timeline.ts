@@ -3,6 +3,7 @@
  * show it, and write an entry's note. Design: atlas/timeline/design.html.
  */
 
+import { isatty } from "node:tty";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { branchWork, buildEntries, setNote, type EffortDoc, type EffortFiles, type Entry, type Pr, type SessionDays, type TodoItem } from "@atlas/timeline";
@@ -12,7 +13,9 @@ import { syncSessions } from "./timeline-sessions.ts";
 import { parseArgs, textFlag, type FlagSpec } from "./todo/args.ts";
 import { api, CliError, loadConfig, type Config } from "./todo/client.ts";
 import { repoParam, scopeOf } from "./todo/scope.ts";
-import { err, out } from "./util.ts";
+import { railView } from "./timeline-rail.ts";
+import { MIN_WIDTH, type Style } from "./todo/pretty.ts";
+import { err, out, page } from "./util.ts";
 
 export const TIMELINE_COMMANDS: Record<string, { about: string; flags: FlagSpec }> = {
   sync: {
@@ -115,13 +118,17 @@ async function run(args: string[]): Promise<number> {
         const t = await api<SessionShown>(cfg, "GET", `/timeline?${new URLSearchParams({ session: flags.session })}`);
         const s = t.session;
         const head = { name: s.title || s.ai_title || s.id, repo_name: `${s.repo_name ?? "no repo"} · session ${s.id}${s.efforts.length ? ` · efforts ${s.efforts.map((e) => e.name).join(", ")}` : ""}`, branches: null };
-        await out(flags.json ? JSON.stringify(t, null, 2) : showMarkdown(head, t.entries));
+        const style = railStyle(flags);
+        if (style) await page(railView({ name: head.name, sub: head.repo_name }, t.entries, style));
+        else await out(flags.json ? JSON.stringify(t, null, 2) : showMarkdown(head, t.entries));
         return 0;
       }
       if (!words[0]) throw new CliError(2, "Usage: atlas timeline show GROUP, or show --session ID");
       const group = await findGroup(cfg, words.join(" "), flags);
       const t = await api<{ entries: ShownEntry[] }>(cfg, "GET", `/timeline?group=${group.id}`);
-      await out(flags.json ? JSON.stringify(t, null, 2) : showMarkdown(group, t.entries));
+      const style = railStyle(flags);
+      if (style) await page(railView({ name: group.name, sub: `${group.repo_name}${group.branches ? ` · branches ${group.branches}` : ""}` }, t.entries, style));
+      else await out(flags.json ? JSON.stringify(t, null, 2) : showMarkdown(group, t.entries));
       return 0;
     }
     case "note": {
@@ -312,10 +319,21 @@ export async function syncGroup(cfg: Config, group: Group, opts: { dryRun: boole
   return { group: group.name, entries, counts };
 }
 
-type ShownEntry = { entry: string; state: string; title: string; note: string; note_state: string; merged: boolean; lines: { day: string | null; text: string; source: string; ref: string | null; kind: string | null }[]; started_at: string | null; ended_at: string | null };
+/** Draw the rail only for a person at a terminal wide enough; pipes and --json get markdown or JSON. */
+function railStyle(flags: Record<string, unknown>): Style | null {
+  if (flags.json || !isatty(1)) return null;
+  const width = Math.min(process.stdout.columns || 100, 120);
+  return width < MIN_WIDTH ? null : { width, color: !process.env.NO_COLOR };
+}
+
+export type ShownEntry = { entry: string; state: string; title: string; note: string; note_state: string; merged: boolean; lines: { day: string | null; text: string; source: string; ref: string | null; kind: string | null }[]; started_at: string | null; ended_at: string | null };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const short = (day: string) => `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
+export const short = (day: string) => `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
+
+/** Where a line came from: `git abc1234`, `todo #12`, else its source. */
+export const lineSource = (l: ShownEntry["lines"][number]) =>
+  l.source === "git" && l.ref && !l.ref.startsWith("http") ? `git ${l.ref}` : l.source === "todo" ? `todo #${l.ref}` : l.source;
 
 /** The rail as markdown, oldest first: one section per entry, its days as sub-lists. */
 export function showMarkdown(group: Pick<Group, "name" | "repo_name" | "branches">, entries: ShownEntry[]): string {
@@ -335,7 +353,7 @@ export function showMarkdown(group: Pick<Group, "name" | "repo_name" | "branches
         day = l.day;
         out.push("", day ? `${short(day)}${titles.has(day) && l.kind !== "day" ? `: ${titles.get(day)}` : ""}:` : "Open:");
       }
-      const src = l.source === "git" && l.ref && !l.ref.startsWith("http") ? `git ${l.ref}` : l.source === "todo" ? `todo #${l.ref}` : l.source;
+      const src = lineSource(l);
       const who = l.kind === "waiting" ? "**You:** " : "";
       out.push(`- ${who}${l.text}${l.kind && !["waiting", "pr", "pr-merged", "day"].includes(l.kind) ? ` (${l.kind})` : ""}  \`${src}\``);
     }
