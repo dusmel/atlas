@@ -117,7 +117,10 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
     for (const w of f.waiting) e.lines.push({ day: null, text: w, source: "note", ref: null, kind: "waiting" })
     for (const n of f.next) e.lines.push({ day: null, text: n, source: "note", ref: null, kind: "next" })
   }
-  if (next) add(next)
+  // A `## next` section in timeline.md already made the Next entry; open todos join it.
+  const fromFile = byId.get("next")
+  if (next && fromFile) fromFile.lines.unshift(...next.lines)
+  else if (next) add(next)
 
   // The effort folder: evidence on the entry it proves, the report on the entry it was written in.
   for (const ev of files.evidence ?? []) {
