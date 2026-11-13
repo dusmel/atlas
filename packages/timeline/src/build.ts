@@ -36,6 +36,12 @@ const STATES: State[] = ["done", "doing", "todo", "parked"]
 const RANK: Record<State, number> = { done: 0, doing: 1, parked: 2, todo: 3 }
 const PHASE_TODO = /^Phase (\d+)\b/i
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null)
+/** The server takes titles up to 200 characters. A longer plan heading keeps its first sentence, else is cut at a word. */
+export const shortTitle = (t: string, max = 200) => {
+  if (t.length <= max) return t
+  const first = /^(.+?\.)\s/.exec(t)?.[1]
+  return first && first.length <= max ? first : `${t.slice(0, max - 1).replace(/\s+\S*$/, "")}…`
+}
 const humanize = (slug: string) => {
   const s = slug.replace(/[-_]+/g, " ").trim()
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -71,9 +77,19 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
     const merged = pr?.state === "MERGED"
     const lines: Line[] = w.commits.map((c) => ({ day: c.day, text: c.subject, source: "git", ref: c.short, kind: null }))
     if (pr) lines.push({ day: day(pr.mergedAt) ?? w.commits.at(-1)!.day, text: `PR ${pr.number}`, source: "git", ref: pr.url, kind: merged ? "pr-merged" : "pr" })
+    const state = merged || i < input.work.length - 1 ? "done" : "doing"
+    // A follow-up branch for the same phase (`timeline/9-titles` after `timeline/9-links`) joins its entry.
+    const same = byId.get(id)
+    if (same) {
+      same.lines.push(...lines)
+      same.state = state
+      same.merged &&= merged
+      same.ended_at = w.commits.at(-1)!.at
+      return
+    }
     add({
       entry: id,
-      state: merged || i < input.work.length - 1 ? "done" : "doing",
+      state,
       title: headings.get(id) ?? humanize(id),
       merged,
       lines,
@@ -165,5 +181,5 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
   return entries
     .map((e, i) => [e, i] as const)
     .sort(([a, i], [b, j]) => RANK[a.state] - RANK[b.state] || (a.state === "done" && b.state === "done" ? done(a, b) : 0) || i - j)
-    .map(([e]) => e)
+    .map(([e]) => ({ ...e, title: shortTitle(e.title) }))
 }

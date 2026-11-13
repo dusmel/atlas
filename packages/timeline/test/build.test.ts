@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { buildEntries, entryIdFor, type TodoItem } from "../src/build"
+import { buildEntries, entryIdFor, shortTitle, type TodoItem } from "../src/build"
 import type { BranchWork } from "../src/git"
 
 const c = (day: string, subject: string, short = subject.slice(0, 7)) => ({ hash: short, short, at: `${day}T10:00:00+02:00`, day, subject })
@@ -121,5 +121,28 @@ next: Use it for a week
   test("evidence goes on the entry with its name", () => {
     const entries = buildEntries({ work, todos: [], files: { plan, evidence: [{ name: "phase-2", day: "2026-11-05" }] } })
     expect(entries[1]!.lines.find((l) => l.kind === "evidence")).toEqual({ day: "2026-11-05", text: "Evidence: phase-2", source: "doc", ref: "evidence/phase-2/", kind: "evidence" })
+  })
+})
+
+test("a second branch for the same phase joins that phase's entry", () => {
+  const two: BranchWork[] = [...work, { branch: "v1/3-fixes", commits: [c("2026-11-13", "Fix a title")] }]
+  const polish = buildEntries({ work: two, todos: [] }).filter((e) => e.entry === "phase-3")
+  expect(polish).toHaveLength(1)
+  expect(polish[0]!.state).toBe("doing")
+  expect(polish[0]!.lines.map((l) => l.text)).toEqual(["Keep records", "Virtual monitor", "Fix a title"])
+})
+
+describe("shortTitle", () => {
+  const long = "Phase 1: Hetzner base (PR #2, merged). " + "Coolify project with its login and backups, ".repeat(5)
+  test("a heading over 200 characters keeps its first sentence", () => {
+    expect(shortTitle(long)).toBe("Phase 1: Hetzner base (PR #2, merged).")
+  })
+  test("one long sentence is cut at a word, under the limit", () => {
+    const t = shortTitle("word ".repeat(60))
+    expect(t.length).toBeLessThanOrEqual(200)
+    expect(t).toEndWith("word…")
+  })
+  test("a short title stays as it is", () => {
+    expect(shortTitle("Phase 4: Docs and search")).toBe("Phase 4: Docs and search")
   })
 })
