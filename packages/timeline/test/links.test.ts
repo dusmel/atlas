@@ -50,3 +50,19 @@ test("remoteName reads ssh and https origins", () => {
   expect(remoteName("https://github.com/example/harbour")).toBe("example/harbour")
   expect(remoteName("https://gitlab.com/example/harbour.git")).toBeNull()
 })
+
+describe("a docs folder shared by efforts", () => {
+  const storage: EffortRef = { group_id: 7, remote: null, branches: null, prs: [], folders: ["/docs/voice"], soloRoot: null, prefix: "object-storage-" }
+  const telephony: EffortRef = { group_id: 8, remote: null, branches: null, prs: [], folders: ["/docs/voice"], soloRoot: null, prefix: "telephony-" }
+  const wrote = (f: string) => linkSession({ a: day({ files: [f] }) }, [], [storage, telephony])
+
+  test("a file counts only for the effort it is named after", () => {
+    expect(wrote("/docs/voice/object-storage-plan.md")).toEqual([{ group_id: 7, signals: ["files"] }])
+    expect(wrote("/docs/voice/object-storage-evidence/run.txt")).toEqual([{ group_id: 7, signals: ["files"] }])
+    expect(wrote("/docs/voice/release-notes.md")).toEqual([])
+  })
+
+  test("an effort with its own folder still takes any file in it", () => {
+    expect(linkSession({ a: day({ files: ["/docs/lighthouse/fog/notes.md"] }) }, [], [fog])).toEqual([{ group_id: 3, signals: ["files"] }])
+  })
+})

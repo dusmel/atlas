@@ -17,6 +17,8 @@ export type EffortRef = {
   folders: string[]
   /** The checkout, when the repo has only this effort; a write anywhere in it then counts. */
   soloRoot: string | null
+  /** In a docs folder shared with other efforts, the start of this effort's file names (`object-storage-`); only those count. */
+  prefix?: string | null
 }
 
 /** `git@github.com:o/n.git` or `https://github.com/o/n` to `o/n`. */
@@ -53,7 +55,8 @@ export function linkSession(days: Record<string, DayFacts>, todoGroups: number[]
       const hit = prs.some(([, repo, n]) => repo === e.remote && e.prs.some((p) => p.number === Number(n) && re.test(p.branch)))
       if (hit) signals.push("prs")
     }
-    if (files.some((f) => e.folders.some((d) => under(f, d)) || (e.soloRoot && under(f, e.soloRoot)))) signals.push("files")
+    const mine = (f: string, d: string) => under(f, d) && (!e.prefix || f.slice(d.length).replace(/^\//, "").startsWith(e.prefix))
+    if (files.some((f) => e.folders.some((d) => mine(f, d)) || (e.soloRoot && under(f, e.soloRoot)))) signals.push("files")
     if (signals.length) out.push({ group_id: e.group_id, signals })
   }
   // A group with no branches is not in `efforts`, but its todos still tie the session to it.
