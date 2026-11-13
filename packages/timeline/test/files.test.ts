@@ -66,13 +66,14 @@ next: Use it for a week
       noteState: "written",
       waiting: ["#557 pick a target"],
       next: ["You install the polish"],
+      done: [],
     })
     expect(phase2).toMatchObject({ id: "phase-2", state: "done", note: null, noteState: "draft" })
     expect(later).toMatchObject({ id: "later", state: "todo", title: "After v1", next: ["Use it for a week"] })
   })
 
   test("skips text before the first entry and lines it does not know", () => {
-    expect(readTimelineMd("intro\n\n## a\nrandom line\n")).toEqual([{ id: "a", state: null, title: null, note: null, noteState: null, waiting: [], next: [] }])
+    expect(readTimelineMd("intro\n\n## a\nrandom line\n")).toEqual([{ id: "a", state: null, title: null, note: null, noteState: null, waiting: [], next: [], done: [] }])
   })
 })
 

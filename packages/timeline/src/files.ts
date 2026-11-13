@@ -41,6 +41,8 @@ export type FileEntry = {
   noteState: "draft" | "written" | null
   waiting: string[]
   next: string[]
+  /** Events with no commit or todo, such as a deploy: `done: 2026-11-13 Deployed to production`. */
+  done: { day: string | null; text: string }[]
 }
 
 /** Entries by id, in file order. A note is `note:` plus any plain lines under it. */
@@ -60,13 +62,14 @@ export function readTimelineMd(text: string): FileEntry[] {
         noteState: null,
         waiting: [],
         next: [],
+        done: [],
       }
       out.push(cur)
       inNote = false
       continue
     }
     if (!cur) continue
-    const kv = /^(note|waiting|next|title):\s*(.*)$/.exec(line)
+    const kv = /^(note|waiting|next|title|done):\s*(.*)$/.exec(line)
     if (kv) {
       const [, key, value] = kv
       inNote = key === "note"
@@ -78,6 +81,10 @@ export function readTimelineMd(text: string): FileEntry[] {
         }
       } else if (key === "waiting") cur.waiting.push(value!.trim())
       else if (key === "next") cur.next.push(value!.trim())
+      else if (key === "done") {
+        const m = /^(20\d\d-\d\d-\d\d)\s+(.+)$/.exec(value!.trim())
+        cur.done.push(m ? { day: m[1]!, text: m[2]! } : { day: null, text: value!.trim() })
+      }
       else cur.title = value!.trim()
       continue
     }

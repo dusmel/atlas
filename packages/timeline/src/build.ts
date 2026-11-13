@@ -1,6 +1,7 @@
 // Merges git, the todo group, run.md, timeline.md and the effort folder into the entries that
 // POST /api/timeline takes. Rules and their reasons: atlas/timeline/design.html#entries.
 import { readPlanHeadings, readRunMd, readTimelineMd } from "./files"
+import { addEvidence, addFlow, firstDay, flowRank, type EffortDoc, type SessionDays } from "./flow"
 import type { BranchWork } from "./git"
 
 export type Line = { day: string | null; text: string; source: "git" | "todo" | "run" | "note" | "doc" | "session"; ref: string | null; kind: string | null }
@@ -19,7 +20,17 @@ export type Entry = {
 
 export type TodoItem = { id: number; title: string; status: "todo" | "doing" | "done"; parent_id: number | null; done_at: string | null; updated_at: string }
 export type Pr = { number: number; branch: string; state: string; url: string; mergedAt: string | null }
-export type EffortFiles = { plan?: string; runMd?: string; timelineMd?: string; evidence?: { name: string; day: string }[]; report?: { path: string; day: string } }
+export type EffortFiles = {
+  plan?: string
+  design?: string
+  runMd?: string
+  timelineMd?: string
+  evidence?: { name: string; day: string }[]
+  /** Every doc in the folder with its type and created time, for the entries around the build. */
+  docs?: EffortDoc[]
+  /** How a session's doc line names this folder, such as `atlas/timeline/`. */
+  docPrefix?: string
+}
 
 const STATES: State[] = ["done", "doing", "todo", "parked"]
 const RANK: Record<State, number> = { done: 0, doing: 1, parked: 2, todo: 3 }
@@ -38,7 +49,7 @@ export function entryIdFor(branch: string, anchors: Set<string>): string {
   return candidates.find((c) => anchors.has(c)) ?? candidates[0]!
 }
 
-export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs?: Pr[]; files?: EffortFiles }): Entry[] {
+export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs?: Pr[]; files?: EffortFiles; sessions?: SessionDays[]; unpushed?: string[] }): Entry[] {
   const files = input.files ?? {}
   const headings = readPlanHeadings(files.plan ?? "")
   const fileEntries = readTimelineMd(files.timelineMd ?? "")
@@ -81,6 +92,8 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
     const e = byId.get(id) ?? add({ entry: id, state: "todo", title: headings.get(id) ?? t.title, merged: false, lines: [], started_at: null, ended_at: null })
     if (!e.merged) e.state = t.status
     if (!headings.has(id)) e.title = t.title
+    // A phase with no branch and no boxes still happened on the day it was marked done.
+    if (t.status === "done" && t.done_at && !e.started_at) e.ended_at = t.done_at
   }
   const doingEntry = () => entries.find((e) => e.state === "doing")
   const nowEntry = () =>
@@ -116,29 +129,41 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
     if (f.noteState === "written") Object.assign(e, { note: f.note!, note_state: "written" })
     for (const w of f.waiting) e.lines.push({ day: null, text: w, source: "note", ref: null, kind: "waiting" })
     for (const n of f.next) e.lines.push({ day: null, text: n, source: "note", ref: null, kind: "next" })
+    for (const d of f.done) e.lines.push({ day: d.day, text: d.text, source: "note", ref: null, kind: "done" })
+    if (f.done.length && !f.state && !byId.get(f.id)?.lines.some((l) => l.source !== "note")) e.state = "done"
   }
   // A `## next` section in timeline.md already made the Next entry; open todos join it.
   const fromFile = byId.get("next")
   if (next && fromFile) fromFile.lines.unshift(...next.lines)
   else if (next) add(next)
 
-  // The effort folder: evidence on the entry it proves, the report on the entry it was written in.
-  for (const ev of files.evidence ?? []) {
-    byId.get(ev.name)?.lines.push({ day: ev.day, text: `Evidence: ${ev.name}`, source: "doc", ref: `evidence/${ev.name}/`, kind: "evidence" })
-  }
-  if (files.report) {
-    const d = files.report.day
-    const home = entries.filter((e) => e.started_at && day(e.started_at)! <= d).at(-1) ?? doingEntry()
-    home?.lines.push({ day: d, text: "Report", source: "doc", ref: files.report.path, kind: "report" })
-  }
+  addFlow(entries, {
+    work: input.work,
+    todos: input.todos,
+    prs: input.prs ?? [],
+    design: files.design ?? "",
+    runMd: files.runMd ?? "",
+    docs: files.docs ?? [],
+    sessions: input.sessions ?? [],
+    unpushed: input.unpushed ?? [],
+    docPrefix: files.docPrefix ?? null,
+  })
+  addEvidence(entries, files.evidence ?? [])
 
   for (const e of entries) {
     // Days in order; lines with no day (what is open now, what comes next) after them.
     const key = (l: Line) => l.day ?? "9999"
     e.lines = e.lines.map((l, i) => [l, i] as const).sort(([a, i], [b, j]) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : i - j)).map(([l]) => l)
     const days = e.lines.map((l) => l.day).filter((d): d is string => !!d)
-    e.started_at ??= days[0] ?? null
+    e.started_at ??= days[0] ?? e.ended_at
     e.ended_at ??= days.at(-1) ?? null
   }
-  return entries.map((e, i) => [e, i] as const).sort(([a, i], [b, j]) => RANK[a.state] - RANK[b.state] || i - j).map(([e]) => e)
+  // Done work by its first day, then in the order of the flow (brief before planning before the phases),
+  // then by time. The rest by state, in the order it was added.
+  const done = (a: Entry, b: Entry) =>
+    firstDay(a).localeCompare(firstDay(b)) || flowRank(a.entry) - flowRank(b.entry) || Date.parse(a.started_at ?? "") - Date.parse(b.started_at ?? "") || 0
+  return entries
+    .map((e, i) => [e, i] as const)
+    .sort(([a, i], [b, j]) => RANK[a.state] - RANK[b.state] || (a.state === "done" && b.state === "done" ? done(a, b) : 0) || i - j)
+    .map(([e]) => e)
 }
