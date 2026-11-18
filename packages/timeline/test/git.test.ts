@@ -56,3 +56,23 @@ test("gives each branch only its own commits, oldest first, on the author's day"
 test("a pattern with no branches gives nothing", async () => {
   expect(await branchWork(dir, "v9/*")).toEqual([])
 })
+
+// Runs last: it merges v1/1-a into main.
+test("a branch merged with a merge commit keeps the commits its merge brought in", async () => {
+  git("switch", "-q", "main")
+  commit("m1", "Unrelated work on main", "2026-11-06T10:00:00+02:00")
+  Bun.spawnSync(["git", "-c", "user.name=t", "-c", "user.email=t@t", "merge", "-q", "--no-ff", "-m", "Merge v1/1-a", "v1/1-a"], { cwd: dir, env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" } })
+  const work = await branchWork(dir, "v1/*")
+  expect(work.map((w) => [w.branch, w.commits.map((c) => c.subject)])).toEqual([
+    ["v1/1-a", ["Add a", "Fix a late at night"]],
+    ["v1/2-b", ["Add b"]],
+    ["v1/10-c", ["Add c"]],
+  ])
+})
+
+test("a branch made from main with no commits of its own stays empty", async () => {
+  git("branch", "v2/1-empty", "main~1")
+  git("switch", "-q", "main")
+  commit("m2", "More work on main", "2026-11-10T10:00:00+02:00")
+  expect((await branchWork(dir, "v2/*"))[0]!.commits).toEqual([])
+})

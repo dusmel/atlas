@@ -1,5 +1,6 @@
 // Reads an effort's branches from a local checkout. Each branch's commits are the ones no earlier
 // branch in the stack and not the base branch has, so a stacked branch shows only its own work.
+// A branch merged with a merge commit has no such commits left, so it takes the ones its merge brought in.
 
 export type Commit = { hash: string; short: string; at: string; day: string; subject: string }
 export type BranchWork = { branch: string; commits: Commit[] }
@@ -35,14 +36,30 @@ export async function matchingBranches(cwd: string, pattern: string): Promise<{ 
   return [...byName].map(([name, ref]) => ({ name, ref })).sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }))
 }
 
+/** The merge on `base` that brought `ref` in: the first merge after it whose first parent does not hold it yet. */
+async function mergeOf(cwd: string, ref: string, base: string): Promise<string | null> {
+  const merges = (await git(cwd, ["rev-list", "--ancestry-path", "--merges", "--topo-order", "--reverse", `${ref}..${base}`])).split("\n").filter(Boolean)
+  for (const m of merges) {
+    const held = await git(cwd, ["merge-base", "--is-ancestor", ref, `${m}^1`]).then(() => true, () => false)
+    if (!held) return m
+  }
+  return null
+}
+
 export async function branchWork(cwd: string, pattern: string, base?: string): Promise<BranchWork[]> {
   const from = base ?? (await baseBranch(cwd))
   const branches = await matchingBranches(cwd, pattern)
   const out: BranchWork[] = []
+  const log = (ref: string, not: string[]) => git(cwd, ["log", "--no-merges", "--reverse", "--format=%H%x09%h%x09%aI%x09%s", ref, "--not", ...not])
   for (let i = 0; i < branches.length; i++) {
-    const not = [from, ...branches.slice(0, i).map((b) => b.ref)]
-    const log = await git(cwd, ["log", "--no-merges", "--reverse", "--format=%H%x09%h%x09%aI%x09%s", branches[i]!.ref, "--not", ...not])
-    const commits = log
+    const ref = branches[i]!.ref
+    const earlier = branches.slice(0, i).map((b) => b.ref)
+    let text = await log(ref, [from, ...earlier])
+    if (!text.trim()) {
+      const merge = await mergeOf(cwd, ref, from)
+      if (merge) text = await log(ref, [`${merge}^1`, ...earlier])
+    }
+    const commits = text
       .split("\n")
       .filter(Boolean)
       .map((l) => {

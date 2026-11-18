@@ -306,14 +306,15 @@ export async function syncGroup(cfg: Config, group: Group, opts: { dryRun: boole
   if (!group.branches) throw new CliError(2, `Group ${group.name} has no branches. Link it with: atlas timeline link "${group.name}" --branches 'v1/*'`);
   const { repoRoot } = storeDir(group.repo_id);
   if (!repoRoot || !existsSync(repoRoot)) throw new CliError(2, `The checkout of ${group.repo_name} is not on this Mac (${repoRoot ?? "no repoRoot in meta.json"})`);
-  const [work, todos, prs, sessions, unpushed] = await Promise.all([
+  const [work, todos, prs, sessions, unpushed, stored] = await Promise.all([
     branchWork(repoRoot, group.branches),
     api<TodoItem[]>(cfg, "GET", `/todos?${new URLSearchParams({ repo: group.repo_id, group: group.name, status: "todo,doing,done" })}`),
     opts.prs ? pullRequests(repoRoot, group.repo_id) : Promise.resolve([]),
     linkedSessions(cfg, group.id),
     unpushedCommits(repoRoot, group.branches),
+    api<{ entries: Entry[] }>(cfg, "GET", `/timeline?${new URLSearchParams({ group: String(group.id) })}`).then((r) => r.entries),
   ]);
-  const entries = buildEntries({ work, todos, prs, files: readEffortFiles(effortDir(group), basename(group.docs.find((d) => d.label === "plan")!.path)), sessions, unpushed });
+  const entries = buildEntries({ work, todos, prs, files: readEffortFiles(effortDir(group), basename(group.docs.find((d) => d.label === "plan")!.path)), sessions, unpushed, stored });
   if (opts.dryRun) return { group: group.name, entries, counts: null };
   const counts = await api<Record<string, number>>(cfg, "POST", "/timeline", { group: group.id, entries });
   return { group: group.name, entries, counts };

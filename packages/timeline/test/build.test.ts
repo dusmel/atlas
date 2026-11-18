@@ -132,6 +132,30 @@ test("a second branch for the same phase joins that phase's entry", () => {
   expect(polish[0]!.lines.map((l) => l.text)).toEqual(["Keep records", "Virtual monitor", "Fix a title"])
 })
 
+describe("stored entries", () => {
+  const stored = buildEntries({ work, todos: [], prs: [{ number: 1, branch: "v1/1-marks", state: "MERGED", url: "https://x/pull/1", mergedAt: "2026-11-06T08:00:00Z" }] })
+
+  test("a phase whose branch was deleted keeps its commits and PR as done work", () => {
+    const entries = buildEntries({ work: work.slice(1), todos: [], stored })
+    const marks = entries.find((e) => e.entry === "phase-1")!
+    expect(marks).toMatchObject({ state: "done", merged: true })
+    expect(marks.lines.map((l) => [l.text, l.kind])).toEqual([["Add marks", null], ["Add flipping", null], ["PR 1", "pr-merged"]])
+  })
+
+  test("a stored phase whose commits moved to another entry is dropped", () => {
+    const renamed: BranchWork[] = [{ ...work[0]!, branch: "v1/1-renamed" }, ...work.slice(1)]
+    const entries = buildEntries({ work: renamed, todos: [], files: { plan: "## Renamed {#renamed}\n" }, stored })
+    expect(entries.filter((e) => e.lines.some((l) => l.text === "Add marks")).map((e) => e.entry)).toEqual(["renamed"])
+    const moved = buildEntries({ work: [{ ...work[0]!, branch: "v2/7-other" }], todos: [], stored: stored.slice(0, 1) })
+    expect(moved.map((e) => e.entry)).toEqual(["phase-7"])
+  })
+
+  test("a stored entry with no commits, such as now or next, is not kept", () => {
+    const entries = buildEntries({ work: [], todos: [], stored: [{ entry: "next", state: "todo", title: "Next", merged: false, lines: [{ day: null, text: "x", source: "todo", ref: "1", kind: "next" }], started_at: null, ended_at: null }] })
+    expect(entries).toEqual([])
+  })
+})
+
 describe("shortTitle", () => {
   const long = "Phase 1: Hetzner base (PR #2, merged). " + "Coolify project with its login and backups, ".repeat(5)
   test("a heading over 200 characters keeps its first sentence", () => {
