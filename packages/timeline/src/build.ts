@@ -35,6 +35,7 @@ export type EffortFiles = {
 const STATES: State[] = ["done", "doing", "todo", "parked"]
 const RANK: Record<State, number> = { done: 0, doing: 1, parked: 2, todo: 3 }
 const PHASE_TODO = /^Phase (\d+)\b/i
+const isCommit = (l: Line) => l.source === "git" && (!l.kind || l.kind === "unpushed")
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : null)
 /** The server takes titles up to 200 characters. A longer plan heading keeps its first sentence, else is cut at a word. */
 export const shortTitle = (t: string, max = 200) => {
@@ -55,7 +56,16 @@ export function entryIdFor(branch: string, anchors: Set<string>): string {
   return candidates.find((c) => anchors.has(c)) ?? candidates[0]!
 }
 
-export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs?: Pr[]; files?: EffortFiles; sessions?: SessionDays[]; unpushed?: string[] }): Entry[] {
+export function buildEntries(input: {
+  work: BranchWork[]
+  todos: TodoItem[]
+  prs?: Pr[]
+  files?: EffortFiles
+  sessions?: SessionDays[]
+  unpushed?: string[]
+  /** The entries the server holds now, so a phase whose branch was deleted keeps its commits. */
+  stored?: Entry[]
+}): Entry[] {
   const files = input.files ?? {}
   const headings = readPlanHeadings(files.plan ?? "")
   const fileEntries = readTimelineMd(files.timelineMd ?? "")
@@ -97,6 +107,16 @@ export function buildEntries(input: { work: BranchWork[]; todos: TodoItem[]; prs
       ended_at: w.commits.at(-1)!.at,
     })
   })
+
+  // A stored phase that git no longer gives, because its branch was deleted, stays as done work with its
+  // commits. One whose commits moved to another entry, after a rename, is gone.
+  const built = new Set(entries.flatMap((e) => e.lines.filter(isCommit).map((l) => l.ref)))
+  for (const e of input.stored ?? []) {
+    const lines = e.lines.filter((l) => l.source === "git")
+    const commits = lines.filter(isCommit)
+    if (byId.has(e.entry) || !commits.length || commits.some((l) => built.has(l.ref))) continue
+    add({ entry: e.entry, state: "done", title: e.title, merged: e.merged, lines, started_at: e.started_at, ended_at: e.ended_at })
+  }
 
   // Todos: a "Phase N:" todo sets its entry's state; its children become lines on it.
   const phaseOf = new Map<number, string>()

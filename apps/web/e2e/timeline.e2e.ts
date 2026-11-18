@@ -143,6 +143,40 @@ test("the now entry colours each line's dot by its state, so open work stands ou
   await expect(page.locator('li[data-entry="phase-1"] li[data-line-state]')).toHaveCount(0)
 })
 
+test("the now entry folds finished days to their heading, and opens one on a click", async ({ page }) => {
+  const id = await seedTimeline(page)
+  const line = (day: string, text: string, ref: string, kind: string | null = null) => ({ day, text, source: "git", ref, kind })
+  await api(page, "POST", "/timeline", {
+    group: id,
+    entries: [
+      {
+        entry: "lamp",
+        state: "doing",
+        title: "Light the lamp at dusk",
+        lines: [
+          { day: "2026-11-08", text: "Clean the glass", source: "session", ref: null, kind: "day" },
+          line("2026-11-08", "Trim the wick", "a1a1a1a"),
+          line("2026-11-08", "Polish the lens", "a2a2a2a"),
+          line("2026-11-09", "Wind the clockwork", "b1b1b1b", "unpushed"),
+          line("2026-11-10", "Test the fog horn", "c1c1c1c"),
+        ],
+      },
+    ],
+  })
+  await page.goto(`/timeline?group=${id}`)
+  const now = page.locator('li[data-entry="lamp"]')
+  // 8 Nov is all done, so it folds; 9 Nov holds an unpushed commit and 10 Nov is the latest, so both stay open.
+  const day8 = now.getByRole("button", { name: /8 Nov: Clean the glass · 2 done/ })
+  await expect(day8).toHaveAttribute("aria-expanded", "false")
+  await expect(now.getByText("Trim the wick")).toHaveCount(0)
+  await expect(now.getByText("Wind the clockwork")).toBeVisible()
+  await expect(now.getByText("Test the fog horn")).toBeVisible()
+  await expect(now.getByRole("button", { name: /9 Nov|10 Nov/ })).toHaveCount(0)
+  await day8.click()
+  await expect(now.getByText("Trim the wick")).toBeVisible()
+  await expect(now.getByRole("button", { name: /8 Nov: Clean the glass/ })).toHaveAttribute("aria-expanded", "true")
+})
+
 test("the sidebar is as wide as you drag it, and keeps that width", async ({ page }) => {
   await seedTimeline(page)
   await page.setViewportSize({ width: 1280, height: 800 })
