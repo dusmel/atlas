@@ -114,7 +114,7 @@ export function Rail({
                       onClick={() => setDays(allOpen ? [] : folds)}
                       aria-label={allOpen ? "Fold every day" : "Open every day"}
                       title={allOpen ? "Fold every day" : "Open every day"}
-                      className="ml-auto shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       {allOpen ? <ChevronsDownUpIcon className="size-4" aria-hidden /> : <ChevronsUpDownIcon className="size-4" aria-hidden />}
                     </button>
@@ -245,9 +245,9 @@ function Lines({
         const count = lines.filter((x) => x.day === l.day).length
         const head = !label ? null : canFold ? (
           <button type="button" onClick={() => onToggle?.(l.day!)} aria-expanded={!folded} className="flex max-w-full min-w-0 items-center gap-1 text-left hover:text-foreground">
-            <ChevronRightIcon aria-hidden className={cn("size-3 shrink-0 transition-transform", !folded && "rotate-90")} />
             <span className="truncate">{label}</span>
             {folded && <span className="shrink-0 text-done">· {count} done</span>}
+            <ChevronRightIcon aria-hidden className={cn("size-3 shrink-0 transition-transform", !folded && "rotate-90")} />
           </button>
         ) : (
           label
