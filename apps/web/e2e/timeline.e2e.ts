@@ -61,7 +61,9 @@ test("the rail shows done, now and next, and Compact folds all but now", async (
   await done.getByRole("button", { name: /3 Nov/ }).click()
   // A commit links to GitHub, taken from the PR line's url.
   await expect(done.getByRole("link", { name: "git a1b2c3d" })).toHaveAttribute("href", "https://github.com/example/web/commit/a1b2c3d")
-  await expect(done.getByText("2 commits · PR 7")).toBeVisible()
+  // The outcome line links the PR, and with one PR the commit count links to its commits.
+  await expect(done.getByRole("link", { name: "PR 7" })).toHaveAttribute("href", "https://github.com/example/web/pull/7")
+  await expect(done.getByRole("link", { name: "2 commits" })).toHaveAttribute("href", "https://github.com/example/web/pull/7/commits")
 
   const now = page.locator('li[data-entry="lamp"]')
   await expect(now.getByText("now", { exact: true })).toBeVisible()
@@ -108,7 +110,7 @@ test("the flow of work: entries around the build, day titles, decisions and unpu
   await phase.getByRole("button", { name: /4 Nov/ }).click()
   await expect(phase.getByText("git d4e5f6a · not pushed")).toBeVisible()
   await expect(phase.getByRole("link", { name: /d4e5f6a/ })).toHaveCount(0)
-  await expect(phase.getByText("2 commits · PR 7")).toBeVisible()
+  await expect(phase.getByRole("link", { name: "2 commits" })).toBeVisible()
   const signoff = page.locator('li[data-entry="sign-off"]')
   await expect(signoff.getByText("decision", { exact: true })).toBeVisible()
   await expect(signoff.getByText("3 defaults picked")).toBeVisible()
@@ -189,6 +191,15 @@ test("finished days fold to their heading: all of a done entry's, the now entry'
   await expect(dock.getByRole("button", { name: "5 Nov: Sink the posts · 2 done" })).toHaveAttribute("aria-expanded", "false")
   await expect(dock.getByRole("button", { name: "6 Nov: Tie the rope · 1 done" })).toBeVisible()
   await expect(dock.getByText("Lay the boards")).toHaveCount(0)
+  // The button by the entry's title opens every day, then folds them all again.
+  await dock.getByRole("button", { name: "Open every day" }).click()
+  await expect(dock.getByText("Lay the boards")).toBeVisible()
+  await expect(dock.getByText("Tie the rope")).toBeVisible()
+  await dock.getByRole("button", { name: "Fold every day" }).click()
+  await expect(dock.getByText("Lay the boards")).toHaveCount(0)
+  // A day opened by hand counts: with every day open, the button folds.
+  await now.getByRole("button", { name: "Fold every day" }).click()
+  await expect(now.getByText("Trim the wick")).toHaveCount(0)
 })
 
 test("the sidebar is as wide as you drag it, and keeps that width", async ({ page }) => {

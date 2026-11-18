@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { ChevronRightIcon, GitMergeIcon } from "lucide-react"
+import { ChevronRightIcon, ChevronsDownUpIcon, ChevronsUpDownIcon, GitMergeIcon } from "lucide-react"
 import { Fragment, useEffect, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import { cn } from "cn"
@@ -42,6 +42,8 @@ export function Rail({
   prompts?: SessionPrompt[]
 }) {
   const nowRef = useRef<HTMLLIElement>(null)
+  // The days opened by hand, per entry. The owner is in the key, since entry ids repeat across efforts.
+  const [opened, setOpened] = useState<Record<string, string[]>>({})
   const base = commitBase(entries)
   const notes = docLinks(docsFolder)
   const noteLink = (url: string) => (effortDir && !/^([a-z][a-z0-9+.-]*:|[#/?])/i.test(url) ? notes(`${effortDir}/${url}`) : notes(url))
@@ -71,6 +73,13 @@ export function Rail({
         const meta = outcome(e)
         const by = e.state === "done" || e.state === "doing" ? entrySessions(e, sessions) : []
         const asked = prompts.filter((p) => p.day === e.entry)
+        const lines = e.lines.filter((l) => !l.kind?.startsWith("pr"))
+        const fold = doing ? "finished" : e.state === "done" ? "all" : undefined
+        const key = `${owner}:${e.entry}`
+        const folds = foldableDays(lines, fold)
+        const mine = opened[key] ?? []
+        const allOpen = folds.length > 0 && folds.every((d) => mine.includes(d))
+        const setDays = (days: string[]) => setOpened((o) => ({ ...o, [key]: days }))
         return (
           <li
             key={e.entry}
@@ -99,6 +108,17 @@ export function Rail({
                 <h2 className="flex items-center gap-2 text-[17px] font-semibold">
                   {e.title}
                   {e.merged && <Merged size={16} />}
+                  {folds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDays(allOpen ? [] : folds)}
+                      aria-label={allOpen ? "Fold every day" : "Open every day"}
+                      title={allOpen ? "Fold every day" : "Open every day"}
+                      className="ml-auto shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      {allOpen ? <ChevronsDownUpIcon className="size-4" aria-hidden /> : <ChevronsUpDownIcon className="size-4" aria-hidden />}
+                    </button>
+                  )}
                 </h2>
                 {e.note && (
                   <div className="text-[14.5px] leading-relaxed text-foreground/85 [&_a]:text-link [&_a]:underline-offset-2 hover:[&_a]:underline [&_p]:my-1">
@@ -106,7 +126,15 @@ export function Rail({
                   </div>
                 )}
                 {asked.length > 0 && <Prompts prompts={asked} />}
-                <Lines lines={e.lines.filter((l) => !l.kind?.startsWith("pr"))} base={base} small={asked.length > 0} marked={doing} fold={doing ? "finished" : e.state === "done" ? "all" : undefined} />
+                <Lines
+                  lines={lines}
+                  base={base}
+                  small={asked.length > 0}
+                  marked={doing}
+                  folds={folds}
+                  opened={mine}
+                  onToggle={(d) => setDays(mine.includes(d) ? mine.filter((x) => x !== d) : [...mine, d])}
+                />
                 {(meta || by.length > 0) && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground">
                     {meta}
@@ -140,45 +168,83 @@ export function Rail({
   )
 }
 
-/** The grey outcome line at an entry's end: its commits and PRs, or how many items wait. */
+/**
+ * The grey outcome line at an entry's end: its commits and PRs, or how many items wait. Each PR links to
+ * GitHub, and with one PR the commit count links to its commits.
+ */
 function outcome(e: TimelineEntry) {
   const commits = e.lines.filter((l) => l.source === "git" && (!l.kind || l.kind === "unpushed")).length
-  const prs = e.lines.filter((l) => l.kind?.startsWith("pr")).map((l) => l.text)
+  const prs = e.lines.filter((l) => l.kind?.startsWith("pr"))
   if (e.state === "todo" || e.state === "parked") return e.lines.length ? `${e.lines.length} ${e.lines.length === 1 ? "item" : "items"}` : ""
-  return [commits && `${commits} ${commits === 1 ? "commit" : "commits"}`, prs.join(", ")].filter(Boolean).join(" · ")
+  if (!commits && !prs.length) return null
+  const link = "text-link underline-offset-2 hover:underline"
+  const url = (l: TimelineLine) => (l.ref && /^https?:/.test(l.ref) ? l.ref : null)
+  const count = commits ? `${commits} ${commits === 1 ? "commit" : "commits"}` : null
+  const one = prs.length === 1 ? url(prs[0]!) : null
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5">
+      {count && (one ? <a href={`${one}/commits`} target="_blank" rel="noopener" title="The PR's commits on GitHub" className={link}>{count}</a> : <span>{count}</span>)}
+      {prs.map((l, i) => (
+        <span key={l.text} className="contents">
+          {(count || i > 0) && <span aria-hidden>·</span>}
+          {url(l) ? <a href={url(l)!} target="_blank" rel="noopener" title={`${l.text} on GitHub${l.kind === "pr-merged" ? ", merged" : ""}`} className={link}>{l.text}</a> : <span>{l.text}</span>}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** The days of an entry that fold: every day of a done entry, and in the now entry each finished day but the latest. */
+export function foldableDays(all: TimelineLine[], fold?: "finished" | "all"): string[] {
+  const lines = all.filter((l) => l.kind !== "day")
+  const days = [...new Set(lines.map((l) => l.day).filter((d): d is string => !!d))]
+  if (!fold || days.length < 2 || all.every((l) => l.kind === "day")) return []
+  const finished = (d: string) => lines.every((l) => l.day !== d || (lineState(l) !== "doing" && lineState(l) !== "todo"))
+  return fold === "all" ? days : days.filter((d) => d !== days.at(-1) && finished(d))
 }
 
 /**
  * An entry's lines, under a day heading when the entry spans more than one day. A `day` line titles its
  * day's heading ("8 Nov: First days in your vault"); an entry with nothing else lists it as a line.
- * `fold` folds days to their heading: every day of a done entry, and in the now entry each finished day
- * but the latest. A folded day with no title shows its first line instead.
+ * Days in `folds` show only their heading until opened. A folded day with no title shows its first line instead.
  */
-function Lines({ lines: all, base, small, marked, fold }: { lines: TimelineLine[]; base: string | null; small?: boolean; marked?: boolean; fold?: "finished" | "all" }) {
-  const [opened, setOpened] = useState<Set<string>>(() => new Set())
+function Lines({
+  lines: all,
+  base,
+  small,
+  marked,
+  folds = [],
+  opened = [],
+  onToggle,
+}: {
+  lines: TimelineLine[]
+  base: string | null
+  small?: boolean
+  marked?: boolean
+  folds?: string[]
+  opened?: string[]
+  onToggle?: (day: string) => void
+}) {
   const onlyDays = all.every((l) => l.kind === "day")
   const titles = new Map(onlyDays ? [] : all.filter((l) => l.kind === "day").map((l) => [l.day, l.text]))
   const lines = onlyDays ? all : all.filter((l) => l.kind !== "day")
   if (!lines.length) return null
   const days = [...new Set(lines.map((l) => l.day).filter((d): d is string => !!d))]
   const split = days.length > 1
-  const finished = (d: string) => lines.every((l) => l.day !== d || lineState(l) !== "doing" && lineState(l) !== "todo")
-  const foldable = (d: string) => split && (fold === "all" || (fold === "finished" && d !== days.at(-1) && finished(d)))
-  const toggle = (d: string) => setOpened((o) => new Set(o.has(d) ? [...o].filter((x) => x !== d) : [...o, d]))
   let last: string | null | undefined
   return (
     <ul className={cn("mt-1 flex list-disc flex-col gap-[3px] pl-[18px] leading-normal marker:text-muted-foreground", small ? "text-[13px] text-muted-foreground" : "text-[14.5px]")}>
       {lines.map((l, i) => {
         const first = split && l.day !== last && !!l.day
         last = l.day
-        const folds = !!l.day && foldable(l.day)
-        const folded = folds && !opened.has(l.day!)
+        const canFold = !!l.day && folds.includes(l.day)
+        const folded = canFold && !opened.includes(l.day!)
         if (folded && !first) return null
         const title = titles.get(l.day) ?? (folded ? l.text.replace(/\*\*|`/g, "") : null)
         const label = first ? `${dayLabel(l.day!)}${title ? `: ${title}` : ""}` : null
         const count = lines.filter((x) => x.day === l.day).length
-        const head = !label ? null : folds ? (
-          <button type="button" onClick={() => toggle(l.day!)} aria-expanded={!folded} className="flex max-w-full min-w-0 items-center gap-1 text-left hover:text-foreground">
+        const head = !label ? null : canFold ? (
+          <button type="button" onClick={() => onToggle?.(l.day!)} aria-expanded={!folded} className="flex max-w-full min-w-0 items-center gap-1 text-left hover:text-foreground">
             <ChevronRightIcon aria-hidden className={cn("size-3 shrink-0 transition-transform", !folded && "rotate-90")} />
             <span className="truncate">{label}</span>
             {folded && <span className="shrink-0 text-done">· {count} done</span>}
@@ -190,7 +256,7 @@ function Lines({ lines: all, base, small, marked, fold }: { lines: TimelineLine[
         return (
           <Fragment key={i}>
             {head && (
-              <li className="-ml-[18px] list-none pt-1 font-mono text-[11.5px] text-muted-foreground" data-day={l.day} data-folded={folds ? folded : undefined}>
+              <li className="-ml-[18px] list-none pt-1 font-mono text-[11.5px] text-muted-foreground" data-day={l.day} data-folded={canFold ? folded : undefined}>
                 {head}
               </li>
             )}
