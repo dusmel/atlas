@@ -42,8 +42,8 @@ export function Rail({
   prompts?: SessionPrompt[]
 }) {
   const nowRef = useRef<HTMLLIElement>(null)
-  // The days opened by hand, per entry. The owner is in the key, since entry ids repeat across efforts.
-  const [opened, setOpened] = useState<Record<string, string[]>>({})
+  // The days folded by hand, per entry; every day starts open. The owner is in the key, since entry ids repeat across efforts.
+  const [folded, setFolded] = useState<Record<string, string[]>>({})
   const base = commitBase(entries)
   const notes = docLinks(docsFolder)
   const noteLink = (url: string) => (effortDir && !/^([a-z][a-z0-9+.-]*:|[#/?])/i.test(url) ? notes(`${effortDir}/${url}`) : notes(url))
@@ -77,9 +77,9 @@ export function Rail({
         const fold = doing ? "finished" : e.state === "done" ? "all" : undefined
         const key = `${owner}:${e.entry}`
         const folds = foldableDays(lines, fold)
-        const mine = opened[key] ?? []
-        const allOpen = folds.length > 0 && folds.every((d) => mine.includes(d))
-        const setDays = (days: string[]) => setOpened((o) => ({ ...o, [key]: days }))
+        const mine = folded[key] ?? []
+        const allOpen = !folds.some((d) => mine.includes(d))
+        const setDays = (days: string[]) => setFolded((o) => ({ ...o, [key]: days }))
         return (
           <li
             key={e.entry}
@@ -111,7 +111,7 @@ export function Rail({
                   {folds.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setDays(allOpen ? [] : folds)}
+                      onClick={() => setDays(allOpen ? folds : [])}
                       aria-label={allOpen ? "Fold every day" : "Open every day"}
                       title={allOpen ? "Fold every day" : "Open every day"}
                       className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -132,7 +132,7 @@ export function Rail({
                   small={asked.length > 0}
                   marked={doing}
                   folds={folds}
-                  opened={mine}
+                  folded={mine}
                   onToggle={(d) => setDays(mine.includes(d) ? mine.filter((x) => x !== d) : [...mine, d])}
                 />
                 {(meta || by.length > 0) && (
@@ -206,7 +206,7 @@ export function foldableDays(all: TimelineLine[], fold?: "finished" | "all"): st
 /**
  * An entry's lines, under a day heading when the entry spans more than one day. A `day` line titles its
  * day's heading ("8 Nov: First days in your vault"); an entry with nothing else lists it as a line.
- * Days in `folds` show only their heading until opened. A folded day with no title shows its first line instead.
+ * Days in `folds` can fold to their heading, and the ones in `folded` are. A folded day with no title shows its first line instead.
  */
 function Lines({
   lines: all,
@@ -214,7 +214,7 @@ function Lines({
   small,
   marked,
   folds = [],
-  opened = [],
+  folded: shut = [],
   onToggle,
 }: {
   lines: TimelineLine[]
@@ -222,7 +222,7 @@ function Lines({
   small?: boolean
   marked?: boolean
   folds?: string[]
-  opened?: string[]
+  folded?: string[]
   onToggle?: (day: string) => void
 }) {
   const onlyDays = all.every((l) => l.kind === "day")
@@ -238,7 +238,7 @@ function Lines({
         const first = split && l.day !== last && !!l.day
         last = l.day
         const canFold = !!l.day && folds.includes(l.day)
-        const folded = canFold && !opened.includes(l.day!)
+        const folded = canFold && shut.includes(l.day!)
         if (folded && !first) return null
         const title = titles.get(l.day) ?? (folded ? l.text.replace(/\*\*|`/g, "") : null)
         const label = first ? `${dayLabel(l.day!)}${title ? `: ${title}` : ""}` : null

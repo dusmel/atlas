@@ -57,8 +57,6 @@ test("the rail shows done, now and next, and Compact folds all but now", async (
   await expect(done.getByText("3 to 4 Nov")).toBeVisible()
   await expect(done.getByLabel("merged")).toBeVisible()
   await expect(done.getByText("Logged ships first")).toBeVisible()
-  // A done entry's days start folded.
-  await done.getByRole("button", { name: /3 Nov/ }).click()
   // A commit links to GitHub, taken from the PR line's url.
   await expect(done.getByRole("link", { name: "git a1b2c3d" })).toHaveAttribute("href", "https://github.com/example/web/commit/a1b2c3d")
   // The outcome line links the PR, and with one PR the commit count links to its commits.
@@ -107,7 +105,6 @@ test("the flow of work: entries around the build, day titles, decisions and unpu
   await expect(phase.getByText("3 Nov: First nights on the rock")).toBeVisible()
   await expect(phase.getByText("First nights on the rock", { exact: true })).toHaveCount(0)
   // An unpushed commit is counted, marked, and has no GitHub link.
-  await phase.getByRole("button", { name: /4 Nov/ }).click()
   await expect(phase.getByText("git d4e5f6a · not pushed")).toBeVisible()
   await expect(phase.getByRole("link", { name: /d4e5f6a/ })).toHaveCount(0)
   await expect(phase.getByRole("link", { name: "2 commits" })).toBeVisible()
@@ -148,7 +145,7 @@ test("the now entry colours each line's dot by its state, so open work stands ou
   await expect(page.locator('li[data-entry="phase-1"] li[data-line-state]')).toHaveCount(0)
 })
 
-test("finished days fold to their heading: all of a done entry's, the now entry's but the latest", async ({ page }) => {
+test("days start open and fold to their heading: any day of a done entry, the now entry's finished ones but the latest", async ({ page }) => {
   const id = await seedTimeline(page)
   const line = (day: string, text: string, ref: string, kind: string | null = null) => ({ day, text, source: "git", ref, kind })
   await api(page, "POST", "/timeline", {
@@ -176,30 +173,28 @@ test("finished days fold to their heading: all of a done entry's, the now entry'
   })
   await page.goto(`/timeline?group=${id}`)
   const now = page.locator('li[data-entry="lamp"]')
-  // 8 Nov is all done, so it folds; 9 Nov holds an unpushed commit and 10 Nov is the latest, so both stay open.
-  const day8 = now.getByRole("button", { name: /8 Nov: Clean the glass · 2 done/ })
-  await expect(day8).toHaveAttribute("aria-expanded", "false")
-  await expect(now.getByText("Trim the wick")).toHaveCount(0)
-  await expect(now.getByText("Wind the clockwork")).toBeVisible()
-  await expect(now.getByText("Test the fog horn")).toBeVisible()
+  const dock = page.locator('li[data-entry="dock"]')
+  // Every day starts open.
+  await expect(now.getByText("Trim the wick")).toBeVisible()
+  await expect(dock.getByText("Lay the boards")).toBeVisible()
+  // In the now entry only 8 Nov folds: 9 Nov holds an unpushed commit and 10 Nov is the latest.
+  const day8 = now.getByRole("button", { name: /8 Nov: Clean the glass/ })
+  await expect(day8).toHaveAttribute("aria-expanded", "true")
   await expect(now.getByRole("button", { name: /9 Nov|10 Nov/ })).toHaveCount(0)
   await day8.click()
+  await expect(now.getByRole("button", { name: /8 Nov: Clean the glass · 2 done/ })).toHaveAttribute("aria-expanded", "false")
+  await expect(now.getByText("Trim the wick")).toHaveCount(0)
+  await expect(now.getByText("Wind the clockwork")).toBeVisible()
+  // A day folded by hand counts: with every foldable day folded, the button opens them.
+  await now.getByRole("button", { name: "Open every day" }).click()
   await expect(now.getByText("Trim the wick")).toBeVisible()
-  await expect(now.getByRole("button", { name: /8 Nov: Clean the glass/ })).toHaveAttribute("aria-expanded", "true")
-  // A done entry folds every day. With no day title, the heading shows the day's first line.
-  const dock = page.locator('li[data-entry="dock"]')
+  // The button by a done entry's title folds every day. With no day title, a folded heading shows the day's first line.
+  await dock.getByRole("button", { name: "Fold every day" }).click()
   await expect(dock.getByRole("button", { name: "5 Nov: Sink the posts · 2 done" })).toHaveAttribute("aria-expanded", "false")
   await expect(dock.getByRole("button", { name: "6 Nov: Tie the rope · 1 done" })).toBeVisible()
   await expect(dock.getByText("Lay the boards")).toHaveCount(0)
-  // The button by the entry's title opens every day, then folds them all again.
   await dock.getByRole("button", { name: "Open every day" }).click()
   await expect(dock.getByText("Lay the boards")).toBeVisible()
-  await expect(dock.getByText("Tie the rope")).toBeVisible()
-  await dock.getByRole("button", { name: "Fold every day" }).click()
-  await expect(dock.getByText("Lay the boards")).toHaveCount(0)
-  // A day opened by hand counts: with every day open, the button folds.
-  await now.getByRole("button", { name: "Fold every day" }).click()
-  await expect(now.getByText("Trim the wick")).toHaveCount(0)
 })
 
 test("the sidebar is as wide as you drag it, and keeps that width", async ({ page }) => {
