@@ -122,6 +122,19 @@ next: Use it for a week
     const entries = buildEntries({ work, todos: [], files: { plan, evidence: [{ name: "phase-2", day: "2026-11-05" }] } })
     expect(entries[1]!.lines.find((l) => l.kind === "evidence")).toEqual({ day: "2026-11-05", text: "Evidence: phase-2", source: "doc", ref: "evidence/phase-2/", kind: "evidence" })
   })
+
+  test("a note on an investigation joins its entry instead of making a second one with the same id", () => {
+    const evidence = [{ name: "audit", day: "2027-06-01" }]
+    for (const timelineMd of ["## investigation-audit\nnote: draft\n", "## investigation-audit\nnote: The tab was slow.\n"]) {
+      const entries = buildEntries({ work, todos: [], files: { plan, evidence, timelineMd } })
+      const found = entries.filter((e) => e.entry === "investigation-audit")
+      expect(found).toHaveLength(1)
+      expect(found[0]).toMatchObject({ state: "done", title: "Investigation: audit" })
+      expect(found[0]!.lines.map((l) => l.kind)).toEqual(["investigation"])
+    }
+    const titled = buildEntries({ work, todos: [], files: { plan, evidence, timelineMd: "## investigation-audit\ntitle: Why the tab lagged\n" } })
+    expect(titled.find((e) => e.entry === "investigation-audit")!.title).toBe("Why the tab lagged")
+  })
 })
 
 test("a second branch for the same phase joins that phase's entry", () => {

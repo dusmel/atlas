@@ -284,7 +284,19 @@ export function addEvidence(entries: Entry[], evidence: { name: string; day: str
       const ds = e.lines.filter((l) => l.source === "git" && (!l.kind || l.kind === "unpushed")).map((l) => l.day!).sort()
       return !!ds[0] && ds[0] <= ev.day && ev.day <= ds.at(-1)!
     })
-    if (inside) inside.lines.push({ ...line, kind: "investigation" })
-    else entries.push({ entry: `investigation-${ev.name}`, state: "done", title: `Investigation: ${humanize(ev.name).toLowerCase()}`, merged: false, lines: [{ ...line, kind: "investigation" }], started_at: null, ended_at: null })
+    if (inside) {
+      inside.lines.push({ ...line, kind: "investigation" })
+      continue
+    }
+    const id = `investigation-${ev.name}`
+    const title = `Investigation: ${humanize(ev.name).toLowerCase()}`
+    // A timeline.md section for it, such as its note, already made the entry with stand-in defaults.
+    const made = entries.find((e) => e.entry === id)
+    if (!made) entries.push({ entry: id, state: "done", title, merged: false, lines: [{ ...line, kind: "investigation" }], started_at: null, ended_at: null })
+    else {
+      if (made.title === humanize(id)) made.title = title
+      if (made.state === "todo" && !made.lines.some((l) => l.source !== "note")) made.state = "done"
+      made.lines.push({ ...line, kind: "investigation" })
+    }
   }
 }
